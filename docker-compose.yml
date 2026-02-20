@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mantis
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  migrate:
+    build: .
+    entrypoint: ["/goose", "-dir", "/migrations", "postgres", "postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable
+      PORT: "8080"
+      ASR_API_URL: "${ASR_API_URL:-}"
+      OCR_API_URL: "${OCR_API_URL:-}"
+      TTS_API_URL: "${TTS_API_URL:-}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: frontend
+    ports:
+      - "5173:5173"
+    environment:
+      API_URL: http://app:8080
+    depends_on:
+      - app
+
+  sandbox:
+    build: sandboxes/base
+    environment:
+      PUID: 1000
+      PGID: 1000
+      USER_NAME: mantis
+      USER_PASSWORD: mantis
+      PASSWORD_ACCESS: "true"
+    ports:
+      - "2222:2222"
+
+  browser-sandbox:
+    build: sandboxes/browser
+    environment:
+      ASR_API_URL: "${ASR_API_URL:-}"
+      OCR_API_URL: "${OCR_API_URL:-}"
+    ports:
+      - "2223:22"
+
+  ffmpeg-sandbox:
+    build: sandboxes/ffmpeg
+    ports:
+      - "2224:22"
+
+  python-sandbox:
+    build: sandboxes/python
+    ports:
+      - "2225:22"
+
+  db-sandbox:
+    build: sandboxes/db
+    ports:
+      - "2226:22"
+
+volumes:
+  pgdata:

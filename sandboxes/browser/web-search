@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
+
+const query = process.argv.slice(2).join(' ').trim();
+if (!query) {
+  console.error('Usage: web-search <query>');
+  console.error('Search the web via DuckDuckGo (free, no API key).');
+  console.error('');
+  console.error('Examples:');
+  console.error("  web-search 'best linux distro 2025'");
+  console.error("  web-search 'масляные краски для начинающих'");
+  process.exit(1);
+}
+
+const postData = `q=${encodeURIComponent(query)}`;
+
+const req = https.request({
+  hostname: 'html.duckduckgo.com',
+  path: '/html/',
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'User-Agent': 'Mozilla/5.0 (compatible; Mantis/1.0)',
+    'Content-Length': Buffer.byteLength(postData),
+  },
+}, (res) => {
+  let body = '';
+  res.on('data', (chunk) => body += chunk);
+  res.on('end', () => {
+    const results = [];
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      const url = decodeURIComponent(
+        (m[1].match(/uddg=([^&]*)/) || [])[1] || m[1]
+      );
+      const title = m[2].replace(/<[^>]*>/g, '').trim();
+      const snippet = m[3].replace(/<[^>]*>/g, '').trim();
+      if (title && url) results.push({ title, url, snippet });
+    }
+
+    if (results.length === 0) {
+      console.log('No results found.');
+      process.exit(0);
+    }
+
+    results.forEach((r, i) => {
+      console.log(`${i + 1}. **${r.title}**`);
+      console.log(`   ${r.url}`);
+      if (r.snippet) console.log(`   ${r.snippet}`);
+      console.log('');
+    });
+  });
+});
+
+req.on('error', (e) => {
+  console.error('Error:', e.message);
+  process.exit(1);
+});
+
+req.write(postData);
+req.end();

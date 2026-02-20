@@ -1,0 +1,17 @@
+tmp/
+.env
+.env.*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+__debug_bin*
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+node_modules/
+frontend/dist/

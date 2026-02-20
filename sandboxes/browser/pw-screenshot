@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+const { execSync } = require('child_process');
+process.env.NODE_PATH = execSync('npm root -g', { encoding: 'utf8' }).trim();
+require('module')._initPaths();
+
+const { chromium } = require('playwright');
+
+const args = process.argv.slice(2);
+const flags = [];
+let url, output;
+
+for (const arg of args) {
+  if (arg.startsWith('--')) {
+    flags.push(arg);
+  } else if (!url) {
+    url = arg;
+  } else {
+    output = arg;
+  }
+}
+
+if (!url || !output) {
+  console.error('Usage: pw-screenshot [options] <url> <output.png>');
+  console.error('Options:');
+  console.error('  --full-page          capture full scrollable area');
+  console.error('  --viewport=WxH       set viewport size (e.g. --viewport=1920x1080)');
+  process.exit(1);
+}
+
+const fullPage = flags.includes('--full-page');
+const viewportFlag = flags.find(f => f.startsWith('--viewport='));
+let viewport = { width: 1280, height: 720 };
+if (viewportFlag) {
+  const [w, h] = viewportFlag.split('=')[1].split('x').map(Number);
+  viewport = { width: w, height: h };
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport });
+  await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: output, fullPage });
+  console.log(`Screenshot saved to ${output}`);
+  await browser.close();
+})().catch(err => {
+  console.error(err.message);
+  process.exit(1);
+});

@@ -1,0 +1,13 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/mantis ./cmd"
+bin = "./tmp/mantis"
+delay = 1000
+exclude_dir = ["tmp", "frontend", "node_modules", "migrations"]
+exclude_regex = ["_test\\.go$"]
+include_ext = ["go"]
+
+[misc]
+clean_on_exit = true

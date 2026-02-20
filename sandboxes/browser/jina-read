@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+  echo "Usage: jina-read <url>"
+  echo "Fetch a web page as clean Markdown via Jina Reader (free, no API key)."
+  echo ""
+  echo "Examples:"
+  echo "  jina-read https://example.com"
+  echo "  jina-read https://en.wikipedia.org/wiki/Linux"
+  exit 1
+fi
+
+URL="$1"
+exec curl -sS "https://r.jina.ai/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/markdown" \
+  -d "{\"url\": \"${URL}\"}"
