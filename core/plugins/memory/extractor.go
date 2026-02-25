@@ -22,7 +22,13 @@ SAVE:
 - Preferences: tools, formats, styles, workflows
 - Projects and goals the user is working on
 - Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.) — save the ACTUAL content, not a description of the request
-- Specific knowledge the user shares: warnings, conclusions, decisions
+- Specific knowledge the user shares in their OWN words: warnings, conclusions, decisions
+
+DO NOT SAVE:
+- Anything inside <file_content>...</file_content> tags — these are tool-extracted data (OCR, image descriptions, file previews, transcriptions), NOT user knowledge
+- Product specs, labels, or metadata extracted from images — the user just shared a file, they didn't state these as personal facts
+- Server/infrastructure details (that goes to server memory)
+- Anything the assistant said that the user did not explicitly confirm or state themselves
 
 CRITICAL: save the actual information, not meta-descriptions.
 BAD: "likes to track prices of things" — this is a meta-description of behavior.
@@ -31,8 +37,6 @@ GOOD: "item X costs $50, item Y is unreliable" — this is the actual fact.
 Time-sensitive facts (prices, rates, versions, stats) MUST include the date. If the date is unknown, do not save them.
 BAD: "item X costs $50"
 GOOD: "item X costs $50 (as of 2025-02-15)"
-
-Do NOT save server/infrastructure details (that goes to server memory).
 
 - REMOVE only facts the conversation explicitly contradicts or the user asks to forget.
 - Do NOT remove facts just because they aren't mentioned.

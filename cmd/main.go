@@ -126,7 +126,8 @@ func main() {
 		ttsAdapter = tts.NewCosyVoice(u, 5*time.Minute)
 	}
 
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, llmConnStore, connectionStore, cronJobStore, configStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter)
+	visionAdapter := llm.NewVision()
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, llmConnStore, connectionStore, cronJobStore, configStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())

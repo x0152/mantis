@@ -68,7 +68,7 @@ artifact_send_to_chat — queue an artifact for delivery to the user.
 artifact_transcribe — speech-to-text on an audio artifact.
   Parameter artifactId.
 
-artifact_ocr — OCR on an image artifact.
+artifact_read_image — Read an image: extract text (OCR) and describe content (Vision LLM).
   Parameter artifactId.
 
 cron_create — create a scheduled job (cron expression + prompt).
@@ -124,6 +124,7 @@ type MantisAgent struct {
 	sshAgent        *SSHAgent
 	asr             protocols.ASR
 	ocr             protocols.OCR
+	vision          protocols.VisionLLM
 }
 
 func NewMantisAgent(
@@ -138,6 +139,7 @@ func NewMantisAgent(
 	sessionLogger *shared.SessionLogger,
 	asr protocols.ASR,
 	ocr protocols.OCR,
+	vision protocols.VisionLLM,
 ) *MantisAgent {
 	return &MantisAgent{
 		messageStore:    messageStore,
@@ -150,6 +152,7 @@ func NewMantisAgent(
 		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger),
 		asr:             asr,
 		ocr:             ocr,
+		vision:          vision,
 	}
 }
 
@@ -332,7 +335,7 @@ func (a *MantisAgent) buildTools(connections []types.Connection, artifacts *shar
 		artifactReadTextTool(artifacts),
 		artifactSendToChatTool(artifacts, requestID),
 		artifactTranscribeTool(artifacts, a.asr),
-		artifactOCRTool(artifacts, a.ocr),
+		a.artifactReadImageTool(artifacts),
 		a.cronCreateTool(),
 		a.cronListTool(),
 		a.cronDeleteTool(),
@@ -790,9 +793,9 @@ func artifactReadTextTool(artifacts *shared.ArtifactStore) types.Tool {
 			}
 			header := fmt.Sprintf("File: %s (format=%s, mime=%s, %d bytes, sha256=%s)", a.Name, format, mime, a.SizeBytes, a.SHA256)
 			if preview == "" {
-				return header, nil
+				return "<file_content>\n" + header + "\n</file_content>", nil
 			}
-			return header + "\n\n" + preview, nil
+			return "<file_content>\n" + header + "\n\n" + preview + "\n</file_content>", nil
 		},
 	}
 }
@@ -907,23 +910,40 @@ func artifactTranscribeTool(artifacts *shared.ArtifactStore, asr protocols.ASR) 
 			if err != nil {
 				return "", err
 			}
-			return strings.TrimSpace(text), nil
+			return "<file_content>\n" + strings.TrimSpace(text) + "\n</file_content>", nil
 		},
 	}
 }
 
-func artifactOCRTool(artifacts *shared.ArtifactStore, ocr protocols.OCR) types.Tool {
+func (a *MantisAgent) loadVisionModelID() string {
+	cfgs, err := a.configStore.Get(context.Background(), []string{"default"})
+	if err != nil {
+		return ""
+	}
+	cfg, ok := cfgs["default"]
+	if !ok {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(cfg.Data, &data); err != nil {
+		return ""
+	}
+	id, _ := data["visionModelId"].(string)
+	return id
+}
+
+func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) types.Tool {
 	return types.Tool{
-		Name:        "artifact_ocr",
-		Description: "Extract text from an image artifact (OCR).",
+		Name:        "artifact_read_image",
+		Description: "Read an image artifact: extract text (OCR) and describe content (Vision LLM).",
 		Icon:        "eye",
 		Label: func(args string) string {
 			var input struct{ ArtifactID string `json:"artifactId"` }
 			json.Unmarshal([]byte(args), &input)
 			if input.ArtifactID != "" {
-				return "OCR: " + input.ArtifactID[:8]
+				return "Read image: " + input.ArtifactID[:8]
 			}
-			return "OCR image"
+			return "Read image"
 		},
 		Parameters: map[string]any{
 			"type": "object",
@@ -936,31 +956,75 @@ func artifactOCRTool(artifacts *shared.ArtifactStore, ocr protocols.OCR) types.T
 			"required": []string{"artifactId"},
 		},
 		Execute: func(ctx context.Context, args string) (string, error) {
-			if ocr == nil {
-				return "", fmt.Errorf("OCR is not configured")
-			}
 			var input struct {
 				ArtifactID string `json:"artifactId"`
 			}
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
 				return "", err
 			}
-			a, ok := artifacts.Get(input.ArtifactID)
+			art, ok := artifacts.Get(input.ArtifactID)
 			if !ok {
 				return "", fmt.Errorf("unknown artifact_id: %s", input.ArtifactID)
 			}
-			format := a.Format
+			format := art.Format
 			if format == "" {
-				format = strings.TrimPrefix(a.MIME, "image/")
+				format = strings.TrimPrefix(art.MIME, "image/")
 			}
 			if format == "" {
 				format = "png"
 			}
-			text, err := ocr.ExtractText(ctx, bytes.NewReader(a.Bytes), format)
-			if err != nil {
-				return "", err
+
+			visionModelID := a.loadVisionModelID()
+			if a.ocr == nil && (visionModelID == "" || a.vision == nil) {
+				return "", fmt.Errorf("neither OCR nor Vision LLM is configured")
 			}
-			return strings.TrimSpace(text), nil
+
+			var ocrText, visionText string
+			var ocrErr, visionErr error
+
+			if a.ocr != nil {
+				ocrText, ocrErr = a.ocr.ExtractText(ctx, bytes.NewReader(art.Bytes), format)
+				ocrText = strings.TrimSpace(ocrText)
+			}
+
+			if visionModelID != "" && a.vision != nil {
+				model, err := shared.ResolveModel(ctx, a.modelStore, visionModelID)
+				if err == nil {
+					conn, err := shared.ResolveConnection(ctx, a.llmConnStore, model.ConnectionID)
+					if err == nil {
+					prompt := "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler."
+					if ocrText != "" {
+						prompt = "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler. OCR extracted the following text from the image:\n" + ocrText
+					}
+						visionText, visionErr = a.vision.Describe(ctx, conn.BaseURL, conn.APIKey, model.Name, art.Bytes, format, prompt)
+						visionText = strings.TrimSpace(visionText)
+					} else {
+						visionErr = err
+					}
+				} else {
+					visionErr = err
+				}
+			}
+
+			var parts []string
+
+			if ocrText != "" {
+				parts = append(parts, "--- OCR Text ---\n"+ocrText)
+			} else if a.ocr != nil && ocrErr != nil {
+				parts = append(parts, "--- OCR ---\nError: "+ocrErr.Error())
+			} else if a.ocr == nil {
+				parts = append(parts, "Note: OCR is not configured")
+			}
+
+			if visionText != "" {
+				parts = append(parts, "--- Image Description ---\n"+visionText)
+			} else if visionModelID != "" && a.vision != nil && visionErr != nil {
+				parts = append(parts, "--- Vision ---\nError: "+visionErr.Error())
+			} else if visionModelID == "" || a.vision == nil {
+				parts = append(parts, "Note: Vision LLM is not configured (set visionModelId in settings)")
+			}
+
+			return "<file_content>\n" + strings.Join(parts, "\n\n") + "\n</file_content>", nil
 		},
 	}
 }

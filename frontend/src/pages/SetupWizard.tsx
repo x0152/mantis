@@ -69,6 +69,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
         chat: { model_id: model.id },
         memoryEnabled: true,
         summaryModelId: summaryModel.id,
+        visionModelId: null,
         userMemories: [],
       })
 
