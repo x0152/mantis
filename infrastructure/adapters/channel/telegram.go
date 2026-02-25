@@ -264,10 +264,10 @@ func (t *Telegram) handle(ctx context.Context, msg *tgMessage) {
 		}
 	}
 
-	// photo sizes are sorted by size; choose the largest (last).
 	if len(msg.Photo) > 0 {
 		best := msg.Photo[len(msg.Photo)-1]
-		if err := appendFile(best.FileID, best.FileSize, "", "image/jpeg"); err != nil {
+		photoName := fmt.Sprintf("photo_%s.jpg", time.Now().UTC().Format("20060102_150405"))
+		if err := appendFile(best.FileID, best.FileSize, photoName, "image/jpeg"); err != nil {
 			_ = t.sendMessage(ctx, msg.Chat.ID, "Error: "+err.Error())
 			return
 		}

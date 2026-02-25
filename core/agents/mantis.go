@@ -293,8 +293,9 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 				if format == "" {
 					format = "unknown"
 				}
-				sb.WriteString(fmt.Sprintf("\n- %s (artifact_id=%s, format=%s, mime=%s, size=%d bytes, sha256=%s)",
-					a.Name, a.ID, format, mime, a.SizeBytes, a.SHA256,
+				uploaded := a.CreatedAt.Format("2006-01-02 15:04:05 UTC")
+				sb.WriteString(fmt.Sprintf("\n- %s (artifact_id=%s, format=%s, mime=%s, size=%d bytes, uploaded=%s)",
+					a.Name, a.ID, format, mime, a.SizeBytes, uploaded,
 				))
 			}
 			if len(attached) > maxShow {

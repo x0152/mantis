@@ -42,12 +42,13 @@ type Artifact struct {
 }
 
 type ArtifactMeta struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Format    string `json:"format,omitempty"`
-	MIME      string `json:"mime,omitempty"`
-	SizeBytes int64  `json:"size_bytes"`
-	SHA256    string `json:"sha256"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Format    string    `json:"format,omitempty"`
+	MIME      string    `json:"mime,omitempty"`
+	SizeBytes int64     `json:"size_bytes"`
+	SHA256    string    `json:"sha256"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type OutgoingArtifact struct {
@@ -312,6 +313,7 @@ func metaToPublic(a Artifact) ArtifactMeta {
 		MIME:      a.MIME,
 		SizeBytes: a.SizeBytes,
 		SHA256:    a.SHA256,
+		CreatedAt: a.CreatedAt,
 	}
 }
 

@@ -67,6 +67,7 @@ func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 	}
 
 	artifacts := w.artifactMgr.ForSession(sessionID)
+	var uploaded []shared.ArtifactMeta
 	for _, f := range in.Incoming {
 		if len(f.Data) == 0 {
 			continue
@@ -75,13 +76,27 @@ func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 		if name == "" {
 			name = "attachment"
 		}
-		artifacts.Put(name, f.Data, f.MimeType)
+		meta, err := artifacts.Put(name, f.Data, f.MimeType)
+		if err == nil {
+			uploaded = append(uploaded, meta)
+		}
+	}
+
+	content := in.Content
+	if len(uploaded) > 0 {
+		var sb strings.Builder
+		sb.WriteString(content)
+		sb.WriteString("\n\nAttached files:")
+		for _, m := range uploaded {
+			sb.WriteString(fmt.Sprintf("\n- %s (artifact_id=%s, format=%s, %d bytes)", m.Name, m.ID, m.Format, m.SizeBytes))
+		}
+		content = sb.String()
 	}
 
 	now := time.Now()
 	userMsg := types.ChatMessage{
 		ID: uuid.New().String(), SessionID: sessionID,
-		Role: "user", Content: in.Content, Source: in.Source,
+		Role: "user", Content: content, Source: in.Source,
 		CreatedAt: now,
 	}
 	assistantMsg := types.ChatMessage{
@@ -98,7 +113,7 @@ func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 		_ = w.pipeline.Execute(context.Background(), pipeline.Input{
 			Message:        assistantMsg,
 			SessionID:      sessionID,
-			Content:        in.Content,
+			Content:        content,
 			Artifacts:      artifacts,
 			ModelConfig:    in.ModelConfig,
 			ResponseTo:     in.ResponseTo,
