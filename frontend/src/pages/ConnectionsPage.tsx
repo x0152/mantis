@@ -15,6 +15,7 @@ export default function ConnectionsPage() {
   const emptySsh = { host: '', port: '22', username: '', password: '', privateKey: '' }
   const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] as string[], memoryEnabled: true })
   const [ssh, setSsh] = useState(emptySsh)
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const [memoryInput, setMemoryInput] = useState('')
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -64,6 +65,7 @@ export default function ConnectionsPage() {
     setEditing(null)
     setForm({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [], memoryEnabled: true })
     setSsh(emptySsh)
+    setProfileDropdownOpen(false)
     setModalOpen(true)
   }
 
@@ -71,6 +73,7 @@ export default function ConnectionsPage() {
     setEditing(c)
     setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId, profileIds: c.profileIds || [], memoryEnabled: c.memoryEnabled })
     setSsh(parseSshConfig(c.config))
+    setProfileDropdownOpen(false)
     setModalOpen(true)
   }
 
@@ -127,15 +130,6 @@ export default function ConnectionsPage() {
   }
 
   const profileName = (id: string) => profiles.find(p => p.id === id)?.name ?? id.slice(0, 8)
-
-  const toggleProfile = (profileId: string) => {
-    setForm(f => ({
-      ...f,
-      profileIds: f.profileIds.includes(profileId)
-        ? f.profileIds.filter(id => id !== profileId)
-        : [...f.profileIds, profileId],
-    }))
-  }
 
   const modelName = (id: string) => {
     const model = models.find(m => m.id === id)
@@ -363,24 +357,41 @@ export default function ConnectionsPage() {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-2">Security Profiles</label>
-            <p className="text-[11px] text-zinc-600 mb-2">Select profiles to restrict which commands this server allows. No profiles = unrestricted.</p>
-            <div className="space-y-1.5">
-              {profiles.map(p => (
-                <label key={p.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
-                  form.profileIds.includes(p.id) ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800/50'
-                }`}>
-                  <input type="checkbox" checked={form.profileIds.includes(p.id)} onChange={() => toggleProfile(p.id)}
-                    className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium text-zinc-200">{p.name}</span>
-                      {p.builtin && <span className="px-1 py-0.5 text-[10px] font-medium rounded bg-violet-500/15 text-violet-400">built-in</span>}
-                    </div>
-                    {p.description && <p className="text-[11px] text-zinc-500 mt-0.5">{p.description}</p>}
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Security Profiles</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileDropdownOpen(o => !o)}
+                className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50 text-left flex items-center justify-between"
+              >
+                <span className={form.profileIds.length === 0 ? 'text-zinc-600' : ''}>
+                  {form.profileIds.length === 0 ? 'No profiles (unrestricted)' : form.profileIds.map(id => profileName(id)).join(', ')}
+                </span>
+                <ChevronDown size={14} className={`text-zinc-600 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {profileDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setProfileDropdownOpen(false)} />
+                  <div className="absolute z-20 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
+                    {profiles.map(p => (
+                      <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700/50 cursor-pointer text-sm text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={form.profileIds.includes(p.id)}
+                          onChange={() => setForm(f => ({
+                            ...f,
+                            profileIds: f.profileIds.includes(p.id)
+                              ? f.profileIds.filter(x => x !== p.id)
+                              : [...f.profileIds, p.id]
+                          }))}
+                          className="rounded border-zinc-600 bg-zinc-900 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0"
+                        />
+                        {p.name}{p.builtin ? ' (built-in)' : ''}
+                      </label>
+                    ))}
                   </div>
-                </label>
-              ))}
+                </>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

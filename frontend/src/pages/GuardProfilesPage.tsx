@@ -103,11 +103,33 @@ export default function GuardProfilesPage() {
     }
   }
 
+  const parseCommandRule = (input: string): CommandRule | null => {
+    const s = input.trim()
+    if (!s) return null
+    const bracketMatch = s.match(/^([^\[(\s]+)\[([^\]]*)\]$/)
+    if (bracketMatch) {
+      const args = bracketMatch[2].split(',').map(a => a.trim()).filter(Boolean)
+      return { command: bracketMatch[1], allowedArgs: args.length ? args : undefined }
+    }
+    const parenMatch = s.match(/^([^\[(\s]+)\(([^)]*)\)$/)
+    if (parenMatch) {
+      const sql = parenMatch[2].split(',').map(a => a.trim()).filter(Boolean)
+      return { command: parenMatch[1], allowedSql: sql.length ? sql : undefined }
+    }
+    return { command: s }
+  }
+
+  const formatCommandRule = (c: CommandRule): string => {
+    if (c.allowedArgs?.length) return `${c.command}[${c.allowedArgs.join(',')}]`
+    if (c.allowedSql?.length) return `${c.command}(${c.allowedSql.join(',')})`
+    return c.command
+  }
+
   const addCommand = () => {
-    const cmd = newCmd.trim()
-    if (!cmd) return
-    if (form.commands.some(c => c.command === cmd)) return
-    setForm(f => ({ ...f, commands: [...f.commands, { command: cmd }] }))
+    const rule = parseCommandRule(newCmd)
+    if (!rule) return
+    if (form.commands.some(c => c.command === rule.command)) return
+    setForm(f => ({ ...f, commands: [...f.commands, rule] }))
     setNewCmd('')
   }
 
@@ -229,16 +251,30 @@ export default function GuardProfilesPage() {
               placeholder="Read-only monitoring for production" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-2">Capabilities</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(capLabels) as (keyof GuardCapabilities)[]).map(key => (
-                <label key={key} className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
-                  <input type="checkbox" checked={form.capabilities[key]} onChange={e => setCap(key, e.target.checked)}
-                    className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
-                  {capLabels[key]}
-                </label>
-              ))}
-            </div>
+            <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer mb-3 ${
+              form.capabilities.unrestricted ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-950'
+            }`}>
+              <input type="checkbox" checked={form.capabilities.unrestricted} onChange={e => setCap('unrestricted', e.target.checked)}
+                className="rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-0" />
+              <div>
+                <span className="text-sm font-medium text-zinc-200">Unrestricted</span>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Allow all commands and capabilities</p>
+              </div>
+            </label>
+            {!form.capabilities.unrestricted && (
+              <>
+                <label className="block text-xs font-medium text-zinc-400 mb-2">Capabilities</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(Object.keys(capLabels) as (keyof GuardCapabilities)[]).filter(k => k !== 'unrestricted').map(key => (
+                    <label key={key} className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                      <input type="checkbox" checked={form.capabilities[key]} onChange={e => setCap(key, e.target.checked)}
+                        className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
+                      {capLabels[key]}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           {!form.capabilities.unrestricted && (
             <div>
@@ -247,7 +283,7 @@ export default function GuardProfilesPage() {
                 <input value={newCmd} onChange={e => setNewCmd(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCommand())}
                   className="flex-1 px-3 py-1.5 border border-zinc-700 rounded-lg text-sm font-mono bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-                  placeholder="e.g. ls, grep, systemctl" />
+                  placeholder="ls, redis-cli[GET,KEYS], psql(SELECT,SHOW)" />
                 <button onClick={addCommand} className="px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
                   Add
                 </button>
@@ -256,7 +292,7 @@ export default function GuardProfilesPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {form.commands.map((c, i) => (
                     <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
-                      {c.command}
+                      {formatCommandRule(c)}
                       <button onClick={() => removeCommand(i)} className="text-zinc-600 hover:text-red-400"><X size={12} /></button>
                     </span>
                   ))}

@@ -40,7 +40,9 @@ Execution:
 - When calling ssh_* tools, describe the task in plain language (goal + expected result). The SSH agent picks the commands. You are the manager, not the executor.
 - Before a tool call, give a one-line heads-up (what and why). After, report the outcome in 1-3 sentences.
 - If the task needs multiple steps, chain them without asking for permission at each step. Report the full result at the end.
-- If the user's request can be answered from your own knowledge (no server action needed), just answer directly.
+- NEVER make up factual data (prices, stats, versions, dates, IPs, etc.). If you are not 100% certain, use a tool to check. When the user asks for real-time or factual information, ALWAYS verify via a tool call — even if you just answered a similar question. Your training data is outdated; the only reliable source is a live check.
+- If the user's request can be answered purely from general knowledge (concepts, explanations, how-tos) without factual lookups, answer directly.
+- You have long-term memory about the user and their servers. Use this knowledge naturally — as if you simply remember it. Never say "according to my notes", "from your profile", "based on stored data", or anything that reveals the memory mechanism.
 
 Tools:
 
@@ -250,7 +252,7 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 	sb.WriteString(mantisBasePrompt)
 
 	if userMem := a.loadUserMemories(); len(userMem) > 0 {
-		sb.WriteString("\n\nAbout the user:")
+		sb.WriteString("\n\nYou know the following about the user (use naturally, never mention where this knowledge comes from):")
 		for _, f := range userMem {
 			sb.WriteString("\n- " + f)
 		}

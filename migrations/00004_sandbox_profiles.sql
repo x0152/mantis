@@ -1,15 +1,6 @@
 -- +goose Up
 
-CREATE TABLE guard_profiles (
-    id           TEXT PRIMARY KEY,
-    name         TEXT NOT NULL,
-    description  TEXT NOT NULL DEFAULT '',
-    builtin      BOOLEAN NOT NULL DEFAULT false,
-    capabilities JSONB NOT NULL DEFAULT '{}',
-    commands     JSONB NOT NULL DEFAULT '[]'
-);
-
-ALTER TABLE connections ADD COLUMN profile_ids JSONB NOT NULL DEFAULT '[]';
+DELETE FROM guard_profiles WHERE builtin = true;
 
 INSERT INTO guard_profiles (id, name, description, builtin, capabilities, commands) VALUES
 ('base', 'Base Sandbox', 'Alpine Linux — shell, files, networking, text processing', true,
@@ -35,20 +26,36 @@ INSERT INTO guard_profiles (id, name, description, builtin, capabilities, comman
 ('unrestricted', 'Unrestricted', 'No restrictions — all commands and capabilities', true,
  '{"pipes":true,"redirects":true,"cmdSubst":true,"background":true,"sudo":true,"codeExec":true,"download":true,"install":true,"writeFs":true,"networkOut":true,"cron":true,"unrestricted":true}',
  '[]'
-);
-
-DROP TABLE guard_rules;
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  capabilities = EXCLUDED.capabilities,
+  commands = EXCLUDED.commands;
 
 -- +goose Down
 
-ALTER TABLE connections DROP COLUMN profile_ids;
-DROP TABLE guard_profiles;
+DELETE FROM guard_profiles WHERE id IN ('base', 'browser', 'media', 'python', 'database');
 
-CREATE TABLE guard_rules (
-    id            TEXT PRIMARY KEY,
-    name          TEXT NOT NULL,
-    description   TEXT NOT NULL DEFAULT '',
-    pattern       TEXT NOT NULL,
-    connection_id TEXT NOT NULL DEFAULT '',
-    enabled       BOOLEAN NOT NULL DEFAULT true
-);
+INSERT INTO guard_profiles (id, name, description, builtin, capabilities, commands) VALUES
+('monitoring', 'Monitoring', 'Read-only monitoring.', true,
+ '{"pipes":true,"redirects":false,"cmdSubst":false,"background":false,"sudo":false,"codeExec":false,"download":false,"install":false,"writeFs":false,"networkOut":false,"cron":false,"unrestricted":false}',
+ '[{"command":"ls"},{"command":"cat"},{"command":"ps"},{"command":"top"},{"command":"df"},{"command":"free"}]'
+),
+('operator', 'Operator', 'Service management.', true,
+ '{"pipes":true,"redirects":true,"cmdSubst":false,"background":false,"sudo":true,"codeExec":false,"download":false,"install":false,"writeFs":false,"networkOut":true,"cron":false,"unrestricted":false}',
+ '[{"command":"ls"},{"command":"cat"},{"command":"systemctl"},{"command":"docker"},{"command":"curl"}]'
+),
+('database-readonly', 'Database Read-Only', 'Read-only database access.', true,
+ '{"pipes":true,"redirects":false,"cmdSubst":false,"background":false,"sudo":false,"codeExec":false,"download":false,"install":false,"writeFs":false,"networkOut":false,"cron":false,"unrestricted":false}',
+ '[{"command":"psql","allowedSql":["SELECT","SHOW"]},{"command":"ls"},{"command":"cat"}]'
+),
+('devops', 'DevOps', 'Full server administration.', true,
+ '{"pipes":true,"redirects":true,"cmdSubst":true,"background":true,"sudo":true,"codeExec":true,"download":true,"install":true,"writeFs":true,"networkOut":true,"cron":true,"unrestricted":false}',
+ '[{"command":"ls"},{"command":"cat"},{"command":"bash"},{"command":"python3"},{"command":"docker"},{"command":"systemctl"}]'
+)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  capabilities = EXCLUDED.capabilities,
+  commands = EXCLUDED.commands;

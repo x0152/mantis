@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Terminal, Calculator, Download, Mic, Eye, Wrench, X, CheckCircle2, AlertCircle, Loader2, ScrollText } from 'lucide-react'
 import { Markdown } from './Markdown'
 import { EntryLine, PromptBanner } from './LogEntries'
@@ -177,22 +177,64 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
   const [log, setLog] = useState<SessionLog | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const [showLog, setShowLog] = useState(false)
+  const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const logScrollRef = useRef<HTMLDivElement>(null)
+  const prevLogId = useRef(step.logId)
 
   const isRunning = step.status === 'running'
   const isError = step.status === 'error'
   const prompt = extractStepPrompt(step)
   const entries = stepToEntries(step)
 
-  async function openLog() {
+  const fetchLog = useCallback(async () => {
     if (!step.logId) return
-    if (log) { setShowLog(true); return }
-    setLogLoading(true)
     try {
       const data = await api.sessionLogs.get(step.logId)
       setLog(data)
-      setShowLog(true)
     } catch { /* noop */ }
-    finally { setLogLoading(false) }
+  }, [step.logId])
+
+  useEffect(() => {
+    if (step.logId !== prevLogId.current) {
+      prevLogId.current = step.logId
+      setLog(null)
+      setShowLog(false)
+    }
+  }, [step.logId])
+
+  useEffect(() => {
+    if (!showLog) return
+    fetchLog()
+    if (isRunning || log?.status === 'running') {
+      logPollRef.current = setInterval(fetchLog, 500)
+    }
+    return () => { if (logPollRef.current) { clearInterval(logPollRef.current); logPollRef.current = null } }
+  }, [showLog, isRunning, fetchLog])
+
+  useEffect(() => {
+    if (!isRunning && log?.status !== 'running' && logPollRef.current) {
+      clearInterval(logPollRef.current)
+      logPollRef.current = null
+      fetchLog()
+    }
+  }, [isRunning, log?.status, fetchLog])
+
+  useEffect(() => {
+    if (showLog && logScrollRef.current) {
+      const el = logScrollRef.current
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+      if (atBottom) el.scrollTop = el.scrollHeight
+    }
+  }, [log?.entries.length, showLog])
+
+  async function openLog() {
+    if (!step.logId) return
+    setShowLog(true)
+    if (!log) {
+      setLogLoading(true)
+      await fetchLog()
+      setLogLoading(false)
+    }
   }
 
   return (
@@ -231,7 +273,7 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded-lg hover:bg-teal-500/20 disabled:opacity-50"
             >
               {logLoading ? <Loader2 size={12} className="animate-spin" /> : <ScrollText size={12} />}
-              View Agent Log
+              {isRunning ? 'View Live Log' : 'View Agent Log'}
             </button>
           )}
         </div>
@@ -250,7 +292,7 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
         </div>
       </div>
 
-      {showLog && log && (
+      {showLog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowLog(false)}>
           <div
             className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[85vh]"
@@ -259,22 +301,43 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <ScrollText size={14} className="text-teal-400" />
-                <span className="font-medium text-sm text-zinc-100">{log.agentName}</span>
-                <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-                  log.status === 'running' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
-                }`}>{log.status}</span>
+                <span className="font-medium text-sm text-zinc-100">{log?.agentName ?? 'Agent'}</span>
+                {log && (
+                  <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
+                    log.status === 'running' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+                  }`}>{log.status}</span>
+                )}
+                {!log && <Loader2 size={12} className="text-zinc-600 animate-spin" />}
               </div>
               <button onClick={() => setShowLog(false)} className="p-1 rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800">
                 <X size={16} />
               </button>
             </div>
-            <div className="flex-1 overflow-auto min-h-0">
+            <div ref={logScrollRef} className="flex-1 overflow-auto min-h-0">
               <div className="bg-zinc-950 px-4 py-3.5 space-y-1 min-h-[120px]">
-                {log.prompt && <PromptBanner prompt={log.prompt} />}
-                {log.entries.length === 0 ? (
-                  <p className="text-zinc-600 text-xs font-mono">No entries yet</p>
+                {log?.prompt && <PromptBanner prompt={log.prompt} />}
+                {log && log.entries.length === 0 && log.status === 'running' ? (
+                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                    <Loader2 size={11} className="animate-spin" />
+                    <span>Waiting for output...</span>
+                  </div>
+                ) : log && log.entries.length === 0 ? (
+                  <p className="text-zinc-600 text-xs font-mono">No entries</p>
+                ) : log ? (
+                  <>
+                    {log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
+                    {log.status === 'running' && (
+                      <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>Running...</span>
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)
+                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                    <Loader2 size={11} className="animate-spin" />
+                    <span>Loading...</span>
+                  </div>
                 )}
               </div>
             </div>

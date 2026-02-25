@@ -169,6 +169,14 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 			if p.buffer != nil {
 				p.buffer.SetStep(requestID, step)
 			}
+		case "tool_meta":
+			if idx, ok := stepIdx[event.ToolID]; ok {
+				steps[idx].LogID = event.LogID
+				steps[idx].ModelName = event.ModelName
+				if p.buffer != nil {
+					p.buffer.SetStep(requestID, steps[idx])
+				}
+			}
 		case "tool_end":
 			if idx, ok := stepIdx[event.ToolID]; ok {
 				steps[idx].Status = "completed"

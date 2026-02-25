@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { api } from '../api'
 
 const SANDBOXES = [
-  { name: 'base', host: 'sandbox', port: 2222, description: 'General-purpose Linux sandbox — shell, files, networking utilities' },
-  { name: 'browser', host: 'browser-sandbox', port: 22, description: 'Headless Chromium + Playwright — web navigation, screenshots, PDF, parsing' },
-  { name: 'ffmpeg', host: 'ffmpeg-sandbox', port: 22, description: 'FFmpeg + MediaInfo + ImageMagick — video, audio, image processing' },
-  { name: 'python', host: 'python-sandbox', port: 22, description: 'Python 3 sandbox — scripts, data analysis, pip packages' },
-  { name: 'db', host: 'db-sandbox', port: 22, description: 'PostgreSQL client — psql, pg_dump, pg_restore' },
+  { name: 'base', host: 'sandbox', port: 2222, profileId: 'base', description: 'General-purpose Linux sandbox — shell, files, networking utilities' },
+  { name: 'browser', host: 'browser-sandbox', port: 22, profileId: 'browser', description: 'Headless Chromium + Playwright — web navigation, screenshots, PDF, parsing' },
+  { name: 'ffmpeg', host: 'ffmpeg-sandbox', port: 22, profileId: 'media', description: 'FFmpeg + MediaInfo + ImageMagick — video, audio, image processing' },
+  { name: 'python', host: 'python-sandbox', port: 22, profileId: 'python', description: 'Python 3 sandbox — scripts, data analysis, pip packages' },
+  { name: 'db', host: 'db-sandbox', port: 22, profileId: 'database', description: 'PostgreSQL client — psql, pg_dump, pg_restore' },
 ]
 
 export default function SetupWizard({ onDone }: { onDone: () => void }) {
@@ -27,8 +27,17 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
     setError('')
     try {
       await api.llmConnections.create({ id: 'default', provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
+        .catch(() => api.llmConnections.update('default', { provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }))
 
-      const model = await api.models.create('default', modelName.trim(), '')
+      const names = modelName.split(',').map((s: string) => s.trim()).filter(Boolean)
+      const existing = await api.models.list()
+      const models: { id: string }[] = []
+      for (const name of names) {
+        const found = existing.find(m => m.connectionId === 'default' && m.name === name)
+        models.push(found ?? await api.models.create('default', name, ''))
+      }
+      const model = models[0]
+      const summaryModel = models[models.length - 1]
 
       for (const sb of SANDBOXES) {
         await api.connections.create({
@@ -37,7 +46,9 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
           description: sb.description,
           modelId: model.id,
           config: { host: sb.host, port: sb.port, username: 'mantis', password: 'mantis' },
-        })
+          profileIds: [sb.profileId],
+          memoryEnabled: true,
+        }).catch(() => {})
       }
 
       await api.channels.update('chat', { name: 'Chat', token: '', modelId: model.id, allowedUserIds: [] })
@@ -46,13 +57,20 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
       const token = tgToken.trim()
       if (token) {
         const ids = tgUserIds.trim()
-          ? tgUserIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+          ? tgUserIds.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n))
           : []
         await api.channels.create({ type: 'telegram', name: 'Telegram', token, modelId: model.id, allowedUserIds: ids })
+          .catch(() => {})
         cronConfig.channel = 'telegram'
         if (ids.length) cronConfig.sender = ids[0].toString()
       }
-      await api.config.update({ cron: cronConfig })
+      await api.config.update({
+        cron: cronConfig,
+        chat: { model_id: model.id },
+        memoryEnabled: true,
+        summaryModelId: summaryModel.id,
+        userMemories: [],
+      })
 
       onDone()
     } catch (e: unknown) {
@@ -89,8 +107,8 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                 <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} className={inputCls} placeholder="sk-..." />
               </div>
               <div>
-                <label className={labelCls}>Model name</label>
-                <input value={modelName} onChange={e => setModelName(e.target.value)} className={inputCls} placeholder="gpt-4o-mini" />
+                <label className={labelCls}>Models <span className="text-zinc-600">(comma-separated, last = summary)</span></label>
+                <input value={modelName} onChange={e => setModelName(e.target.value)} className={inputCls} placeholder="gpt-4o-mini, gpt-4o" />
               </div>
             </div>
           </div>

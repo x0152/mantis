@@ -6,6 +6,7 @@ import type { ChatMessage, Step } from '../types'
 
 const PAGE_SIZE = 10
 const POLL_INTERVAL = 300
+const BG_POLL_INTERVAL = 7000
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -18,6 +19,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const bgPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prependingRef = useRef(false)
   const userScrolledUp = useRef(false)
 
@@ -36,6 +38,11 @@ export default function ChatPage() {
         next[idx] = m
         return next
       })
+      setActiveStep(prev => {
+        if (!prev || !m.steps) return prev
+        const fresh = m.steps.find(s => s.id === prev.id)
+        return fresh ?? prev
+      })
     } catch {}
   }, [sessionId])
 
@@ -48,6 +55,31 @@ export default function ChatPage() {
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [hasPending, poll])
+
+  const bgPoll = useCallback(async () => {
+    if (!sessionId || hasPending) return
+    try {
+      const latest = await api.chat.listMessages({ limit: PAGE_SIZE, offset: 0 })
+      setMessages(prev => {
+        const byId = new Map<string, ChatMessage>()
+        for (const m of prev) byId.set(m.id, m)
+        let changed = false
+        for (const m of latest) {
+          if (!byId.has(m.id)) changed = true
+          byId.set(m.id, m)
+        }
+        if (!changed && latest.length === prev.length) return prev
+        return Array.from(byId.values()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      })
+      const session = await api.chat.getSession()
+      if (session.id !== sessionId) setSessionId(session.id)
+    } catch {}
+  }, [sessionId, hasPending])
+
+  useEffect(() => {
+    bgPollRef.current = setInterval(bgPoll, BG_POLL_INTERVAL)
+    return () => { if (bgPollRef.current) clearInterval(bgPollRef.current) }
+  }, [bgPoll])
 
   useEffect(() => { load() }, [])
   useEffect(() => {

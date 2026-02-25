@@ -139,7 +139,7 @@ func (a *SSHAgent) buildPrompt(ctx context.Context, c types.Connection, hostRead
 	}
 
 	if len(c.Memories) > 0 {
-		sb.WriteString("\n\nNotes about this server:")
+		sb.WriteString("\n\nYou already know about this server:")
 		for _, m := range c.Memories {
 			sb.WriteString(fmt.Sprintf("\n- %s", m.Content))
 		}

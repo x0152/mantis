@@ -111,19 +111,48 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 				stepJSON, _ := json.Marshal(step)
 				ch <- types.StreamEvent{Type: "tool_start", Delta: string(stepJSON), ToolID: stepID, Iteration: iter}
 
-				toolCtx := shared.ContextWithStep(ctx, stepID, in.MessageID)
-				result, execErr := tool.Execute(toolCtx, tc.Arguments)
+			toolCtx := shared.ContextWithStep(ctx, stepID, in.MessageID)
 
-				if execErr != nil {
-					result = "error: " + execErr.Error()
-				}
+			type toolResult struct {
+				result string
+				err    error
+			}
+			resCh := make(chan toolResult, 1)
+			toolDone := make(chan struct{})
+			go func() {
+				r, e := tool.Execute(toolCtx, tc.Arguments)
+				close(toolDone)
+				resCh <- toolResult{r, e}
+			}()
 
-				ev := types.StreamEvent{Type: "tool_end", Delta: result, ToolID: stepID, Iteration: iter}
-				if meta := shared.ToolMetaFromContext(toolCtx); meta != nil {
-					ev.LogID = meta.LogID
-					ev.ModelName = meta.ModelName
+			go func() {
+				ticker := time.NewTicker(50 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-toolDone:
+						return
+					case <-ticker.C:
+						if meta := shared.ToolMetaFromContext(toolCtx); meta != nil && meta.LogID != "" {
+							ch <- types.StreamEvent{Type: "tool_meta", ToolID: stepID, LogID: meta.LogID, ModelName: meta.ModelName, Iteration: iter}
+							return
+						}
+					}
 				}
-				ch <- ev
+			}()
+
+			res := <-resCh
+			result := res.result
+			if res.err != nil {
+				result = "error: " + res.err.Error()
+			}
+
+			ev := types.StreamEvent{Type: "tool_end", Delta: result, ToolID: stepID, Iteration: iter}
+			if meta := shared.ToolMetaFromContext(toolCtx); meta != nil {
+				ev.LogID = meta.LogID
+				ev.ModelName = meta.ModelName
+			}
+			ch <- ev
 
 				messages = append(messages, protocols.LLMMessage{
 					Role: "tool", ToolCallID: tc.ID, Content: result,

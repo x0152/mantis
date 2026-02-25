@@ -9,10 +9,11 @@ Multi-agent system where an LLM orchestrates a pool of isolated agents, each run
 ## What it does
 
 - You write a message, the LLM picks which server to use and what commands to run
-- Every command goes through a guard (regex allow/deny rules) before execution
+- Every command goes through a guard (security profiles with capabilities + command whitelists) before execution
 - Works with any OpenAI-compatible API — cloud or local (Ollama, LM Studio, etc.)
 - Each server is a Docker container with SSH and pre-installed tools
-- Web panel for managing everything: connections, models, guard rules, cron jobs
+- Long-term memory — remembers facts about you and each server across conversations
+- Web panel for managing everything: connections, models, guard profiles, cron jobs
 - Telegram bot with voice messages, files, model switching
 - Cron jobs — tell it "send me BTC price every morning" and it will
 - Optional speech-to-text, OCR, text-to-speech

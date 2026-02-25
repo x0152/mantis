@@ -14,27 +14,53 @@ import (
 	"mantis/shared"
 )
 
-const userPrompt = `You manage a personal memory system about the user.
-You receive existing facts and a chat conversation.
+const userPrompt = `You manage a long-term memory system. You store facts the user wants remembered.
+You receive existing facts and a recent conversation.
 
-Return the COMPLETE updated list of facts about the user. You may add, modify, or remove.
-- One concise line per fact.
-- Only long-term preferences, habits, context. NOT transient requests.
-- Remove outdated or contradicted facts. No duplicates.
+SAVE:
+- Identity: name, language, role, company, timezone, location
+- Preferences: tools, formats, styles, workflows
+- Projects and goals the user is working on
+- Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.) — save the ACTUAL content, not a description of the request
+- Specific knowledge the user shares: prices, warnings, conclusions, decisions
 
-Return strictly valid JSON: ["fact1", "fact2"]
-Empty if nothing worth remembering: []`
+CRITICAL: save the actual information, not meta-descriptions.
+BAD: "likes to track prices of things" — this is a meta-description of behavior.
+GOOD: "item X costs $50, item Y is unreliable" — this is the actual fact.
 
-const connectionPrompt = `You manage a memory system about a remote server.
-You receive existing facts and SSH command history (tasks + outputs).
+Do NOT save server/infrastructure details (that goes to server memory).
 
-Return the COMPLETE updated list of facts about this server. You may add, modify, or remove.
-- One concise line per fact (installed software, config details, services, issues found, etc).
-- Only persistent/useful server state. NOT one-off command outputs.
-- Remove outdated or contradicted facts. No duplicates.
+- REMOVE only facts the conversation explicitly contradicts or the user asks to forget.
+- Do NOT remove facts just because they aren't mentioned.
 
-Return strictly valid JSON: ["fact1", "fact2"]
-Empty if nothing worth remembering: []`
+Return strictly valid JSON:
+{"add": [], "remove": []}
+Example: {"add": ["uses Go and React for main project"], "remove": []}`
+
+const connectionPrompt = `You manage a long-term memory system about a remote server.
+You receive existing facts and recent SSH command history.
+
+Worth remembering (only if clearly evident from the history):
+- Installed or removed software/packages
+- Config changes: edited files, changed values, new configs created
+- Services: started, stopped, enabled, created
+- Important paths: project dirs, config locations, log paths the user works with
+- Problems found: broken configs, recurring errors, permission issues, failed upgrades
+- Workarounds applied: if something didn't work and a workaround was used, save it so you don't repeat the debugging next time
+- State changes after commands: if a command changed the server state in a meaningful way (new cron job, firewall rule, user created, etc.)
+- Architecture: what runs on this server, how it connects to other services
+
+NEVER save: disk/memory/cpu stats, process lists, file contents, query results, network info, uptime, log tails, or anything that changes on every check.
+
+It is completely fine to return empty results. Most sessions have nothing worth adding.
+Do NOT force facts out of routine checks — only save when something genuinely new or important happened.
+
+- REMOVE only facts the history explicitly shows are no longer true.
+- Do NOT remove facts just because they aren't mentioned.
+
+Return strictly valid JSON:
+{"add": [], "remove": []}
+Only add when truly warranted: {"add": ["certbot renewal failing due to port 80 blocked by nginx, using dns challenge as workaround"], "remove": []}`
 
 type Extractor struct {
 	llm             protocols.LLM
@@ -95,13 +121,16 @@ func (e *Extractor) extractUser(ctx context.Context, llmConn types.LlmConnection
 		return
 	}
 
-	var facts []string
-	if err := json.Unmarshal([]byte(result), &facts); err != nil {
-		log.Printf("memory: parse user facts: %v (raw: %s)", err, result)
+	var diff memoryDiff
+	if err := json.Unmarshal([]byte(result), &diff); err != nil {
+		log.Printf("memory: parse user diff: %v (raw: %s)", err, result)
 		return
 	}
 
-	e.saveUserFacts(ctx, cfg, facts)
+	if len(diff.Add) == 0 && len(diff.Remove) == 0 {
+		return
+	}
+	e.saveUserFacts(ctx, cfg, mergeFacts(existing, diff))
 }
 
 func (e *Extractor) extractConnections(ctx context.Context, llmConn types.LlmConnection, model types.Model, sshSteps []pipeline.SSHStep) {
@@ -153,22 +182,44 @@ func (e *Extractor) extractConnections(ctx context.Context, llmConn types.LlmCon
 			continue
 		}
 
-		var facts []string
-		if err := json.Unmarshal([]byte(result), &facts); err != nil {
-			log.Printf("memory: parse connection %s facts: %v (raw: %s)", connID, err, result)
+		var diff memoryDiff
+		if err := json.Unmarshal([]byte(result), &diff); err != nil {
+			log.Printf("memory: parse connection %s diff: %v (raw: %s)", connID, err, result)
 			continue
 		}
 
-		now := time.Now()
-		memories := make([]types.Memory, len(facts))
-		for i, f := range facts {
-			memories[i] = types.Memory{
-				ID:        fmt.Sprintf("%s-%d", connID[:8], i),
-				Content:   f,
-				CreatedAt: now,
+		if len(diff.Add) == 0 && len(diff.Remove) == 0 {
+			continue
+		}
+
+		removeSet := map[string]bool{}
+		for _, r := range diff.Remove {
+			removeSet[r] = true
+		}
+
+		seen := map[string]bool{}
+		var kept []types.Memory
+		for _, m := range c.Memories {
+			if !removeSet[m.Content] {
+				seen[m.Content] = true
+				kept = append(kept, m)
 			}
 		}
-		c.Memories = memories
+
+		now := time.Now()
+		base := now.UnixMilli()
+		for i, f := range diff.Add {
+			if !seen[f] {
+				seen[f] = true
+				kept = append(kept, types.Memory{
+					ID:        fmt.Sprintf("%s-%d", connID[:8], base+int64(i)),
+					Content:   f,
+					CreatedAt: now,
+				})
+			}
+		}
+
+		c.Memories = kept
 		if _, err := e.connectionStore.Update(ctx, []types.Connection{c}); err != nil {
 			log.Printf("memory: save connection %s: %v", connID, err)
 		}
@@ -194,13 +245,40 @@ func (e *Extractor) callLLM(ctx context.Context, llmConn types.LlmConnection, mo
 	}
 
 	raw := strings.TrimSpace(sb.String())
-	if idx := strings.Index(raw, "["); idx >= 0 {
+	if idx := strings.Index(raw, "{"); idx >= 0 {
 		raw = raw[idx:]
-	}
-	if end := strings.LastIndex(raw, "]"); end >= 0 {
-		raw = raw[:end+1]
+		if end := strings.LastIndex(raw, "}"); end >= 0 {
+			raw = raw[:end+1]
+		}
 	}
 	return raw, nil
+}
+
+type memoryDiff struct {
+	Add    []string `json:"add"`
+	Remove []string `json:"remove"`
+}
+
+func mergeFacts(existing []string, diff memoryDiff) []string {
+	removeSet := map[string]bool{}
+	for _, r := range diff.Remove {
+		removeSet[r] = true
+	}
+	seen := map[string]bool{}
+	var result []string
+	for _, f := range existing {
+		if !removeSet[f] {
+			seen[f] = true
+			result = append(result, f)
+		}
+	}
+	for _, f := range diff.Add {
+		if !seen[f] {
+			seen[f] = true
+			result = append(result, f)
+		}
+	}
+	return result
 }
 
 func (e *Extractor) loadConfig(ctx context.Context) (types.Config, string, []string, bool) {
