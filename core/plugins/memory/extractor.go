@@ -22,11 +22,15 @@ SAVE:
 - Preferences: tools, formats, styles, workflows
 - Projects and goals the user is working on
 - Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.) — save the ACTUAL content, not a description of the request
-- Specific knowledge the user shares: prices, warnings, conclusions, decisions
+- Specific knowledge the user shares: warnings, conclusions, decisions
 
 CRITICAL: save the actual information, not meta-descriptions.
 BAD: "likes to track prices of things" — this is a meta-description of behavior.
 GOOD: "item X costs $50, item Y is unreliable" — this is the actual fact.
+
+Time-sensitive facts (prices, rates, versions, stats) MUST include the date. If the date is unknown, do not save them.
+BAD: "item X costs $50"
+GOOD: "item X costs $50 (as of 2025-02-15)"
 
 Do NOT save server/infrastructure details (that goes to server memory).
 
@@ -113,7 +117,8 @@ func (e *Extractor) extractUser(ctx context.Context, llmConn types.LlmConnection
 	}
 
 	existingJSON, _ := json.Marshal(existing)
-	input := fmt.Sprintf("Existing facts:\n%s\n\nConversation:\nUser: %s\nAssistant: %s", string(existingJSON), userContent, assistantContent)
+	now := time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")
+	input := fmt.Sprintf("Current date/time: %s\n\nExisting facts:\n%s\n\nConversation:\nUser: %s\nAssistant: %s", now, string(existingJSON), userContent, assistantContent)
 
 	result, err := e.callLLM(ctx, llmConn, model, userPrompt, input)
 	if err != nil {
@@ -174,7 +179,8 @@ func (e *Extractor) extractConnections(ctx context.Context, llmConn types.LlmCon
 			history.WriteString(fmt.Sprintf("Task: %s\nOutput: %s\n\n", s.Task, truncate(s.Result, 2000)))
 		}
 
-		input := fmt.Sprintf("Existing facts:\n%s\n\nSSH history:\n%s", string(existingJSON), history.String())
+		nowStr := time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")
+		input := fmt.Sprintf("Current date/time: %s\n\nExisting facts:\n%s\n\nSSH history:\n%s", nowStr, string(existingJSON), history.String())
 
 		result, err := e.callLLM(ctx, llmConn, model, connectionPrompt, input)
 		if err != nil {

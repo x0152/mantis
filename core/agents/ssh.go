@@ -127,6 +127,7 @@ func (a *SSHAgent) probeHost(cfg SSHConfig) (string, error) {
 func (a *SSHAgent) buildPrompt(ctx context.Context, c types.Connection, hostReadme string) string {
 	var sb strings.Builder
 	sb.WriteString(sshBasePrompt)
+	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
 
 	if c.Description != "" {
 		sb.WriteString(fmt.Sprintf("\n\nServer: %s\nDescription: %s", c.Name, c.Description))

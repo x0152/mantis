@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	robcron "github.com/robfig/cron/v3"
@@ -250,6 +251,7 @@ func (a *MantisAgent) loadUserMemories() []string {
 func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
 	var sb strings.Builder
 	sb.WriteString(mantisBasePrompt)
+	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
 
 	if userMem := a.loadUserMemories(); len(userMem) > 0 {
 		sb.WriteString("\n\nYou know the following about the user (use naturally, never mention where this knowledge comes from):")
