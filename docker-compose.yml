@@ -42,6 +42,11 @@ services:
       - "5173:5173"
     environment:
       API_URL: http://app:8080
+      VITE_LLM_BASE_URL: "${VITE_LLM_BASE_URL:-}"
+      VITE_LLM_API_KEY: "${VITE_LLM_API_KEY:-}"
+      VITE_LLM_MODEL: "${VITE_LLM_MODEL:-}"
+      VITE_TG_BOT_TOKEN: "${VITE_TG_BOT_TOKEN:-}"
+      VITE_TG_USER_IDS: "${VITE_TG_USER_IDS:-}"
     depends_on:
       - app
 

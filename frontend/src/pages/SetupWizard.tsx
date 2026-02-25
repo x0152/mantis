@@ -10,11 +10,11 @@ const SANDBOXES = [
 ]
 
 export default function SetupWizard({ onDone }: { onDone: () => void }) {
-  const [baseUrl, setBaseUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [modelName, setModelName] = useState('')
-  const [tgToken, setTgToken] = useState('')
-  const [tgUserIds, setTgUserIds] = useState('')
+  const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_LLM_BASE_URL ?? '')
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_LLM_API_KEY ?? '')
+  const [modelName, setModelName] = useState(import.meta.env.VITE_LLM_MODEL ?? '')
+  const [tgToken, setTgToken] = useState(import.meta.env.VITE_TG_BOT_TOKEN ?? '')
+  const [tgUserIds, setTgUserIds] = useState(import.meta.env.VITE_TG_USER_IDS ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
