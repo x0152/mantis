@@ -94,6 +94,7 @@ type CreateConnectionInput struct {
 		Description string          `json:"description"`
 		ModelID     string          `json:"modelId" required:"true" minLength:"1"`
 		Config      json.RawMessage `json:"config" required:"true"`
+		ProfileIDs  []string        `json:"profileIds"`
 	}
 }
 
@@ -105,6 +106,7 @@ type UpdateConnectionInput struct {
 		Description string          `json:"description"`
 		ModelID     string          `json:"modelId" required:"true" minLength:"1"`
 		Config      json.RawMessage `json:"config" required:"true"`
+		ProfileIDs  []string        `json:"profileIds"`
 	}
 }
 
@@ -151,36 +153,34 @@ type UpdateCronJobInput struct {
 	}
 }
 
-type GuardRuleOutput struct {
-	Body types.GuardRule
+type GuardProfileOutput struct {
+	Body types.GuardProfile
 }
 
-type GuardRulesOutput struct {
-	Body []types.GuardRule
+type GuardProfilesOutput struct {
+	Body []types.GuardProfile
 }
 
-type GuardRuleIDInput struct {
+type GuardProfileIDInput struct {
 	ID string `path:"id"`
 }
 
-type CreateGuardRuleInput struct {
+type CreateGuardProfileInput struct {
 	Body struct {
-		Name         string `json:"name" required:"true" minLength:"1"`
-		Description  string `json:"description"`
-		Pattern      string `json:"pattern" required:"true" minLength:"1"`
-		ConnectionID string `json:"connectionId"`
-		Enabled      bool   `json:"enabled"`
+		Name         string                  `json:"name" required:"true" minLength:"1"`
+		Description  string                  `json:"description"`
+		Capabilities types.GuardCapabilities `json:"capabilities"`
+		Commands     []types.CommandRule      `json:"commands"`
 	}
 }
 
-type UpdateGuardRuleInput struct {
+type UpdateGuardProfileInput struct {
 	ID   string `path:"id"`
 	Body struct {
-		Name         string `json:"name" required:"true" minLength:"1"`
-		Description  string `json:"description"`
-		Pattern      string `json:"pattern" required:"true" minLength:"1"`
-		ConnectionID string `json:"connectionId"`
-		Enabled      bool   `json:"enabled"`
+		Name         string                  `json:"name" required:"true" minLength:"1"`
+		Description  string                  `json:"description"`
+		Capabilities types.GuardCapabilities `json:"capabilities"`
+		Commands     []types.CommandRule      `json:"commands"`
 	}
 }
 

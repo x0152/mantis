@@ -39,15 +39,37 @@ export interface Connection {
   modelId: string
   config: Record<string, unknown>
   memories: Memory[]
+  profileIds: string[]
 }
 
-export interface GuardRule {
+export interface GuardCapabilities {
+  pipes: boolean
+  redirects: boolean
+  cmdSubst: boolean
+  background: boolean
+  sudo: boolean
+  codeExec: boolean
+  download: boolean
+  install: boolean
+  writeFs: boolean
+  networkOut: boolean
+  cron: boolean
+  unrestricted: boolean
+}
+
+export interface CommandRule {
+  command: string
+  allowedArgs?: string[]
+  allowedSql?: string[]
+}
+
+export interface GuardProfile {
   id: string
   name: string
   description: string
-  pattern: string
-  connectionId: string
-  enabled: boolean
+  builtin: boolean
+  capabilities: GuardCapabilities
+  commands: CommandRule[]
 }
 
 export interface Channel {

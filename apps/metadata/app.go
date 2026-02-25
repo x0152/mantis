@@ -23,7 +23,7 @@ func NewApp(
 	modelStore protocols.Store[string, types.Model],
 	connectionStore protocols.Store[string, types.Connection],
 	cronJobStore protocols.Store[string, types.CronJob],
-	guardRuleStore protocols.Store[string, types.GuardRule],
+	guardProfileStore protocols.Store[string, types.GuardProfile],
 	channelStore protocols.Store[string, types.Channel],
 ) *App {
 	return &App{
@@ -52,10 +52,10 @@ func NewApp(
 			ListCronJobs:     usecases.NewListCronJobs(cronJobStore),
 			UpdateCronJob:    usecases.NewUpdateCronJob(cronJobStore),
 			DeleteCronJob:    usecases.NewDeleteCronJob(cronJobStore),
-			CreateGuardRule:  usecases.NewCreateGuardRule(guardRuleStore),
-			ListGuardRules:   usecases.NewListGuardRules(guardRuleStore),
-			UpdateGuardRule:  usecases.NewUpdateGuardRule(guardRuleStore),
-			DeleteGuardRule:  usecases.NewDeleteGuardRule(guardRuleStore),
+			CreateGuardProfile:  usecases.NewCreateGuardProfile(guardProfileStore),
+			ListGuardProfiles:   usecases.NewListGuardProfiles(guardProfileStore),
+			UpdateGuardProfile:  usecases.NewUpdateGuardProfile(guardProfileStore),
+			DeleteGuardProfile:  usecases.NewDeleteGuardProfile(guardProfileStore),
 			CreateChannel:    usecases.NewCreateChannel(channelStore),
 			GetChannel:       usecases.NewGetChannel(channelStore),
 			ListChannels:     usecases.NewListChannels(channelStore),

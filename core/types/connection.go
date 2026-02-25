@@ -13,6 +13,7 @@ type Connection struct {
 	ModelID     string          `json:"modelId"`
 	Config      json.RawMessage `json:"config"`
 	Memories    []Memory        `json:"memories"`
+	ProfileIDs  []string        `json:"profileIds"`
 }
 
 type Memory struct {

@@ -95,11 +95,11 @@ func main() {
 		mappers.SessionLogToRow,
 		mappers.SessionLogFromRow,
 	)
-	guardRuleStore := store.NewPostgres[string, types.GuardRule, models.GuardRuleRow](
+	guardProfileStore := store.NewPostgres[string, types.GuardProfile, models.GuardProfileRow](
 		db,
-		func(r types.GuardRule) string { return r.ID },
-		mappers.GuardRuleToRow,
-		mappers.GuardRuleFromRow,
+		func(p types.GuardProfile) string { return p.ID },
+		mappers.GuardProfileToRow,
+		mappers.GuardProfileFromRow,
 	)
 	channelStore := store.NewPostgres[string, types.Channel, models.ChannelRow](
 		db,
@@ -110,7 +110,7 @@ func main() {
 
 	openaiAdapter := llm.NewOpenAI()
 	sessionLogger := shared.NewSessionLogger(logStore)
-	commandGuard := guard.New(guardRuleStore)
+	commandGuard := guard.New(guardProfileStore)
 
 	var asrAdapter protocols.ASR
 	if u := env("ASR_API_URL", ""); u != "" {
@@ -130,7 +130,7 @@ func main() {
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 
-	metadataApp := metadata.NewApp(configStore, llmConnStore, modelStore, connectionStore, cronJobStore, guardRuleStore, channelStore)
+	metadataApp := metadata.NewApp(configStore, llmConnStore, modelStore, connectionStore, cronJobStore, guardProfileStore, channelStore)
 	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, channelStore, configStore, mantisAgent, buf, artifactMgr)
 	logsApp := logs.NewApp(logStore)
 	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter)

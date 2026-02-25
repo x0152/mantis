@@ -15,4 +15,5 @@ type ConnectionRow struct {
 	ModelID       string          `bun:"model_id"`
 	Config        json.RawMessage `bun:"config,type:jsonb"`
 	Memories      json.RawMessage `bun:"memories,type:jsonb"`
+	ProfileIDs    json.RawMessage `bun:"profile_ids,type:jsonb"`
 }

@@ -36,10 +36,10 @@ type UseCases struct {
 	ListCronJobs     *usecases.ListCronJobs
 	UpdateCronJob    *usecases.UpdateCronJob
 	DeleteCronJob    *usecases.DeleteCronJob
-	CreateGuardRule  *usecases.CreateGuardRule
-	ListGuardRules   *usecases.ListGuardRules
-	UpdateGuardRule  *usecases.UpdateGuardRule
-	DeleteGuardRule  *usecases.DeleteGuardRule
+	CreateGuardProfile  *usecases.CreateGuardProfile
+	ListGuardProfiles   *usecases.ListGuardProfiles
+	UpdateGuardProfile  *usecases.UpdateGuardProfile
+	DeleteGuardProfile  *usecases.DeleteGuardProfile
 	CreateChannel    *usecases.CreateChannel
 	GetChannel       *usecases.GetChannel
 	ListChannels     *usecases.ListChannels
@@ -85,10 +85,10 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "update-cron-job", Method: http.MethodPut, Path: "/api/cron-jobs/{id}"}, e.updateCronJob)
 	huma.Register(api, huma.Operation{OperationID: "delete-cron-job", Method: http.MethodDelete, Path: "/api/cron-jobs/{id}", DefaultStatus: 204}, e.deleteCronJob)
 
-	huma.Register(api, huma.Operation{OperationID: "create-guard-rule", Method: http.MethodPost, Path: "/api/guard-rules", DefaultStatus: 201}, e.createGuardRule)
-	huma.Register(api, huma.Operation{OperationID: "list-guard-rules", Method: http.MethodGet, Path: "/api/guard-rules"}, e.listGuardRules)
-	huma.Register(api, huma.Operation{OperationID: "update-guard-rule", Method: http.MethodPut, Path: "/api/guard-rules/{id}"}, e.updateGuardRule)
-	huma.Register(api, huma.Operation{OperationID: "delete-guard-rule", Method: http.MethodDelete, Path: "/api/guard-rules/{id}", DefaultStatus: 204}, e.deleteGuardRule)
+	huma.Register(api, huma.Operation{OperationID: "create-guard-profile", Method: http.MethodPost, Path: "/api/guard-profiles", DefaultStatus: 201}, e.createGuardProfile)
+	huma.Register(api, huma.Operation{OperationID: "list-guard-profiles", Method: http.MethodGet, Path: "/api/guard-profiles"}, e.listGuardProfiles)
+	huma.Register(api, huma.Operation{OperationID: "update-guard-profile", Method: http.MethodPut, Path: "/api/guard-profiles/{id}"}, e.updateGuardProfile)
+	huma.Register(api, huma.Operation{OperationID: "delete-guard-profile", Method: http.MethodDelete, Path: "/api/guard-profiles/{id}", DefaultStatus: 204}, e.deleteGuardProfile)
 
 	huma.Register(api, huma.Operation{OperationID: "create-channel", Method: http.MethodPost, Path: "/api/channels", DefaultStatus: 201}, e.createChannel)
 	huma.Register(api, huma.Operation{OperationID: "list-channels", Method: http.MethodGet, Path: "/api/channels"}, e.listChannels)
@@ -196,8 +196,8 @@ func (e *Endpoints) deleteModel(ctx context.Context, input *ModelIDInput) (*stru
 }
 
 func (e *Endpoints) createConnection(ctx context.Context, input *CreateConnectionInput) (*ConnectionOutput, error) {
-	connType, name, description, modelID, config := connectionFromCreateInput(input)
-	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, config)
+	connType, name, description, modelID, config, profileIDs := connectionFromCreateInput(input)
+	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, config, profileIDs)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -221,8 +221,8 @@ func (e *Endpoints) getConnection(ctx context.Context, input *ConnectionIDInput)
 }
 
 func (e *Endpoints) updateConnection(ctx context.Context, input *UpdateConnectionInput) (*ConnectionOutput, error) {
-	id, connType, name, description, modelID, config := connectionFromUpdateInput(input)
-	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, config)
+	id, connType, name, description, modelID, config, profileIDs := connectionFromUpdateInput(input)
+	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, config, profileIDs)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -293,34 +293,34 @@ func (e *Endpoints) deleteCronJob(ctx context.Context, input *CronJobIDInput) (*
 	return nil, nil
 }
 
-func (e *Endpoints) createGuardRule(ctx context.Context, input *CreateGuardRuleInput) (*GuardRuleOutput, error) {
-	name, desc, pattern, connID, enabled := guardRuleFromCreateInput(input)
-	r, err := e.uc.CreateGuardRule.Execute(ctx, name, desc, pattern, connID, enabled)
+func (e *Endpoints) createGuardProfile(ctx context.Context, input *CreateGuardProfileInput) (*GuardProfileOutput, error) {
+	name, desc, caps, cmds := guardProfileFromCreateInput(input)
+	p, err := e.uc.CreateGuardProfile.Execute(ctx, name, desc, caps, cmds)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return toGuardRuleOutput(r), nil
+	return toGuardProfileOutput(p), nil
 }
 
-func (e *Endpoints) listGuardRules(ctx context.Context, _ *struct{}) (*GuardRulesOutput, error) {
-	items, err := e.uc.ListGuardRules.Execute(ctx)
+func (e *Endpoints) listGuardProfiles(ctx context.Context, _ *struct{}) (*GuardProfilesOutput, error) {
+	items, err := e.uc.ListGuardProfiles.Execute(ctx)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return toGuardRulesOutput(items), nil
+	return toGuardProfilesOutput(items), nil
 }
 
-func (e *Endpoints) updateGuardRule(ctx context.Context, input *UpdateGuardRuleInput) (*GuardRuleOutput, error) {
-	id, name, desc, pattern, connID, enabled := guardRuleFromUpdateInput(input)
-	r, err := e.uc.UpdateGuardRule.Execute(ctx, id, name, desc, pattern, connID, enabled)
+func (e *Endpoints) updateGuardProfile(ctx context.Context, input *UpdateGuardProfileInput) (*GuardProfileOutput, error) {
+	id, name, desc, caps, cmds := guardProfileFromUpdateInput(input)
+	p, err := e.uc.UpdateGuardProfile.Execute(ctx, id, name, desc, caps, cmds)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return toGuardRuleOutput(r), nil
+	return toGuardProfileOutput(p), nil
 }
 
-func (e *Endpoints) deleteGuardRule(ctx context.Context, input *GuardRuleIDInput) (*struct{}, error) {
-	if err := e.uc.DeleteGuardRule.Execute(ctx, input.ID); err != nil {
+func (e *Endpoints) deleteGuardProfile(ctx context.Context, input *GuardProfileIDInput) (*struct{}, error) {
+	if err := e.uc.DeleteGuardProfile.Execute(ctx, input.ID); err != nil {
 		return nil, mapErr(err)
 	}
 	return nil, nil

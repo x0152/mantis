@@ -54,12 +54,12 @@ func modelFromUpdateInput(input *UpdateModelInput) (string, string, string, stri
 	return input.ID, input.Body.ConnectionID, input.Body.Name, input.Body.ThinkingMode
 }
 
-func connectionFromCreateInput(input *CreateConnectionInput) (string, string, string, string, json.RawMessage) {
-	return input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config
+func connectionFromCreateInput(input *CreateConnectionInput) (string, string, string, string, json.RawMessage, []string) {
+	return input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs
 }
 
-func connectionFromUpdateInput(input *UpdateConnectionInput) (string, string, string, string, string, json.RawMessage) {
-	return input.ID, input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config
+func connectionFromUpdateInput(input *UpdateConnectionInput) (string, string, string, string, string, json.RawMessage, []string) {
+	return input.ID, input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs
 }
 
 func toCronJobOutput(j types.CronJob) *CronJobOutput {
@@ -78,20 +78,20 @@ func cronJobFromUpdateInput(input *UpdateCronJobInput) (string, string, string, 
 	return input.ID, input.Body.Name, input.Body.Schedule, input.Body.Prompt, input.Body.Enabled
 }
 
-func toGuardRuleOutput(r types.GuardRule) *GuardRuleOutput {
-	return &GuardRuleOutput{Body: r}
+func toGuardProfileOutput(p types.GuardProfile) *GuardProfileOutput {
+	return &GuardProfileOutput{Body: p}
 }
 
-func toGuardRulesOutput(items []types.GuardRule) *GuardRulesOutput {
-	return &GuardRulesOutput{Body: items}
+func toGuardProfilesOutput(items []types.GuardProfile) *GuardProfilesOutput {
+	return &GuardProfilesOutput{Body: items}
 }
 
-func guardRuleFromCreateInput(input *CreateGuardRuleInput) (string, string, string, string, bool) {
-	return input.Body.Name, input.Body.Description, input.Body.Pattern, input.Body.ConnectionID, input.Body.Enabled
+func guardProfileFromCreateInput(input *CreateGuardProfileInput) (string, string, types.GuardCapabilities, []types.CommandRule) {
+	return input.Body.Name, input.Body.Description, input.Body.Capabilities, input.Body.Commands
 }
 
-func guardRuleFromUpdateInput(input *UpdateGuardRuleInput) (string, string, string, string, string, bool) {
-	return input.ID, input.Body.Name, input.Body.Description, input.Body.Pattern, input.Body.ConnectionID, input.Body.Enabled
+func guardProfileFromUpdateInput(input *UpdateGuardProfileInput) (string, string, string, types.GuardCapabilities, []types.CommandRule) {
+	return input.ID, input.Body.Name, input.Body.Description, input.Body.Capabilities, input.Body.Commands
 }
 
 func toChannelOutput(c types.Channel) *ChannelOutput {

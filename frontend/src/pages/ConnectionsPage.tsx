@@ -1,25 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, AlertTriangle, Check, Send, Shield, Play, Pause } from 'lucide-react'
+import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, AlertTriangle, Check, Send, Shield } from 'lucide-react'
 import { api } from '../api'
-import type { Connection, Model, GuardRule } from '../types'
+import type { Connection, Model, GuardProfile } from '../types'
 import Modal from '../components/Modal'
 
 export default function ConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [models, setModels] = useState<Model[]>([])
-  const [guardRules, setGuardRules] = useState<GuardRule[]>([])
+  const [profiles, setProfiles] = useState<GuardProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Connection | null>(null)
   const emptySsh = { host: '', port: '22', username: '', password: '', privateKey: '' }
-  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '' })
+  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] as string[] })
   const [ssh, setSsh] = useState(emptySsh)
   const [memoryInput, setMemoryInput] = useState('')
-  const [ruleModalOpen, setRuleModalOpen] = useState(false)
-  const [editingRule, setEditingRule] = useState<GuardRule | null>(null)
-  const [ruleConnId, setRuleConnId] = useState('')
-  const [ruleForm, setRuleForm] = useState({ name: '', description: '', pattern: '', enabled: true })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const showToast = (type: 'success' | 'error', text: string) => {
@@ -30,10 +26,10 @@ export default function ConnectionsPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [c, m, gr] = await Promise.all([api.connections.list(), api.models.list(), api.guardRules.list()])
+      const [c, m, p] = await Promise.all([api.connections.list(), api.models.list(), api.guardProfiles.list()])
       setConnections(c)
       setModels(m)
-      setGuardRules(gr)
+      setProfiles(p)
     } catch (e: unknown) {
       showToast('error', e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -66,14 +62,14 @@ export default function ConnectionsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ type: 'ssh', name: '', description: '', modelId: '' })
+    setForm({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] })
     setSsh(emptySsh)
     setModalOpen(true)
   }
 
   const openEdit = (c: Connection) => {
     setEditing(c)
-    setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId })
+    setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId, profileIds: c.profileIds || [] })
     setSsh(parseSshConfig(c.config))
     setModalOpen(true)
   }
@@ -81,7 +77,7 @@ export default function ConnectionsPage() {
   const submit = async () => {
     try {
       const config = buildConfig()
-      const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config }
+      const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config, profileIds: form.profileIds }
       if (editing) {
         await api.connections.update(editing.id, data)
         showToast('success', 'Server updated')
@@ -130,58 +126,16 @@ export default function ConnectionsPage() {
     }
   }
 
-  const openCreateRule = (connectionId: string) => {
-    setEditingRule(null)
-    setRuleConnId(connectionId)
-    setRuleForm({ name: '', description: '', pattern: '', enabled: true })
-    setRuleModalOpen(true)
-  }
+  const profileName = (id: string) => profiles.find(p => p.id === id)?.name ?? id.slice(0, 8)
 
-  const openEditRule = (r: GuardRule) => {
-    setEditingRule(r)
-    setRuleConnId(r.connectionId)
-    setRuleForm({ name: r.name, description: r.description, pattern: r.pattern, enabled: r.enabled })
-    setRuleModalOpen(true)
+  const toggleProfile = (profileId: string) => {
+    setForm(f => ({
+      ...f,
+      profileIds: f.profileIds.includes(profileId)
+        ? f.profileIds.filter(id => id !== profileId)
+        : [...f.profileIds, profileId],
+    }))
   }
-
-  const submitRule = async () => {
-    try {
-      const data = { ...ruleForm, connectionId: ruleConnId }
-      if (editingRule) {
-        await api.guardRules.update(editingRule.id, data)
-        showToast('success', 'Rule updated')
-      } else {
-        await api.guardRules.create(data)
-        showToast('success', 'Rule created')
-      }
-      setRuleModalOpen(false)
-      load()
-    } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Operation failed')
-    }
-  }
-
-  const toggleRule = async (r: GuardRule) => {
-    try {
-      await api.guardRules.update(r.id, { ...r, enabled: !r.enabled })
-      load()
-    } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Toggle failed')
-    }
-  }
-
-  const removeRule = async (id: string) => {
-    if (!confirm('Delete this guard rule?')) return
-    try {
-      await api.guardRules.delete(id)
-      showToast('success', 'Rule deleted')
-      load()
-    } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Delete failed')
-    }
-  }
-
-  const rulesForConnection = (connectionId: string) => guardRules.filter(r => r.connectionId === connectionId)
 
   const modelName = (id: string) => {
     const model = models.find(m => m.id === id)
@@ -194,7 +148,7 @@ export default function ConnectionsPage() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">Servers</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Manage SSH servers with configs and memories</p>
+          <p className="text-xs text-zinc-600 mt-0.5">Manage SSH servers with configs, memories, and security profiles</p>
         </div>
         <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
           <Plus size={14} /> Add Server
@@ -235,9 +189,9 @@ export default function ConnectionsPage() {
                         <MessageSquare size={10} /> {conn.memories.length}
                       </span>
                     )}
-                    {rulesForConnection(conn.id).length > 0 && (
+                    {conn.profileIds?.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-400">
-                        <Shield size={10} /> {rulesForConnection(conn.id).length}
+                        <Shield size={10} /> {conn.profileIds.map(id => profileName(id)).join(', ')}
                       </span>
                     )}
                   </div>
@@ -278,6 +232,10 @@ export default function ConnectionsPage() {
                           <dt className="text-zinc-500">Model</dt>
                           <dd className="text-zinc-300">{modelName(conn.modelId)}</dd>
                         </div>
+                        <div className="flex justify-between">
+                          <dt className="text-zinc-500">Profiles</dt>
+                          <dd className="text-zinc-300">{conn.profileIds?.length ? conn.profileIds.map(id => profileName(id)).join(', ') : 'None (unrestricted)'}</dd>
+                        </div>
                       </dl>
                     </div>
                   </div>
@@ -314,46 +272,6 @@ export default function ConnectionsPage() {
                         <Send size={14} />
                       </button>
                     </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <h3 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
-                        Guard Rules ({rulesForConnection(conn.id).length})
-                      </h3>
-                      <button onClick={() => openCreateRule(conn.id)} className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-teal-400 hover:bg-teal-500/10 rounded-md">
-                        <Plus size={12} /> Add Rule
-                      </button>
-                    </div>
-                    {rulesForConnection(conn.id).length > 0 && (
-                      <div className="space-y-1.5">
-                        {rulesForConnection(conn.id).map(rule => (
-                          <div key={rule.id} className={`flex items-center gap-2.5 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 ${!rule.enabled ? 'opacity-50' : ''}`}>
-                            <Shield size={13} className="text-amber-400 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-zinc-300">{rule.name}</span>
-                                <span className={`px-1.5 py-0.5 text-[11px] rounded-full ${rule.enabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-800 text-zinc-600'}`}>
-                                  {rule.enabled ? 'on' : 'off'}
-                                </span>
-                              </div>
-                              <code className="text-[11px] text-zinc-600 font-mono">{rule.pattern}</code>
-                            </div>
-                            <div className="flex gap-0.5 shrink-0">
-                              <button onClick={() => toggleRule(rule)} className="p-1 rounded-md text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10">
-                                {rule.enabled ? <Pause size={12} /> : <Play size={12} />}
-                              </button>
-                              <button onClick={() => openEditRule(rule)} className="p-1 rounded-md text-zinc-600 hover:text-teal-400 hover:bg-teal-500/10">
-                                <Pencil size={12} />
-                              </button>
-                              <button onClick={() => removeRule(rule.id)} className="p-1 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10">
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -432,62 +350,33 @@ export default function ConnectionsPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-2">Security Profiles</label>
+            <p className="text-[11px] text-zinc-600 mb-2">Select profiles to restrict which commands this server allows. No profiles = unrestricted.</p>
+            <div className="space-y-1.5">
+              {profiles.map(p => (
+                <label key={p.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
+                  form.profileIds.includes(p.id) ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800/50'
+                }`}>
+                  <input type="checkbox" checked={form.profileIds.includes(p.id)} onChange={() => toggleProfile(p.id)}
+                    className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-zinc-200">{p.name}</span>
+                      {p.builtin && <span className="px-1 py-0.5 text-[10px] font-medium rounded bg-violet-500/15 text-violet-400">built-in</span>}
+                    </div>
+                    {p.description && <p className="text-[11px] text-zinc-500 mt-0.5">{p.description}</p>}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
               Cancel
             </button>
             <button onClick={submit} disabled={!form.name || !form.modelId} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
               {editing ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={ruleModalOpen} onClose={() => setRuleModalOpen(false)} title={editingRule ? 'Edit Guard Rule' : 'New Guard Rule'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Name</label>
-            <input
-              value={ruleForm.name}
-              onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="Block destructive commands"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Description</label>
-            <input
-              value={ruleForm.description}
-              onChange={e => setRuleForm(f => ({ ...f, description: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="Prevents rm -rf on critical paths"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Pattern (regex)</label>
-            <input
-              value={ruleForm.pattern}
-              onChange={e => setRuleForm(f => ({ ...f, pattern: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm font-mono bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="rm\s+-rf\s+/"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setRuleForm(f => ({ ...f, enabled: !f.enabled }))}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full ${ruleForm.enabled ? 'bg-teal-600' : 'bg-zinc-700'}`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white ${ruleForm.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
-            </button>
-            <span className="text-xs text-zinc-400">{ruleForm.enabled ? 'Enabled' : 'Disabled'}</span>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setRuleModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
-              Cancel
-            </button>
-            <button onClick={submitRule} disabled={!ruleForm.name || !ruleForm.pattern} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
-              {editingRule ? 'Update' : 'Create'}
             </button>
           </div>
         </div>

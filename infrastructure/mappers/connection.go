@@ -9,6 +9,7 @@ import (
 
 func ConnectionToRow(c types.Connection) models.ConnectionRow {
 	memories, _ := json.Marshal(c.Memories)
+	profileIDs, _ := json.Marshal(c.ProfileIDs)
 	return models.ConnectionRow{
 		ID:          c.ID,
 		Type:        c.Type,
@@ -17,6 +18,7 @@ func ConnectionToRow(c types.Connection) models.ConnectionRow {
 		ModelID:     c.ModelID,
 		Config:      c.Config,
 		Memories:    memories,
+		ProfileIDs:  profileIDs,
 	}
 }
 
@@ -26,6 +28,11 @@ func ConnectionFromRow(r models.ConnectionRow) types.Connection {
 	if memories == nil {
 		memories = []types.Memory{}
 	}
+	var profileIDs []string
+	_ = json.Unmarshal(r.ProfileIDs, &profileIDs)
+	if profileIDs == nil {
+		profileIDs = []string{}
+	}
 	return types.Connection{
 		ID:          r.ID,
 		Type:        r.Type,
@@ -34,5 +41,6 @@ func ConnectionFromRow(r models.ConnectionRow) types.Connection {
 		ModelID:     r.ModelID,
 		Config:      r.Config,
 		Memories:    memories,
+		ProfileIDs:  profileIDs,
 	}
 }

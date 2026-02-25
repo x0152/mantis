@@ -7,11 +7,11 @@ import ChannelsPage from './pages/ChannelsPage'
 import CronJobsPage from './pages/CronJobsPage'
 import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
-import GuardRulesPage from './pages/GuardRulesPage'
+import GuardProfilesPage from './pages/GuardProfilesPage'
 import SetupWizard from './pages/SetupWizard'
 import { api } from './api'
 
-type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'cron-jobs' | 'guard-rules' | 'config'
+type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'cron-jobs' | 'guard-profiles' | 'config'
 
 type NavItem = { id: Page; label: string; icon: typeof Settings }
 
@@ -37,7 +37,7 @@ const nav: NavSection[] = [
   {
     title: 'System',
     items: [
-      { id: 'guard-rules', label: 'Guard Rules', icon: ShieldAlert },
+      { id: 'guard-profiles', label: 'Guard Profiles', icon: ShieldAlert },
       { id: 'config', label: 'Configuration', icon: Settings },
     ],
   },
@@ -102,7 +102,7 @@ export default function App() {
         {page === 'connections' && <ConnectionsPage />}
         {page === 'logs' && <LogsPage />}
         {page === 'cron-jobs' && <CronJobsPage />}
-        {page === 'guard-rules' && <GuardRulesPage />}
+        {page === 'guard-profiles' && <GuardProfilesPage />}
       </main>
     </div>
   )

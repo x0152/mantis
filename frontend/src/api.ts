@@ -1,4 +1,4 @@
-import type { Config, Model, Connection, CronJob, GuardRule, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
+import type { Config, Model, Connection, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -40,9 +40,9 @@ export const api = {
   connections: {
     list: () => request<Connection[]>('/connections'),
     get: (id: string) => request<Connection>(`/connections/${id}`),
-    create: (data: { type: string; name: string; description: string; modelId: string; config: unknown }) =>
+    create: (data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[] }) =>
       request<Connection>('/connections', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { type: string; name: string; description: string; modelId: string; config: unknown }) =>
+    update: (id: string, data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[] }) =>
       request<Connection>(`/connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/connections/${id}`, { method: 'DELETE' }),
     addMemory: (id: string, content: string) =>
@@ -59,13 +59,13 @@ export const api = {
       request<CronJob>(`/cron-jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/cron-jobs/${id}`, { method: 'DELETE' }),
   },
-  guardRules: {
-    list: () => request<GuardRule[]>('/guard-rules'),
-    create: (data: Omit<GuardRule, 'id'>) =>
-      request<GuardRule>('/guard-rules', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Omit<GuardRule, 'id'>) =>
-      request<GuardRule>(`/guard-rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: string) => request<void>(`/guard-rules/${id}`, { method: 'DELETE' }),
+  guardProfiles: {
+    list: () => request<GuardProfile[]>('/guard-profiles'),
+    create: (data: Omit<GuardProfile, 'id' | 'builtin'>) =>
+      request<GuardProfile>('/guard-profiles', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Omit<GuardProfile, 'id' | 'builtin'>) =>
+      request<GuardProfile>(`/guard-profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/guard-profiles/${id}`, { method: 'DELETE' }),
   },
   channels: {
     list: () => request<Channel[]>('/channels'),

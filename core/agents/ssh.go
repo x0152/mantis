@@ -18,25 +18,17 @@ import (
 	"mantis/shared"
 )
 
-const sshBasePrompt = `You are an SSH agent. All server actions are performed ONLY via tool calling (execute_command). Never write commands as text instead of calling the tool.
+const sshBasePrompt = `You are an SSH agent. All actions go through execute_command tool calls only.
 
-Process:
-1. Before each execute_command call, briefly explain which command you are calling and why.
-2. Call execute_command via tool calling.
-3. Analyze the output. If another step is needed, repeat the cycle (explain -> call -> analyze).
-4. Execute commands one at a time; do not group multiple commands in a single call unless necessary.
-5. If unsure, verify first (which, cat, ls, etc.).
-6. At the end, briefly summarize what was done and the result.
+Rules:
+- Be concise: short answers, no filler, keep full info. Verbose only if user asks.
+- One command per call. Explain briefly before each call.
+- Verify before acting (which, cat, ls).
+- Summarize the result at the end.
+- Plain text only, no Markdown/HTML.
+- If a command is blocked, do not retry it — use an alternative or inform the user.
 
-Available tools:
-
-execute_command — run a single shell command on the remote server via SSH.
-  This is your only tool. Any server action (checking, installing, reading files, restarting services, diagnostics) must go through this tool.
-  Parameter command: shell command to execute.
-  Examples: "uname -a", "cat /etc/os-release", "systemctl status nginx", "df -h".
-
-Formatting:
-- Do not use Markdown/HTML. Plain text only.`
+execute_command(command: string) — run a shell command on the remote server via SSH.`
 
 type SSHConfig struct {
 	Host       string `json:"host"`
@@ -81,7 +73,7 @@ func (a *SSHAgent) Execute(ctx context.Context, in SSHInput) (<-chan types.Strea
 	}
 
 	prompt := a.buildPrompt(ctx, in.Connection, hostReadme)
-	tools := sshTools(in.SSHConfig, a.guard, in.Connection.ID)
+	tools := sshTools(in.SSHConfig, a.guard, in.Connection.ProfileIDs)
 
 	messages := []protocols.LLMMessage{
 		{Role: "system", Content: prompt},
@@ -153,23 +145,15 @@ func (a *SSHAgent) buildPrompt(ctx context.Context, c types.Connection, hostRead
 		}
 	}
 
-	rules := a.guard.Rules(ctx, c.ID)
-	if len(rules) > 0 {
-		sb.WriteString("\n\nThe following commands are FORBIDDEN on this server (guard rules):")
-		for _, r := range rules {
-			desc := r.Description
-			if desc == "" {
-				desc = r.Pattern
-			}
-			sb.WriteString(fmt.Sprintf("\n- %s: %s", r.Name, desc))
-		}
-		sb.WriteString("\nDo not attempt to run commands matching these rules. Look for alternatives or explain to the user that permission is required.")
+	if desc := a.guard.Describe(ctx, c.ProfileIDs); desc != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(desc)
 	}
 
 	return sb.String()
 }
 
-func sshTools(cfg SSHConfig, g *guard.Guard, connectionID string) []types.Tool {
+func sshTools(cfg SSHConfig, g *guard.Guard, profileIDs []string) []types.Tool {
 	return []types.Tool{
 		{
 			Name:        "execute_command",
@@ -202,9 +186,9 @@ func sshTools(cfg SSHConfig, g *guard.Guard, connectionID string) []types.Tool {
 				if err := json.Unmarshal([]byte(args), &input); err != nil {
 					return "", err
 				}
-				if v := g.Execute(ctx, connectionID, input.Command); v != nil {
-					return fmt.Sprintf("[BLOCKED] command denied by guard rule %q: %s", v.Rule, v.Message), nil
-				}
+			if v := g.Execute(ctx, profileIDs, input.Command); v != nil {
+				return fmt.Sprintf("[BLOCKED] %s", v.Message), nil
+			}
 				return execSSH(cfg, input.Command)
 			},
 		},
