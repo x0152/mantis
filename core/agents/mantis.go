@@ -116,6 +116,7 @@ type MantisAgent struct {
 	llmConnStore    protocols.Store[string, types.LlmConnection]
 	connectionStore protocols.Store[string, types.Connection]
 	cronJobStore    protocols.Store[string, types.CronJob]
+	configStore     protocols.Store[string, types.Config]
 	agent           *agent.Agent
 	sshAgent        *SSHAgent
 	asr             protocols.ASR
@@ -128,6 +129,7 @@ func NewMantisAgent(
 	llmConnStore protocols.Store[string, types.LlmConnection],
 	connectionStore protocols.Store[string, types.Connection],
 	cronJobStore protocols.Store[string, types.CronJob],
+	configStore protocols.Store[string, types.Config],
 	llm protocols.LLM,
 	g *guard.Guard,
 	sessionLogger *shared.SessionLogger,
@@ -140,6 +142,7 @@ func NewMantisAgent(
 		llmConnStore:    llmConnStore,
 		connectionStore: connectionStore,
 		cronJobStore:    cronJobStore,
+		configStore:     configStore,
 		agent:           agent.New(llm),
 		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger),
 		asr:             asr,
@@ -212,9 +215,46 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	return ch, nil
 }
 
+func (a *MantisAgent) loadUserMemories() []string {
+	cfgs, err := a.configStore.Get(context.Background(), []string{"default"})
+	if err != nil {
+		return nil
+	}
+	cfg, ok := cfgs["default"]
+	if !ok {
+		return nil
+	}
+	var data map[string]any
+	if err := json.Unmarshal(cfg.Data, &data); err != nil {
+		return nil
+	}
+	enabled, _ := data["memoryEnabled"].(bool)
+	if !enabled {
+		return nil
+	}
+	raw, ok := data["userMemories"].([]any)
+	if !ok {
+		return nil
+	}
+	var facts []string
+	for _, v := range raw {
+		if s, ok := v.(string); ok && s != "" {
+			facts = append(facts, s)
+		}
+	}
+	return facts
+}
+
 func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
 	var sb strings.Builder
 	sb.WriteString(mantisBasePrompt)
+
+	if userMem := a.loadUserMemories(); len(userMem) > 0 {
+		sb.WriteString("\n\nAbout the user:")
+		for _, f := range userMem {
+			sb.WriteString("\n- " + f)
+		}
+	}
 
 	if source != "" || replyChannel != "" || replyTo != "" {
 		sb.WriteString("\n\nRequest context:")

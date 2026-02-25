@@ -12,6 +12,7 @@ import (
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
 	modelplugin "mantis/core/plugins/model"
+	"mantis/core/plugins/pipeline"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
@@ -31,9 +32,10 @@ func NewApp(
 	mantisAgent *agents.MantisAgent,
 	buf *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
+	memoryExtractor pipeline.MemoryExtractor,
 ) *App {
 	modelResolver := modelplugin.NewResolver(channelStore, configStore)
-	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr)
+	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor)
 	return &App{
 		endpoints: api.NewEndpoints(api.UseCases{
 			GetCurrentSession: usecases.NewGetCurrentSession(sessionStore),

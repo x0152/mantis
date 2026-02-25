@@ -89,24 +89,26 @@ type ConnectionIDInput struct {
 
 type CreateConnectionInput struct {
 	Body struct {
-		Type        string          `json:"type" required:"true" enum:"ssh"`
-		Name        string          `json:"name" required:"true" minLength:"1"`
-		Description string          `json:"description"`
-		ModelID     string          `json:"modelId" required:"true" minLength:"1"`
-		Config      json.RawMessage `json:"config" required:"true"`
-		ProfileIDs  []string        `json:"profileIds"`
+		Type          string          `json:"type" required:"true" enum:"ssh"`
+		Name          string          `json:"name" required:"true" minLength:"1"`
+		Description   string          `json:"description"`
+		ModelID       string          `json:"modelId" required:"true" minLength:"1"`
+		Config        json.RawMessage `json:"config" required:"true"`
+		ProfileIDs    []string        `json:"profileIds"`
+		MemoryEnabled *bool           `json:"memoryEnabled"`
 	}
 }
 
 type UpdateConnectionInput struct {
 	ID   string `path:"id"`
 	Body struct {
-		Type        string          `json:"type" required:"true" enum:"ssh"`
-		Name        string          `json:"name" required:"true" minLength:"1"`
-		Description string          `json:"description"`
-		ModelID     string          `json:"modelId" required:"true" minLength:"1"`
-		Config      json.RawMessage `json:"config" required:"true"`
-		ProfileIDs  []string        `json:"profileIds"`
+		Type          string          `json:"type" required:"true" enum:"ssh"`
+		Name          string          `json:"name" required:"true" minLength:"1"`
+		Description   string          `json:"description"`
+		ModelID       string          `json:"modelId" required:"true" minLength:"1"`
+		Config        json.RawMessage `json:"config" required:"true"`
+		ProfileIDs    []string        `json:"profileIds"`
+		MemoryEnabled *bool           `json:"memoryEnabled"`
 	}
 }
 

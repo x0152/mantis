@@ -196,8 +196,8 @@ func (e *Endpoints) deleteModel(ctx context.Context, input *ModelIDInput) (*stru
 }
 
 func (e *Endpoints) createConnection(ctx context.Context, input *CreateConnectionInput) (*ConnectionOutput, error) {
-	connType, name, description, modelID, config, profileIDs := connectionFromCreateInput(input)
-	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, config, profileIDs)
+	connType, name, description, modelID, config, profileIDs, memoryEnabled := connectionFromCreateInput(input)
+	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, config, profileIDs, memoryEnabled)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -221,8 +221,8 @@ func (e *Endpoints) getConnection(ctx context.Context, input *ConnectionIDInput)
 }
 
 func (e *Endpoints) updateConnection(ctx context.Context, input *UpdateConnectionInput) (*ConnectionOutput, error) {
-	id, connType, name, description, modelID, config, profileIDs := connectionFromUpdateInput(input)
-	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, config, profileIDs)
+	id, connType, name, description, modelID, config, profileIDs, memoryEnabled := connectionFromUpdateInput(input)
+	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, config, profileIDs, memoryEnabled)
 	if err != nil {
 		return nil, mapErr(err)
 	}

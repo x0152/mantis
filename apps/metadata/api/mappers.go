@@ -54,12 +54,20 @@ func modelFromUpdateInput(input *UpdateModelInput) (string, string, string, stri
 	return input.ID, input.Body.ConnectionID, input.Body.Name, input.Body.ThinkingMode
 }
 
-func connectionFromCreateInput(input *CreateConnectionInput) (string, string, string, string, json.RawMessage, []string) {
-	return input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs
+func connectionFromCreateInput(input *CreateConnectionInput) (string, string, string, string, json.RawMessage, []string, bool) {
+	memoryEnabled := true
+	if input.Body.MemoryEnabled != nil {
+		memoryEnabled = *input.Body.MemoryEnabled
+	}
+	return input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs, memoryEnabled
 }
 
-func connectionFromUpdateInput(input *UpdateConnectionInput) (string, string, string, string, string, json.RawMessage, []string) {
-	return input.ID, input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs
+func connectionFromUpdateInput(input *UpdateConnectionInput) (string, string, string, string, string, json.RawMessage, []string, bool) {
+	memoryEnabled := true
+	if input.Body.MemoryEnabled != nil {
+		memoryEnabled = *input.Body.MemoryEnabled
+	}
+	return input.ID, input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.Config, input.Body.ProfileIDs, memoryEnabled
 }
 
 func toCronJobOutput(j types.CronJob) *CronJobOutput {

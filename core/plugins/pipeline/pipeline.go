@@ -37,12 +37,23 @@ type Result struct {
 	SendErr  error
 }
 
+type SSHStep struct {
+	ToolName string
+	Task     string
+	Result   string
+}
+
+type MemoryExtractor interface {
+	Extract(ctx context.Context, userContent, assistantContent string, sshSteps []SSHStep)
+}
+
 type RequestHandlePipeline struct {
-	agent         *agents.MantisAgent
-	buffer        *shared.Buffer
-	messageStore  protocols.Store[string, types.ChatMessage]
-	modelStore    protocols.Store[string, types.Model]
-	modelResolver *modelplugin.Resolver
+	agent            *agents.MantisAgent
+	buffer           *shared.Buffer
+	messageStore     protocols.Store[string, types.ChatMessage]
+	modelStore       protocols.Store[string, types.Model]
+	modelResolver    *modelplugin.Resolver
+	memoryExtractor  MemoryExtractor
 }
 
 func New(
@@ -51,13 +62,15 @@ func New(
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
 	modelResolver *modelplugin.Resolver,
+	memoryExtractor MemoryExtractor,
 ) *RequestHandlePipeline {
 	return &RequestHandlePipeline{
-		agent:         agent,
-		buffer:        buffer,
-		messageStore:  messageStore,
-		modelStore:    modelStore,
-		modelResolver: modelResolver,
+		agent:           agent,
+		buffer:          buffer,
+		messageStore:    messageStore,
+		modelStore:      modelStore,
+		modelResolver:   modelResolver,
+		memoryExtractor: memoryExtractor,
 	}
 }
 
@@ -110,6 +123,11 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 
 	msg := p.finalizeMessage(in.Message, content, steps, runErr, in.ErrorPrefix)
 	p.saveMessage(msg)
+
+	if p.memoryExtractor != nil && msg.Status != "error" && in.Content != "" && msg.Content != "" {
+		sshSteps := collectSSHSteps(steps)
+		go p.memoryExtractor.Extract(context.Background(), in.Content, msg.Content, sshSteps)
+	}
 
 	outgoing := p.collectOutgoing(in.Message.ID, in.Artifacts)
 	sendErr := p.send(ctx, in.ResponseTo, msg.Content, steps, outgoing)
@@ -243,6 +261,24 @@ func (p *RequestHandlePipeline) send(ctx context.Context, sender protocols.Respo
 		log.Printf("pipeline: send: %v", err)
 	}
 	return err
+}
+
+func collectSSHSteps(steps []types.Step) []SSHStep {
+	var out []SSHStep
+	for _, s := range steps {
+		if !strings.HasPrefix(s.Tool, "ssh_") || strings.HasPrefix(s.Tool, "ssh_download_") || strings.HasPrefix(s.Tool, "ssh_upload_") {
+			continue
+		}
+		if s.Status != "completed" || s.Result == "" {
+			continue
+		}
+		var args struct {
+			Task string `json:"task"`
+		}
+		_ = json.Unmarshal([]byte(s.Args), &args)
+		out = append(out, SSHStep{ToolName: s.Tool, Task: args.Task, Result: s.Result})
+	}
+	return out
 }
 
 func (p *RequestHandlePipeline) cleanBuffer(requestID string) {

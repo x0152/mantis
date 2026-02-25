@@ -40,9 +40,9 @@ export const api = {
   connections: {
     list: () => request<Connection[]>('/connections'),
     get: (id: string) => request<Connection>(`/connections/${id}`),
-    create: (data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[] }) =>
+    create: (data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
       request<Connection>('/connections', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[] }) =>
+    update: (id: string, data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
       request<Connection>(`/connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/connections/${id}`, { method: 'DELETE' }),
     addMemory: (id: string, content: string) =>

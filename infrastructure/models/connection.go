@@ -16,4 +16,5 @@ type ConnectionRow struct {
 	Config        json.RawMessage `bun:"config,type:jsonb"`
 	Memories      json.RawMessage `bun:"memories,type:jsonb"`
 	ProfileIDs    json.RawMessage `bun:"profile_ids,type:jsonb"`
+	MemoryEnabled bool            `bun:"memory_enabled"`
 }

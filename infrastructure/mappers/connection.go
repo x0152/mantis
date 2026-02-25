@@ -11,14 +11,15 @@ func ConnectionToRow(c types.Connection) models.ConnectionRow {
 	memories, _ := json.Marshal(c.Memories)
 	profileIDs, _ := json.Marshal(c.ProfileIDs)
 	return models.ConnectionRow{
-		ID:          c.ID,
-		Type:        c.Type,
-		Name:        c.Name,
-		Description: c.Description,
-		ModelID:     c.ModelID,
-		Config:      c.Config,
-		Memories:    memories,
-		ProfileIDs:  profileIDs,
+		ID:            c.ID,
+		Type:          c.Type,
+		Name:          c.Name,
+		Description:   c.Description,
+		ModelID:       c.ModelID,
+		Config:        c.Config,
+		Memories:      memories,
+		ProfileIDs:    profileIDs,
+		MemoryEnabled: c.MemoryEnabled,
 	}
 }
 
@@ -34,13 +35,14 @@ func ConnectionFromRow(r models.ConnectionRow) types.Connection {
 		profileIDs = []string{}
 	}
 	return types.Connection{
-		ID:          r.ID,
-		Type:        r.Type,
-		Name:        r.Name,
-		Description: r.Description,
-		ModelID:     r.ModelID,
-		Config:      r.Config,
-		Memories:    memories,
-		ProfileIDs:  profileIDs,
+		ID:            r.ID,
+		Type:          r.Type,
+		Name:          r.Name,
+		Description:   r.Description,
+		ModelID:       r.ModelID,
+		Config:        r.Config,
+		Memories:      memories,
+		ProfileIDs:    profileIDs,
+		MemoryEnabled: r.MemoryEnabled,
 	}
 }

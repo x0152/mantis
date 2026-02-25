@@ -40,6 +40,7 @@ export interface Connection {
   config: Record<string, unknown>
   memories: Memory[]
   profileIds: string[]
+  memoryEnabled: boolean
 }
 
 export interface GuardCapabilities {

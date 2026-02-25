@@ -17,7 +17,7 @@ func NewUpdateConnection(store protocols.Store[string, types.Connection]) *Updat
 	return &UpdateConnection{store: store}
 }
 
-func (uc *UpdateConnection) Execute(ctx context.Context, id, connType, name, description, modelID string, config json.RawMessage, profileIDs []string) (types.Connection, error) {
+func (uc *UpdateConnection) Execute(ctx context.Context, id, connType, name, description, modelID string, config json.RawMessage, profileIDs []string, memoryEnabled bool) (types.Connection, error) {
 	existing, err := uc.store.Get(ctx, []string{id})
 	if err != nil {
 		return types.Connection{}, err
@@ -32,6 +32,7 @@ func (uc *UpdateConnection) Execute(ctx context.Context, id, connType, name, des
 	c := types.Connection{
 		ID: id, Type: connType, Name: name, Description: description,
 		ModelID: modelID, Config: config, Memories: old.Memories, ProfileIDs: profileIDs,
+		MemoryEnabled: memoryEnabled,
 	}
 	result, err := uc.store.Update(ctx, []types.Connection{c})
 	if err != nil {

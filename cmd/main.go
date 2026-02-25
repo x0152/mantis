@@ -24,6 +24,7 @@ import (
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
 	"mantis/core/plugins/guard"
+	"mantis/core/plugins/memory"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	artifactadapter "mantis/infrastructure/adapters/artifact"
@@ -125,16 +126,17 @@ func main() {
 		ttsAdapter = tts.NewCosyVoice(u, 5*time.Minute)
 	}
 
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, llmConnStore, connectionStore, cronJobStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter)
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, llmConnStore, connectionStore, cronJobStore, configStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
+	memoryExtractor := memory.NewExtractor(openaiAdapter, configStore, connectionStore, modelStore, llmConnStore)
 
 	metadataApp := metadata.NewApp(configStore, llmConnStore, modelStore, connectionStore, cronJobStore, guardProfileStore, channelStore)
-	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, channelStore, configStore, mantisAgent, buf, artifactMgr)
+	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, channelStore, configStore, mantisAgent, buf, artifactMgr, memoryExtractor)
 	logsApp := logs.NewApp(logStore)
-	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter)
-	cronApp := cron.NewApp(configStore, channelStore, sessionStore, messageStore, modelStore, cronJobStore, mantisAgent, artifactMgr)
+	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)
+	cronApp := cron.NewApp(configStore, channelStore, sessionStore, messageStore, modelStore, cronJobStore, mantisAgent, artifactMgr, memoryExtractor)
 
 	go telegramApp.Start(context.Background())
 	go cronApp.Start(context.Background())

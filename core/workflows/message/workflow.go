@@ -48,12 +48,13 @@ func New(
 	buffer *shared.Buffer,
 	modelResolver *modelplugin.Resolver,
 	artifactMgr *artifactplugin.Manager,
+	memoryExtractor pipeline.MemoryExtractor,
 ) *Workflow {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	return &Workflow{
-		pipeline:     pipeline.New(agent, buffer, messageStore, modelStore, modelResolver),
+		pipeline:     pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor),
 		messageStore: messageStore,
 		artifactMgr:  artifactMgr,
 	}

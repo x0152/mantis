@@ -12,6 +12,7 @@ import (
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
 	modelplugin "mantis/core/plugins/model"
+	"mantis/core/plugins/pipeline"
 	sessionplugin "mantis/core/plugins/session"
 	"mantis/core/protocols"
 	"mantis/core/types"
@@ -38,6 +39,7 @@ func NewApp(
 	cronJobStore protocols.Store[string, types.CronJob],
 	agent *agents.MantisAgent,
 	artifactMgr *artifactplugin.Manager,
+	memoryExtractor pipeline.MemoryExtractor,
 ) *App {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
@@ -45,7 +47,7 @@ func NewApp(
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 
 	modelResolver := modelplugin.NewResolver(nil, configStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, nil, modelResolver, artifactMgr)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, nil, modelResolver, artifactMgr, memoryExtractor)
 
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
 	loadConfigUC := usecases.NewLoadConfig(configStore)

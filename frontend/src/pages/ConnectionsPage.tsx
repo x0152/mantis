@@ -13,7 +13,7 @@ export default function ConnectionsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Connection | null>(null)
   const emptySsh = { host: '', port: '22', username: '', password: '', privateKey: '' }
-  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] as string[] })
+  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] as string[], memoryEnabled: true })
   const [ssh, setSsh] = useState(emptySsh)
   const [memoryInput, setMemoryInput] = useState('')
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -62,14 +62,14 @@ export default function ConnectionsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] })
+    setForm({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [], memoryEnabled: true })
     setSsh(emptySsh)
     setModalOpen(true)
   }
 
   const openEdit = (c: Connection) => {
     setEditing(c)
-    setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId, profileIds: c.profileIds || [] })
+    setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId, profileIds: c.profileIds || [], memoryEnabled: c.memoryEnabled })
     setSsh(parseSshConfig(c.config))
     setModalOpen(true)
   }
@@ -77,7 +77,7 @@ export default function ConnectionsPage() {
   const submit = async () => {
     try {
       const config = buildConfig()
-      const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config, profileIds: form.profileIds }
+      const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config, profileIds: form.profileIds, memoryEnabled: form.memoryEnabled }
       if (editing) {
         await api.connections.update(editing.id, data)
         showToast('success', 'Server updated')
@@ -349,6 +349,18 @@ export default function ConnectionsPage() {
                 <option key={m.id} value={m.id}>{m.name} ({m.connectionId})</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
+              form.memoryEnabled ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900'
+            }`}>
+              <input type="checkbox" checked={form.memoryEnabled} onChange={e => setForm(f => ({ ...f, memoryEnabled: e.target.checked }))}
+                className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
+              <div>
+                <span className="text-sm font-medium text-zinc-200">Memory</span>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Auto-extract and remember facts about this server</p>
+              </div>
+            </label>
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-400 mb-2">Security Profiles</label>
