@@ -256,9 +256,12 @@ func (t *Telegram) handle(ctx context.Context, msg *tgMessage) {
 		}
 	}
 
-	// voice (often OGG/OPUS)
 	if msg.Voice != nil {
-		if err := appendFile(msg.Voice.FileID, msg.Voice.FileSize, "voice.ogg", msg.Voice.MimeType); err != nil {
+		voiceName := "voice.ogg"
+		if msg.ForwardDate > 0 {
+			voiceName = fmt.Sprintf("forwarded_voice_%s.ogg", time.Now().UTC().Format("20060102_150405"))
+		}
+		if err := appendFile(msg.Voice.FileID, msg.Voice.FileSize, voiceName, msg.Voice.MimeType); err != nil {
 			_ = t.sendMessage(ctx, msg.Chat.ID, "Error: "+err.Error())
 			return
 		}
@@ -368,12 +371,13 @@ type tgMessage struct {
 	From struct {
 		ID int64 `json:"id"`
 	} `json:"from"`
-	Text     string      `json:"text"`
-	Caption  string      `json:"caption"`
-	Document *tgDocument `json:"document"`
-	Audio    *tgAudio    `json:"audio"`
-	Voice    *tgVoice    `json:"voice"`
-	Photo    []tgPhoto   `json:"photo"`
+	ForwardDate int64       `json:"forward_date"`
+	Text        string      `json:"text"`
+	Caption     string      `json:"caption"`
+	Document    *tgDocument `json:"document"`
+	Audio       *tgAudio    `json:"audio"`
+	Voice       *tgVoice    `json:"voice"`
+	Photo       []tgPhoto   `json:"photo"`
 }
 
 type tgDocument struct {

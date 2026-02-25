@@ -14,36 +14,45 @@ import (
 	"mantis/shared"
 )
 
-const userPrompt = `You manage a long-term memory system. You store facts the user wants remembered.
+const userPrompt = `You manage a long-term memory system. You store ONLY facts about the USER as a person.
 You receive existing facts and a recent conversation.
 
-SAVE:
+SAVE (only when the user explicitly states or confirms):
 - Identity: name, language, role, company, timezone, location
 - Preferences: tools, formats, styles, workflows
 - Projects and goals the user is working on
-- Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.) — save the ACTUAL content, not a description of the request
-- Specific knowledge the user shares in their OWN words: warnings, conclusions, decisions
+- Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.)
+- Knowledge the user typed themselves: warnings, conclusions, decisions
 
-DO NOT SAVE:
-- Anything inside <file_content>...</file_content> tags — these are tool-extracted data (OCR, image descriptions, file previews, transcriptions), NOT user knowledge
-- Product specs, labels, or metadata extracted from images — the user just shared a file, they didn't state these as personal facts
+DO NOT SAVE — this is critical:
+- Content from files, images, screenshots, documents, audio — even if the assistant described them. The user sharing a file is NOT the user stating facts.
+- Anything inside <file_content>...</file_content> tags
+- Product info, prices, menus, labels, specs, ingredients, nutritional info — from images or any source
+- Information the assistant looked up, described, or generated — unless the user explicitly confirmed it as a personal fact
 - Server/infrastructure details (that goes to server memory)
-- Anything the assistant said that the user did not explicitly confirm or state themselves
+- One-off queries: the user asking "what is this?" or sending a photo to analyze is NOT a fact to remember
 
-CRITICAL: save the actual information, not meta-descriptions.
-BAD: "likes to track prices of things" — this is a meta-description of behavior.
-GOOD: "item X costs $50, item Y is unreliable" — this is the actual fact.
+Ask yourself: "Did the USER explicitly say this about themselves, or did it come from a file/tool/assistant?" If the latter — do NOT save.
 
-Time-sensitive facts (prices, rates, versions, stats) MUST include the date. If the date is unknown, do not save them.
-BAD: "item X costs $50"
-GOOD: "item X costs $50 (as of 2025-02-15)"
+Examples:
+- User sends a photo of food → assistant describes it → DO NOT SAVE (user just shared a photo)
+- User sends a screenshot of an app → assistant reads it → DO NOT SAVE
+- User says "I'm allergic to nuts" → SAVE (personal fact)
+- User says "remember: server X uses port 8080" → SAVE (explicit request)
+- User sends a product photo and says "this is my favorite glue" → SAVE "favorite glue: [product name]" (user stated preference)
+
+Time-sensitive facts (prices, rates, versions) MUST include the date.
+
+CRITICAL: save actual information, not meta-descriptions.
+BAD: "likes to track prices" → meta-description
+GOOD: "item X costs $50 (as of 2025-02-15)" → actual fact stated by user
 
 - REMOVE only facts the conversation explicitly contradicts or the user asks to forget.
 - Do NOT remove facts just because they aren't mentioned.
 
 Return strictly valid JSON:
 {"add": [], "remove": []}
-Example: {"add": ["uses Go and React for main project"], "remove": []}`
+Most conversations should return: {"add": [], "remove": []}`
 
 const connectionPrompt = `You manage a long-term memory system about a remote server.
 You receive existing facts and recent SSH command history.
