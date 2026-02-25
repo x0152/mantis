@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,6 +28,8 @@ func NewOpenAI() *OpenAI {
 		DialContext: (&net.Dialer{
 			Timeout: 10 * time.Second,
 		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 60 * time.Second,
 	}
 	return &OpenAI{client: &http.Client{Transport: transport}}
 }
@@ -177,12 +180,7 @@ func (o *OpenAI) ChatStream(ctx context.Context, baseURL, apiKey string, message
 			}
 
 			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
-				var calls []types.ToolCall
-				for i := 0; i < len(toolCalls); i++ {
-					if tc, ok := toolCalls[i]; ok {
-						calls = append(calls, *tc)
-					}
-				}
+				calls := orderedToolCalls(toolCalls)
 				ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 				return
 			}
@@ -191,12 +189,7 @@ func (o *OpenAI) ChatStream(ctx context.Context, baseURL, apiKey string, message
 		// Emit accumulated tool calls even if finish_reason was not "tool_calls".
 		// Some providers (e.g. LM Studio) return "stop" while still including tool_calls in deltas.
 		if len(toolCalls) > 0 {
-			var calls []types.ToolCall
-			for i := 0; i < len(toolCalls); i++ {
-				if tc, ok := toolCalls[i]; ok {
-					calls = append(calls, *tc)
-				}
-			}
+			calls := orderedToolCalls(toolCalls)
 			ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 			return
 		}
@@ -254,4 +247,23 @@ func buildTools(tools []types.Tool) []reqTool {
 		}
 	}
 	return out
+}
+
+func orderedToolCalls(toolCalls map[int]*types.ToolCall) []types.ToolCall {
+	if len(toolCalls) == 0 {
+		return nil
+	}
+	indexes := make([]int, 0, len(toolCalls))
+	for i := range toolCalls {
+		indexes = append(indexes, i)
+	}
+	sort.Ints(indexes)
+
+	calls := make([]types.ToolCall, 0, len(indexes))
+	for _, i := range indexes {
+		if tc, ok := toolCalls[i]; ok && tc != nil {
+			calls = append(calls, *tc)
+		}
+	}
+	return calls
 }

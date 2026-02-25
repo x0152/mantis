@@ -92,7 +92,7 @@ func (g *Guard) loadRules(ctx context.Context, connectionID string) []types.Guar
 
 func defaultBuiltins() []Rule {
 	defs := []struct{ name, pattern, msg string }{
-		{"recursive delete root", `rm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+/\s`, "recursive force delete on system root"},
+		{"recursive delete root", `(?:^|\s)rm\s+(?:-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*|--recursive(?:\s+--force)?|--force(?:\s+--recursive)?)\s+(?:--no-preserve-root\s+)?["']?/["']?(?:\s|$)`, "recursive force delete on system root"},
 		{"write to block device", `>\s*/dev/sd`, "direct write to block device"},
 		{"format filesystem", `mkfs\.`, "filesystem formatting"},
 		{"fork bomb", `:\(\)\s*\{`, "fork bomb detected"},

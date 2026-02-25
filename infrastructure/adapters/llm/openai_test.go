@@ -171,3 +171,41 @@ data: [DONE]
 		t.Error("no text event found after thinking skip")
 	}
 }
+
+func TestChatStream_ToolCallsWithSparseIndexes(t *testing.T) {
+	// Some providers may emit non-contiguous tool_call indexes.
+	sseData := `data: {"choices":[{"delta":{"tool_calls":[{"index":3,"id":"call_4","type":"function","function":{"name":"execute_command","arguments":""}}]},"finish_reason":null}]}
+
+data: {"choices":[{"delta":{"tool_calls":[{"index":3,"function":{"arguments":"{\"command\":\"uptime\"}"}}]},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, sseData)
+	}))
+	defer server.Close()
+
+	o := NewOpenAI()
+	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	events := collectStreamEvents(ch)
+
+	for _, e := range events {
+		if e.Type != "tool_calls" {
+			continue
+		}
+		if len(e.ToolCalls) != 1 {
+			t.Fatalf("expected 1 tool call, got %d: %+v", len(e.ToolCalls), e.ToolCalls)
+		}
+		got := e.ToolCalls[0]
+		if got.ID != "call_4" || got.Name != "execute_command" || got.Arguments != "{\"command\":\"uptime\"}" {
+			t.Fatalf("unexpected tool call content: %+v", got)
+		}
+		return
+	}
+	t.Fatal("expected tool_calls event, got none")
+}
