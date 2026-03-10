@@ -102,8 +102,8 @@ export default function ChannelsPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Channels</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Chat channel is default; Telegram channels can be added</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Channels</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Chat channel is default; Telegram channels can be added</p>
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> Add Telegram Channel
@@ -111,11 +111,11 @@ export default function ChannelsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : channels.length === 0 ? (
         <EmptyState icon={Radio} title="No channels yet" />
       ) : (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -133,11 +133,11 @@ export default function ChannelsPage() {
                 return (a.name || a.id).localeCompare(b.name || b.id)
               }).map(ch => (
                 <TableRow key={ch.id}>
-                  <TableCell className="font-medium text-zinc-200 text-sm">{ch.name || (ch.type === 'chat' ? 'Chat' : 'Telegram')}</TableCell>
+                  <TableCell className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{ch.name || (ch.type === 'chat' ? 'Chat' : 'Telegram')}</TableCell>
                   <TableCell>
                     <Badge className="uppercase">{ch.type}</Badge>
                   </TableCell>
-                  <TableCell className="text-zinc-400 text-sm">{modelName(ch.modelId)}</TableCell>
+                  <TableCell className="text-zinc-600 dark:text-zinc-400 text-sm">{modelName(ch.modelId)}</TableCell>
                   <TableCell className="text-zinc-500">{ch.token ? 'set' : '—'}</TableCell>
                   <TableCell className="text-zinc-500">{(ch.allowedUserIds ?? []).length || '—'}</TableCell>
                   <TableCell>
@@ -188,7 +188,7 @@ export default function ChannelsPage() {
               <select
                 value={form.modelId}
                 onChange={e => setForm(f => ({ ...f, modelId: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="">Select model...</option>
                 {models.map(m => (

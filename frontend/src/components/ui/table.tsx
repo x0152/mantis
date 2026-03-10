@@ -43,7 +43,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/30",
+      "border-b border-zinc-200/50 dark:border-zinc-800/50 transition-colors hover:bg-zinc-100/50 dark:hover:bg-zinc-800/30",
       className,
     )}
     {...props}
@@ -73,7 +73,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "px-3 py-2.5 align-middle text-xs text-zinc-300 [&:has([role=checkbox])]:pr-0",
+      "px-3 py-2.5 align-middle text-xs text-zinc-700 dark:text-zinc-300 [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}

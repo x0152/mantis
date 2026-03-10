@@ -43,10 +43,10 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[70%] rounded-xl rounded-bl-sm text-sm bg-zinc-900 text-zinc-300 border border-zinc-800 overflow-hidden">
+      <div className="max-w-[70%] rounded-xl rounded-bl-sm text-sm bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
         {msg.modelName && (
           <div className="px-3.5 pt-2 pb-0">
-            <span className="text-[10px] font-medium text-zinc-600">{msg.modelName}</span>
+            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-600">{msg.modelName}</span>
           </div>
         )}
         {isPending && (
@@ -124,7 +124,7 @@ export function StepBadge({ step, onClick }: { step: Step; onClick: () => void }
           ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
           : isError
             ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-            : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-300'
+            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300'
       }`}
     >
       {isRunning
@@ -240,8 +240,8 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-zinc-900 border-l border-zinc-800 flex flex-col shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             {isRunning
               ? <Loader2 size={14} className="text-teal-400 animate-spin shrink-0" />
@@ -249,21 +249,21 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
                 ? <AlertCircle size={14} className="text-red-400 shrink-0" />
                 : <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
             }
-            <span className="font-medium text-sm text-zinc-100 truncate">{step.label}</span>
+            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">{step.label}</span>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 shrink-0 ml-2">
+          <button onClick={onClose} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shrink-0 ml-2">
             <X size={16} />
           </button>
         </div>
 
-        <div className="px-5 py-3 border-b border-zinc-800 space-y-2 shrink-0">
+        <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-zinc-600 font-mono">{step.tool}</span>
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-600 font-mono">{step.tool}</span>
             {step.modelName && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-800 text-zinc-500">{step.modelName}</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.modelName}</span>
             )}
             {step.finishedAt && step.startedAt && (
-              <span className="text-[11px] text-zinc-600">{fmtDuration(step.startedAt, step.finishedAt)}</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-600">{fmtDuration(step.startedAt, step.finishedAt)}</span>
             )}
           </div>
           {step.logId && (
@@ -283,7 +283,7 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
             {prompt && <PromptBanner prompt={prompt} />}
             {entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
             {isRunning && !step.result && (
-              <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+              <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
                 <Loader2 size={11} className="animate-spin" />
                 <span>Running...</span>
               </div>
@@ -295,21 +295,21 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
       {showLog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowLog(false)}>
           <div
-            className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[85vh]"
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[85vh]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <ScrollText size={14} className="text-teal-400" />
-                <span className="font-medium text-sm text-zinc-100">{log?.agentName ?? 'Agent'}</span>
+                <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{log?.agentName ?? 'Agent'}</span>
                 {log && (
                   <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
                     log.status === 'running' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
                   }`}>{log.status}</span>
                 )}
-                {!log && <Loader2 size={12} className="text-zinc-600 animate-spin" />}
+                {!log && <Loader2 size={12} className="text-zinc-500 dark:text-zinc-600 animate-spin" />}
               </div>
-              <button onClick={() => setShowLog(false)} className="p-1 rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800">
+              <button onClick={() => setShowLog(false)} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 <X size={16} />
               </button>
             </div>
@@ -317,24 +317,24 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
               <div className="bg-zinc-950 px-4 py-3.5 space-y-1 min-h-[120px]">
                 {log?.prompt && <PromptBanner prompt={log.prompt} />}
                 {log && log.entries.length === 0 && log.status === 'running' ? (
-                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
                     <Loader2 size={11} className="animate-spin" />
                     <span>Waiting for output...</span>
                   </div>
                 ) : log && log.entries.length === 0 ? (
-                  <p className="text-zinc-600 text-xs font-mono">No entries</p>
+                  <p className="text-zinc-500 dark:text-zinc-600 text-xs font-mono">No entries</p>
                 ) : log ? (
                   <>
                     {log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
                     {log.status === 'running' && (
-                      <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                      <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
                         <Loader2 size={11} className="animate-spin" />
                         <span>Running...</span>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-600 py-2">
+                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
                     <Loader2 size={11} className="animate-spin" />
                     <span>Loading...</span>
                   </div>

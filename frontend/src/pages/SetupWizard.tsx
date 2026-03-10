@@ -87,19 +87,19 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-2.5 mb-2">
             <div className="w-2.5 h-2.5 rounded-full bg-teal-400" />
-            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Mantis</h1>
+            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">Mantis</h1>
           </div>
           <p className="text-sm text-zinc-500">Connect your LLM provider to get started</p>
         </div>
 
-        <Card className="space-y-6 bg-zinc-900/60 border-zinc-800/80 p-6">
+        <Card className="space-y-6 bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 p-6">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-200 mb-3">LLM Connection</h2>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">LLM Connection</h2>
             <div className="space-y-3">
               <FormField label="Base URL">
                 <Input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" />
@@ -108,21 +108,21 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                 <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
               </FormField>
               <div>
-                <Label>Models <span className="text-zinc-600">(comma-separated, last = summary)</span></Label>
+                <Label>Models <span className="text-zinc-500 dark:text-zinc-600">(comma-separated, last = summary)</span></Label>
                 <Input value={modelName} onChange={e => setModelName(e.target.value)} placeholder="gpt-4o-mini, gpt-4o" />
               </div>
             </div>
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold text-zinc-200 mb-1">Telegram <span className="text-zinc-600 font-normal">(optional)</span></h2>
-            <p className="text-xs text-zinc-600 mb-3">Connect a Telegram bot to chat from your phone</p>
+            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">Telegram <span className="text-zinc-500 dark:text-zinc-600 font-normal">(optional)</span></h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-600 mb-3">Connect a Telegram bot to chat from your phone</p>
             <div className="space-y-3">
               <FormField label="Bot token">
                 <Input value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
               </FormField>
               <div>
-                <Label>Allowed user IDs <span className="text-zinc-600">(comma-separated, empty = allow all)</span></Label>
+                <Label>Allowed user IDs <span className="text-zinc-500 dark:text-zinc-600">(comma-separated, empty = allow all)</span></Label>
                 <Input value={tgUserIds} onChange={e => setTgUserIds(e.target.value)} placeholder="123456789, 987654321" />
               </div>
             </div>

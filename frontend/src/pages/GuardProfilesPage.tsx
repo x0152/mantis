@@ -154,8 +154,8 @@ export default function GuardProfilesPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Guard Profiles</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Security profiles control which commands SSH agents can execute</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Guard Profiles</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Security profiles control which commands SSH agents can execute</p>
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> New Profile
@@ -163,18 +163,18 @@ export default function GuardProfilesPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : profiles.length === 0 ? (
         <EmptyState icon={Shield} title="No guard profiles yet" description="Create profiles to control SSH command execution" />
       ) : (
         <div className="space-y-2.5">
           {profiles.map(p => (
-            <div key={p.id} className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+            <div key={p.id} className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
               <div className="px-4 py-3.5">
                 <div className="flex items-center justify-between">
                   <button onClick={() => toggle(p.id)} className="flex items-center gap-2 min-w-0 text-left">
                     {expanded.has(p.id) ? <ChevronDown size={14} className="text-zinc-600" /> : <ChevronRight size={14} className="text-zinc-600" />}
-                    <span className="font-medium text-zinc-200 text-sm">{p.name}</span>
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{p.name}</span>
                     {p.builtin && <Badge variant="secondary">Built-in</Badge>}
                     {p.capabilities.unrestricted && <Badge variant="warning">Unrestricted</Badge>}
                   </button>
@@ -192,22 +192,22 @@ export default function GuardProfilesPage() {
                     )}
                   </div>
                 </div>
-                {p.description && <p className="text-xs text-zinc-500 mt-1 ml-5.5">{p.description}</p>}
+                  {p.description && <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-1 ml-5.5">{p.description}</p>}
               </div>
               {expanded.has(p.id) && (
                 <div className="px-4 pb-4 space-y-3">
-                  <div className="bg-zinc-950 rounded-lg border border-zinc-800 p-3">
-                    <p className="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider mb-2">Capabilities</p>
-                    <p className="text-xs text-zinc-400">{capList(p.capabilities)}</p>
+                  <div className="bg-zinc-50 dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+                    <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-600 uppercase tracking-wider mb-2">Capabilities</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400">{capList(p.capabilities)}</p>
                   </div>
-                  <div className="bg-zinc-950 rounded-lg border border-zinc-800 p-3">
-                    <p className="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider mb-2">Commands ({p.commands.length})</p>
+                  <div className="bg-zinc-50 dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+                    <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-600 uppercase tracking-wider mb-2">Commands ({p.commands.length})</p>
                     {p.commands.length === 0 ? (
-                      <p className="text-xs text-zinc-600 italic">{p.capabilities.unrestricted ? 'All commands allowed' : 'No commands configured'}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-600 italic">{p.capabilities.unrestricted ? 'All commands allowed' : 'No commands configured'}</p>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {p.commands.map((c, i) => (
-                          <span key={i} className="px-2 py-0.5 text-xs font-mono bg-zinc-800 text-zinc-300 rounded" title={
+                          <span key={i} className="px-2 py-0.5 text-xs font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded" title={
                             (c.allowedArgs?.length ? `Args: ${c.allowedArgs.join(', ')}` : '') +
                             (c.allowedSql?.length ? `SQL: ${c.allowedSql.join(', ')}` : '')
                           }>
@@ -243,7 +243,7 @@ export default function GuardProfilesPage() {
             </FormField>
             <div>
               <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer mb-3 ${
-                form.capabilities.unrestricted ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-950'
+                form.capabilities.unrestricted ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950'
               }`}>
                 <Checkbox checked={form.capabilities.unrestricted} onCheckedChange={v => setCap('unrestricted', !!v)} />
                 <div>
@@ -253,10 +253,10 @@ export default function GuardProfilesPage() {
               </label>
               {!form.capabilities.unrestricted && (
                 <>
-                  <label className="block text-xs font-medium text-zinc-400 mb-2">Capabilities</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">Capabilities</label>
                   <div className="grid grid-cols-2 gap-2">
                     {(Object.keys(capLabels) as (keyof GuardCapabilities)[]).filter(k => k !== 'unrestricted').map(key => (
-                      <label key={key} className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                      <label key={key} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer">
                         <Checkbox checked={form.capabilities[key]} onCheckedChange={v => setCap(key, !!v)} />
                         {capLabels[key]}
                       </label>
@@ -267,7 +267,7 @@ export default function GuardProfilesPage() {
             </div>
             {!form.capabilities.unrestricted && (
               <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-2">Allowed Commands</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">Allowed Commands</label>
                 <div className="flex gap-2 mb-2">
                   <Input value={newCmd} onChange={e => setNewCmd(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCommand())}
@@ -278,7 +278,7 @@ export default function GuardProfilesPage() {
                 {form.commands.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {form.commands.map((c, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded border border-zinc-300 dark:border-zinc-700">
                         {formatCommandRule(c)}
                         <button onClick={() => removeCommand(i)} className="text-zinc-600 hover:text-red-400"><X size={12} /></button>
                       </span>

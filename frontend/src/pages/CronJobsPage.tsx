@@ -90,8 +90,8 @@ export default function CronJobsPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Cron Jobs</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Scheduled tasks with prompt payloads</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Cron Jobs</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Scheduled tasks with prompt payloads</p>
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> Add Cron Job
@@ -99,17 +99,17 @@ export default function CronJobsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : jobs.length === 0 ? (
         <EmptyState icon={Clock} title="No cron jobs yet" description="Create your first scheduled task" />
       ) : (
         <div className="space-y-2.5">
           {jobs.map(j => (
-            <div key={j.id} className={`bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden ${!j.enabled ? 'opacity-50' : ''}`}>
+            <div key={j.id} className={`bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden ${!j.enabled ? 'opacity-50' : ''}`}>
               <div className="px-4 py-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-medium text-zinc-200 text-sm">{j.name}</span>
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{j.name}</span>
                     <Badge variant="outline">{j.schedule}</Badge>
                     <Badge variant={j.enabled ? 'success' : 'muted'}>
                       {j.enabled ? 'Active' : 'Paused'}
@@ -134,15 +134,15 @@ export default function CronJobsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="mt-2.5 bg-zinc-950 rounded-lg border border-zinc-800 p-3">
+                <div className="mt-2.5 bg-zinc-50 dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
                   <div
                     className="flex items-center gap-1 cursor-pointer select-none"
                     onClick={() => setExpandedJobId(expandedJobId === j.id ? null : j.id)}
                   >
                     {expandedJobId === j.id ? <ChevronDown size={12} className="text-zinc-600" /> : <ChevronRight size={12} className="text-zinc-600" />}
-                    <p className="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">Prompt</p>
+                    <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-600 uppercase tracking-wider">Prompt</p>
                   </div>
-                  <p className="text-sm text-zinc-400 whitespace-pre-wrap mt-1">{j.prompt}</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap mt-1">{j.prompt}</p>
                 </div>
               </div>
               {expandedJobId === j.id && (
@@ -174,7 +174,7 @@ export default function CronJobsPage() {
                 className="font-mono"
                 placeholder="0 * * * *"
               />
-              <p className="text-[11px] text-zinc-600 mt-1">min hour day month weekday</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1">min hour day month weekday</p>
             </FormField>
             <FormField label="Prompt">
               <Textarea
@@ -186,7 +186,7 @@ export default function CronJobsPage() {
             </FormField>
             <div className="flex items-center gap-2">
               <Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} />
-              <span className="text-xs text-zinc-400">{form.enabled ? 'Enabled' : 'Disabled'}</span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">{form.enabled ? 'Enabled' : 'Disabled'}</span>
             </div>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
@@ -254,9 +254,9 @@ function CronMessages({ jobId }: { jobId: string }) {
   }
 
   return (
-    <div className="border-t border-zinc-800">
-      <div className="px-4 py-3 bg-zinc-950/50">
-        <p className="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider mb-3">Execution History</p>
+    <div className="border-t border-zinc-200 dark:border-zinc-800">
+      <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-950/50">
+        <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-600 uppercase tracking-wider mb-3">Execution History</p>
         {loading ? (
           <div className="text-xs text-zinc-600 py-4 text-center">Loading messages...</div>
         ) : messages.length === 0 ? (

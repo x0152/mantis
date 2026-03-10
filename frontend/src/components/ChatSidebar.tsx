@@ -98,7 +98,7 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
             className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] min-w-0 ${
               activeSessionId === session.id
                 ? 'bg-teal-500/10 text-teal-400'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
             }`}
           >
             <MessageSquare size={14} className="shrink-0" strokeWidth={1.8} />
@@ -113,7 +113,7 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
                     if (e.key === 'Enter') confirmRename(session.id)
                     if (e.key === 'Escape') cancelRename()
                   }}
-                  className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                  className="flex-1 min-w-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-1.5 py-0.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
                 />
                 <button onClick={() => confirmRename(session.id)} className="text-teal-400 hover:text-teal-300"><Check size={12} /></button>
                 <button onClick={cancelRename} className="text-zinc-500 hover:text-zinc-300"><X size={12} /></button>
@@ -122,18 +122,18 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
               <>
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{displayTitle(session)}</div>
-                  <div className="text-[10px] text-zinc-600 mt-0.5">{formatDate(session.createdAt)}</div>
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-600 mt-0.5">{formatDate(session.createdAt)}</div>
                 </div>
                 <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
                   <button
                     onClick={e => startRename(e, session)}
-                    className="p-1 text-zinc-600 hover:text-zinc-300 rounded"
+                    className="p-1 text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 rounded"
                   >
                     <Pencil size={11} />
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); setDeleteTarget(session.id) }}
-                    className="p-1 text-zinc-600 hover:text-red-400 rounded"
+                    className="p-1 text-zinc-500 dark:text-zinc-600 hover:text-red-400 rounded"
                   >
                     <Trash2 size={11} />
                   </button>
