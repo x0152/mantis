@@ -29,6 +29,8 @@ func NewApp(
 	modelStore protocols.Store[string, types.Model],
 	channelStore protocols.Store[string, types.Channel],
 	configStore protocols.Store[string, types.Config],
+	llmConnStore protocols.Store[string, types.LlmConnection],
+	llm protocols.LLM,
 	mantisAgent *agents.MantisAgent,
 	buf *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
@@ -36,6 +38,7 @@ func NewApp(
 ) *App {
 	modelResolver := modelplugin.NewResolver(channelStore, configStore)
 	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor)
+	generateTitle := usecases.NewGenerateTitle(llm, modelResolver, modelStore, llmConnStore, sessionStore)
 	return &App{
 		endpoints: api.NewEndpoints(api.UseCases{
 			GetCurrentSession: usecases.NewGetCurrentSession(sessionStore),
@@ -45,7 +48,7 @@ func NewApp(
 			UpdateSession:     usecases.NewUpdateSession(sessionStore),
 			DeleteSession:     usecases.NewDeleteSession(sessionStore, messageStore),
 			ListMessages:      usecases.NewListMessages(messageStore, buf),
-			SendMessage:       usecases.NewSendMessage(workflow, sessionStore),
+			SendMessage:       usecases.NewSendMessage(workflow, sessionStore, generateTitle),
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
 		}),
 	}
