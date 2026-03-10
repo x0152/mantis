@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, MessageSquare, Pencil, Trash2, Check, X } from 'lucide-react'
 import { api } from '../api'
 import type { ChatSession } from '../types'
+import { Button } from '@/components/ui/button'
+import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 interface Props {
   activeSessionId: string | null
@@ -15,6 +17,7 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const editRef = useRef<HTMLInputElement>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => { loadSessions() }, [refreshKey])
 
@@ -25,12 +28,11 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
     } catch {}
   }
 
-  async function handleDelete(e: React.MouseEvent, id: string) {
-    e.stopPropagation()
-    if (!confirm('Delete this chat and all its messages?')) return
+  async function handleDelete(id: string) {
     try {
       await api.chat.deleteSession(id)
       setSessions(prev => prev.filter(s => s.id !== id))
+      setDeleteTarget(null)
       if (activeSessionId === id) {
         const remaining = sessions.filter(s => s.id !== id)
         if (remaining.length > 0) {
@@ -78,13 +80,15 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
 
   return (
     <div className="flex flex-col h-full">
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onNew}
-        className="flex items-center gap-2 mx-2 mt-2 mb-1 px-3 py-2 text-xs font-medium text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+        className="mx-2 mt-2 mb-1"
       >
         <Plus size={14} />
         New Chat
-      </button>
+      </Button>
 
       <div className="flex-1 overflow-auto px-2 py-1 space-y-0.5">
         {sessions.map(session => (
@@ -128,7 +132,7 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
                     <Pencil size={11} />
                   </button>
                   <button
-                    onClick={e => handleDelete(e, session.id)}
+                    onClick={e => { e.stopPropagation(); setDeleteTarget(session.id) }}
                     className="p-1 text-zinc-600 hover:text-red-400 rounded"
                   >
                     <Trash2 size={11} />
@@ -145,6 +149,14 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
           </div>
         )}
       </div>
+
+      <ConfirmDelete
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+        title="Delete chat?"
+        description="This will delete the chat and all its messages."
+      />
     </div>
   )
 }

@@ -3,6 +3,10 @@ import { ScrollText, Terminal, ChevronRight, ChevronDown, Clock, CheckCircle2, L
 import { api } from '../api'
 import { EntryLine, PromptBanner } from '../components/LogEntries'
 import type { SessionLog, Connection } from '../types'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/EmptyState'
+import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 const PAGE_SIZE = 10
 
@@ -42,11 +46,9 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-zinc-200 text-sm">{log.agentName}</span>
-            <span className={`px-1.5 py-0.5 text-[11px] font-medium rounded-full ${
-              isRunning ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
-            }`}>
+            <Badge variant={isRunning ? 'warning' : 'success'}>
               {log.status}
-            </span>
+            </Badge>
           </div>
           {log.prompt && (
             <p className="text-xs text-zinc-500 mt-0.5 truncate">{log.prompt}</p>
@@ -61,7 +63,7 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
       </div>
 
       {expanded && (
-        <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-3.5 space-y-1 max-h-[500px] overflow-y-auto">
+        <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-3.5 space-y-1 max-h-125 overflow-y-auto">
           {log.prompt && <PromptBanner prompt={log.prompt} />}
           {log.entries.length === 0 && !log.prompt ? (
             <p className="text-zinc-600 text-xs font-mono">No entries yet</p>
@@ -82,6 +84,7 @@ export default function LogsPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [clearOpen, setClearOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -152,18 +155,14 @@ export default function LogsPage() {
           <p className="text-xs text-zinc-600 mt-0.5">Execution history per connection</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              if (!confirm('Clear all session logs? This cannot be undone.')) return
-              await api.sessionLogs.clear()
-              setLogs([])
-              setHasMore(false)
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-400/70 bg-zinc-800 rounded-lg hover:text-red-300 hover:bg-zinc-700"
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setClearOpen(true)}
           >
             <Trash2 size={13} />
             Clear all
-          </button>
+          </Button>
           <Filter size={14} className="text-zinc-600" />
           <select
             value={selectedConn}
@@ -181,11 +180,7 @@ export default function LogsPage() {
       {loading ? (
         <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
       ) : logs.length === 0 ? (
-        <div className="text-center py-20">
-          <ScrollText size={40} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-400 text-sm font-medium">No session logs yet</p>
-          <p className="text-xs text-zinc-600 mt-1">Logs will appear here as agents execute tasks</p>
-        </div>
+        <EmptyState icon={ScrollText} title="No session logs yet" description="Logs will appear here as agents execute tasks" />
       ) : (
         <div className="space-y-2.5">
           {logs.map(log => (
@@ -205,17 +200,26 @@ export default function LogsPage() {
           ))}
           {hasMore && (
             <div className="flex justify-center pt-2">
-              <button
-                onClick={loadMoreLogs}
-                disabled={loadingMore}
-                className="px-3 py-1.5 text-xs font-medium text-zinc-500 bg-zinc-800 rounded-lg hover:text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
+              <Button variant="secondary" size="sm" onClick={loadMoreLogs} disabled={loadingMore}>
                 {loadingMore ? 'Loading...' : `Load more ${PAGE_SIZE}`}
-              </button>
+              </Button>
             </div>
           )}
         </div>
       )}
+
+      <ConfirmDelete
+        open={clearOpen}
+        onCancel={() => setClearOpen(false)}
+        onConfirm={async () => {
+          await api.sessionLogs.clear()
+          setLogs([])
+          setHasMore(false)
+          setClearOpen(false)
+        }}
+        title="Clear all session logs?"
+        description="This cannot be undone."
+      />
     </div>
   )
 }

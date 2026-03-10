@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { api } from '../api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card } from '@/components/ui/card'
+import { FormField } from '@/components/FormField'
 
 const SANDBOXES = [
   { name: 'base', host: 'sandbox', port: 2222, profileId: 'base', description: 'General-purpose Linux sandbox — shell, files, networking utilities' },
@@ -81,9 +86,6 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const inputCls = 'w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50'
-  const labelCls = 'block text-xs font-medium text-zinc-400 mb-1.5'
-
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
@@ -95,21 +97,19 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
           <p className="text-sm text-zinc-500">Connect your LLM provider to get started</p>
         </div>
 
-        <div className="space-y-6 bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-6">
+        <Card className="space-y-6 bg-zinc-900/60 border-zinc-800/80 p-6">
           <div>
             <h2 className="text-sm font-semibold text-zinc-200 mb-3">LLM Connection</h2>
             <div className="space-y-3">
+              <FormField label="Base URL">
+                <Input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" />
+              </FormField>
+              <FormField label="API Key">
+                <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
+              </FormField>
               <div>
-                <label className={labelCls}>Base URL</label>
-                <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className={inputCls} placeholder="https://api.openai.com/v1" />
-              </div>
-              <div>
-                <label className={labelCls}>API Key</label>
-                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} className={inputCls} placeholder="sk-..." />
-              </div>
-              <div>
-                <label className={labelCls}>Models <span className="text-zinc-600">(comma-separated, last = summary)</span></label>
-                <input value={modelName} onChange={e => setModelName(e.target.value)} className={inputCls} placeholder="gpt-4o-mini, gpt-4o" />
+                <Label>Models <span className="text-zinc-600">(comma-separated, last = summary)</span></Label>
+                <Input value={modelName} onChange={e => setModelName(e.target.value)} placeholder="gpt-4o-mini, gpt-4o" />
               </div>
             </div>
           </div>
@@ -118,27 +118,26 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             <h2 className="text-sm font-semibold text-zinc-200 mb-1">Telegram <span className="text-zinc-600 font-normal">(optional)</span></h2>
             <p className="text-xs text-zinc-600 mb-3">Connect a Telegram bot to chat from your phone</p>
             <div className="space-y-3">
+              <FormField label="Bot token">
+                <Input value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
+              </FormField>
               <div>
-                <label className={labelCls}>Bot token</label>
-                <input value={tgToken} onChange={e => setTgToken(e.target.value)} className={inputCls} placeholder="123456:ABC-DEF..." />
-              </div>
-              <div>
-                <label className={labelCls}>Allowed user IDs <span className="text-zinc-600">(comma-separated, empty = allow all)</span></label>
-                <input value={tgUserIds} onChange={e => setTgUserIds(e.target.value)} className={inputCls} placeholder="123456789, 987654321" />
+                <Label>Allowed user IDs <span className="text-zinc-600">(comma-separated, empty = allow all)</span></Label>
+                <Input value={tgUserIds} onChange={e => setTgUserIds(e.target.value)} placeholder="123456789, 987654321" />
               </div>
             </div>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
-          <button
+          <Button
             onClick={submit}
             disabled={loading}
-            className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-zinc-950 font-semibold text-sm rounded-lg transition-colors"
+            className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-zinc-950 font-semibold text-sm"
           >
             {loading ? 'Setting up...' : 'Complete Setup'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert } from 'lucide-react'
+import { Toaster } from '@/components/ui/sonner'
 import ConfigPage from './pages/ConfigPage'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
@@ -106,7 +107,7 @@ export default function App() {
             <div className="w-2 h-2 rounded-full bg-teal-400" />
             <h1 className="text-[15px] font-semibold text-zinc-100 tracking-tight">Mantis</h1>
           </div>
-          <p className="text-[11px] text-zinc-600 mt-0.5 ml-[18px]">Control Plane</p>
+          <p className="text-[11px] text-zinc-600 mt-0.5 ml-4.5">Control Plane</p>
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden">
@@ -144,6 +145,7 @@ export default function App() {
         {page === 'cron-jobs' && <CronJobsPage />}
         {page === 'guard-profiles' && <GuardProfilesPage />}
       </main>
+      <Toaster />
     </div>
   )
 }

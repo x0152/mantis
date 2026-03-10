@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Shield, AlertTriangle, Check, Copy, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Shield, Copy, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../api'
 import type { GuardProfile, GuardCapabilities, CommandRule } from '../types'
-import Modal from '../components/Modal'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/EmptyState'
+import { FormField } from '@/components/FormField'
+import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 const defaultCaps: GuardCapabilities = {
   pipes: false, redirects: false, cmdSubst: false, background: false,
@@ -28,19 +36,14 @@ export default function GuardProfilesPage() {
     name: '', description: '', capabilities: { ...defaultCaps }, commands: [],
   })
   const [newCmd, setNewCmd] = useState('')
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-
-  const showToast = (type: 'success' | 'error', text: string) => {
-    setToast({ type, text })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setProfiles(await api.guardProfiles.list())
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to load')
+      toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -80,26 +83,26 @@ export default function GuardProfilesPage() {
       const data = { name: form.name, description: form.description, capabilities: form.capabilities, commands: form.commands }
       if (editing) {
         await api.guardProfiles.update(editing.id, data)
-        showToast('success', 'Profile updated')
+        toast.success('Profile updated')
       } else {
         await api.guardProfiles.create(data)
-        showToast('success', 'Profile created')
+        toast.success('Profile created')
       }
       setModalOpen(false)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Operation failed')
+      toast.error(e instanceof Error ? e.message : 'Operation failed')
     }
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this profile?')) return
     try {
       await api.guardProfiles.delete(id)
-      showToast('success', 'Profile deleted')
+      toast.success('Profile deleted')
+      setDeleteTarget(null)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Delete failed')
+      toast.error(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -154,28 +157,15 @@ export default function GuardProfilesPage() {
           <h1 className="text-lg font-semibold text-zinc-100">Guard Profiles</h1>
           <p className="text-xs text-zinc-600 mt-0.5">Security profiles control which commands SSH agents can execute</p>
         </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
+        <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> New Profile
-        </button>
+        </Button>
       </div>
-
-      {toast && (
-        <div className={`mb-4 flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-xs font-medium ${
-          toast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
-        }`}>
-          {toast.type === 'success' ? <Check size={14} /> : <AlertTriangle size={14} />}
-          {toast.text}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
       ) : profiles.length === 0 ? (
-        <div className="text-center py-20">
-          <Shield size={40} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-400 text-sm font-medium">No guard profiles yet</p>
-          <p className="text-xs text-zinc-600 mt-1">Create profiles to control SSH command execution</p>
-        </div>
+        <EmptyState icon={Shield} title="No guard profiles yet" description="Create profiles to control SSH command execution" />
       ) : (
         <div className="space-y-2.5">
           {profiles.map(p => (
@@ -185,24 +175,24 @@ export default function GuardProfilesPage() {
                   <button onClick={() => toggle(p.id)} className="flex items-center gap-2 min-w-0 text-left">
                     {expanded.has(p.id) ? <ChevronDown size={14} className="text-zinc-600" /> : <ChevronRight size={14} className="text-zinc-600" />}
                     <span className="font-medium text-zinc-200 text-sm">{p.name}</span>
-                    {p.builtin && <span className="px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-violet-500/15 text-violet-400">Built-in</span>}
-                    {p.capabilities.unrestricted && <span className="px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-400">Unrestricted</span>}
+                    {p.builtin && <Badge variant="secondary">Built-in</Badge>}
+                    {p.capabilities.unrestricted && <Badge variant="warning">Unrestricted</Badge>}
                   </button>
                   <div className="flex gap-0.5 ml-3">
-                    <button onClick={() => openClone(p)} className="p-1.5 rounded-md text-zinc-600 hover:text-blue-400 hover:bg-blue-500/10" title="Clone">
+                    <Button variant="ghost" size="icon" onClick={() => openClone(p)} title="Clone">
                       <Copy size={14} />
-                    </button>
-                    <button onClick={() => openEdit(p)} className="p-1.5 rounded-md text-zinc-600 hover:text-teal-400 hover:bg-teal-500/10">
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                       <Pencil size={14} />
-                    </button>
+                    </Button>
                     {!p.builtin && (
-                      <button onClick={() => remove(p.id)} className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10">
+                      <Button variant="destructive" size="icon" onClick={() => setDeleteTarget(p.id)}>
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
-                {p.description && <p className="text-xs text-zinc-500 mt-1 ml-[22px]">{p.description}</p>}
+                {p.description && <p className="text-xs text-zinc-500 mt-1 ml-5.5">{p.description}</p>}
               </div>
               {expanded.has(p.id) && (
                 <div className="px-4 pb-4 space-y-3">
@@ -236,80 +226,84 @@ export default function GuardProfilesPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Profile' : 'New Profile'}>
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Name</label>
-            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="My Custom Profile" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Description</label>
-            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="Read-only monitoring for production" />
-          </div>
-          <div>
-            <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer mb-3 ${
-              form.capabilities.unrestricted ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-950'
-            }`}>
-              <input type="checkbox" checked={form.capabilities.unrestricted} onChange={e => setCap('unrestricted', e.target.checked)}
-                className="rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-0" />
-              <div>
-                <span className="text-sm font-medium text-zinc-200">Unrestricted</span>
-                <p className="text-[11px] text-zinc-500 mt-0.5">Allow all commands and capabilities</p>
-              </div>
-            </label>
-            {!form.capabilities.unrestricted && (
-              <>
-                <label className="block text-xs font-medium text-zinc-400 mb-2">Capabilities</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(capLabels) as (keyof GuardCapabilities)[]).filter(k => k !== 'unrestricted').map(key => (
-                    <label key={key} className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
-                      <input type="checkbox" checked={form.capabilities[key]} onChange={e => setCap(key, e.target.checked)}
-                        className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
-                      {capLabels[key]}
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          {!form.capabilities.unrestricted && (
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit Profile' : 'New Profile'}</DialogTitle>
+            <DialogDescription />
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label="Name">
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="My Custom Profile" />
+            </FormField>
+            <FormField label="Description">
+              <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Read-only monitoring for production" />
+            </FormField>
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-2">Allowed Commands</label>
-              <div className="flex gap-2 mb-2">
-                <input value={newCmd} onChange={e => setNewCmd(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCommand())}
-                  className="flex-1 px-3 py-1.5 border border-zinc-700 rounded-lg text-sm font-mono bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-                  placeholder="ls, redis-cli[GET,KEYS], psql(SELECT,SHOW)" />
-                <button onClick={addCommand} className="px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
-                  Add
-                </button>
-              </div>
-              {form.commands.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {form.commands.map((c, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
-                      {formatCommandRule(c)}
-                      <button onClick={() => removeCommand(i)} className="text-zinc-600 hover:text-red-400"><X size={12} /></button>
-                    </span>
-                  ))}
+              <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer mb-3 ${
+                form.capabilities.unrestricted ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-950'
+              }`}>
+                <Checkbox checked={form.capabilities.unrestricted} onCheckedChange={v => setCap('unrestricted', !!v)} />
+                <div>
+                  <span className="text-sm font-medium text-zinc-200">Unrestricted</span>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Allow all commands and capabilities</p>
                 </div>
+              </label>
+              {!form.capabilities.unrestricted && (
+                <>
+                  <label className="block text-xs font-medium text-zinc-400 mb-2">Capabilities</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(capLabels) as (keyof GuardCapabilities)[]).filter(k => k !== 'unrestricted').map(key => (
+                      <label key={key} className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                        <Checkbox checked={form.capabilities[key]} onCheckedChange={v => setCap(key, !!v)} />
+                        {capLabels[key]}
+                      </label>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
-              Cancel
-            </button>
-            <button onClick={submit} disabled={!form.name} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
-              {editing ? 'Update' : 'Create'}
-            </button>
+            {!form.capabilities.unrestricted && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-2">Allowed Commands</label>
+                <div className="flex gap-2 mb-2">
+                  <Input value={newCmd} onChange={e => setNewCmd(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCommand())}
+                    className="flex-1 font-mono"
+                    placeholder="ls, redis-cli[GET,KEYS], psql(SELECT,SHOW)" />
+                  <Button size="sm" onClick={addCommand}>Add</Button>
+                </div>
+                {form.commands.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.commands.map((c, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
+                        {formatCommandRule(c)}
+                        <button onClick={() => removeCommand(i)} className="text-zinc-600 hover:text-red-400"><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button onClick={submit} disabled={!form.name}>
+                {editing ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDelete
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && remove(deleteTarget)}
+        title="Delete profile?"
+        description="This will permanently remove the guard profile."
+      />
     </div>
   )
 }
