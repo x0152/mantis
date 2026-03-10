@@ -134,7 +134,7 @@ func main() {
 	memoryExtractor := memory.NewExtractor(openaiAdapter, configStore, connectionStore, modelStore, llmConnStore)
 
 	metadataApp := metadata.NewApp(configStore, llmConnStore, modelStore, connectionStore, cronJobStore, guardProfileStore, channelStore)
-	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, channelStore, configStore, llmConnStore, openaiAdapter, mantisAgent, buf, artifactMgr, memoryExtractor)
+	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, channelStore, configStore, mantisAgent, buf, artifactMgr, memoryExtractor)
 	logsApp := logs.NewApp(logStore)
 	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)
 	cronApp := cron.NewApp(configStore, channelStore, sessionStore, messageStore, modelStore, cronJobStore, mantisAgent, artifactMgr, memoryExtractor)

@@ -9,22 +9,18 @@ import (
 
 // Some models emit "thinking" blocks as <think>...</think> or <thinking>...</thinking>.
 // We also support a couple of common variants to make ThinkingMode more reliable.
-// Some models also use plain-text headings like "Thinking Process:" without XML tags.
 var (
-	thinkingBlockRe   = regexp.MustCompile(`(?is)<\s*(think|thinking|analysis|reasoning)\b[^>]*>.*?<\s*/\s*(think|thinking|analysis|reasoning)\s*>`)
-	thinkingOpenRe    = regexp.MustCompile(`(?is)<\s*(think|thinking|analysis|reasoning)\b[^>]*>.*$`)
-	thinkingTagsRe    = regexp.MustCompile(`(?is)</?\s*(think|thinking|analysis|reasoning)\b[^>]*>`)
-	thinkingHeadingRe = regexp.MustCompile(`(?ims)^(?:#+\s*)?(?:thinking(?:\s+process)?|my\s+thinking|analysis|reasoning)\s*:?\s*$.*`)
+	thinkingBlockRe = regexp.MustCompile(`(?is)<\s*(think|thinking|analysis|reasoning)\b[^>]*>.*?<\s*/\s*(think|thinking|analysis|reasoning)\s*>`)
+	thinkingOpenRe  = regexp.MustCompile(`(?is)<\s*(think|thinking|analysis|reasoning)\b[^>]*>.*$`)
+	thinkingTagsRe  = regexp.MustCompile(`(?is)</?\s*(think|thinking|analysis|reasoning)\b[^>]*>`)
 )
 
 func ApplyThinkingMode(content, mode string) string {
 	switch mode {
 	case "skip":
-		// Remove complete XML blocks first, then be lenient about a missing closing tag.
+		// Remove complete blocks first, then be lenient about a missing closing tag.
 		out := thinkingBlockRe.ReplaceAllString(content, "")
 		out = thinkingOpenRe.ReplaceAllString(out, "")
-		// Also strip plain-text thinking sections (e.g. "Thinking Process:\n...").
-		out = thinkingHeadingRe.ReplaceAllString(out, "")
 		return strings.TrimSpace(out)
 	case "inline":
 		// Keep content but strip the tags.
