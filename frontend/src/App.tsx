@@ -11,6 +11,7 @@ import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import SetupWizard from './pages/SetupWizard'
 import ChatSidebar from './components/ChatSidebar'
+import { ModeToggle } from './components/mode-toggle'
 import { api } from './api'
 import type { ChatSession } from './types'
 
@@ -90,8 +91,8 @@ export default function App() {
       onClick={() => setPage(item.id)}
       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium min-w-0 ${
         page === item.id
-          ? 'bg-teal-500/10 text-teal-400'
-          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+          ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
+          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
       }`}
     >
       <item.icon size={16} strokeWidth={1.8} />
@@ -100,19 +101,22 @@ export default function App() {
   ))
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
-      <aside className="w-56 bg-zinc-900/60 border-r border-zinc-800/80 flex flex-col shrink-0">
-        <div className="px-5 py-5 border-b border-zinc-800/80">
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-teal-400" />
-            <h1 className="text-[15px] font-semibold text-zinc-100 tracking-tight">Mantis</h1>
+    <div className="flex h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <aside className="w-56 bg-zinc-50 dark:bg-zinc-900/60 border-r border-zinc-200 dark:border-zinc-800/80 flex flex-col shrink-0 transition-colors">
+        <div className="px-5 py-5 border-b border-zinc-200 dark:border-zinc-800/80 flex justify-between items-center transition-colors">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-teal-400" />
+              <h1 className="text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight transition-colors">Mantis</h1>
+            </div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5 ml-4.5 transition-colors">Control Plane</p>
           </div>
-          <p className="text-[11px] text-zinc-600 mt-0.5 ml-4.5">Control Plane</p>
+          <ModeToggle />
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="px-2 pt-2">
-            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Chat</div>
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-600 transition-colors">Chat</div>
           </div>
           <div className="flex-1 overflow-auto min-h-0">
             <ChatSidebar
@@ -123,10 +127,10 @@ export default function App() {
             />
           </div>
 
-          <div className="border-t border-zinc-800/80 p-2 space-y-3 overflow-auto">
+          <div className="border-t border-zinc-200 dark:border-zinc-800/80 p-2 space-y-3 overflow-auto transition-colors">
             {nav.map(s => (
               <div key={s.title}>
-                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{s.title}</div>
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-600 transition-colors">{s.title}</div>
                 <div className="space-y-0.5">
                   {renderNav(s.items)}
                 </div>
@@ -135,7 +139,7 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-white dark:bg-zinc-950 transition-colors">
         {page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
         {page === 'channels' && <ChannelsPage />}
         {page === 'config' && <ConfigPage />}
