@@ -6,6 +6,32 @@ type SessionOutput struct {
 	Body types.ChatSession
 }
 
+type SessionsOutput struct {
+	Body []types.ChatSession
+}
+
+type ListSessionsInput struct {
+	Limit  int `query:"limit"`
+	Offset int `query:"offset"`
+}
+
+type CreateSessionInput struct {
+	Body struct {
+		Title string `json:"title"`
+	}
+}
+
+type UpdateSessionInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		Title string `json:"title"`
+	}
+}
+
+type DeleteSessionInput struct {
+	ID string `path:"id"`
+}
+
 type MessagesOutput struct {
 	Body []types.ChatMessage
 }

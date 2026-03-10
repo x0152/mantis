@@ -40,8 +40,12 @@ func NewApp(
 		endpoints: api.NewEndpoints(api.UseCases{
 			GetCurrentSession: usecases.NewGetCurrentSession(sessionStore),
 			ResetContext:      usecases.NewResetContext(sessionStore),
+			ListSessions:      usecases.NewListSessions(sessionStore),
+			CreateSession:     usecases.NewCreateSession(sessionStore),
+			UpdateSession:     usecases.NewUpdateSession(sessionStore),
+			DeleteSession:     usecases.NewDeleteSession(sessionStore, messageStore),
 			ListMessages:      usecases.NewListMessages(messageStore, buf),
-			SendMessage:       usecases.NewSendMessage(workflow),
+			SendMessage:       usecases.NewSendMessage(workflow, sessionStore),
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
 		}),
 	}

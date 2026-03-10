@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, RotateCcw, Trash2 } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { api } from '../api'
 import { MessageBubble, StepPanel } from '../components/ChatMessages'
 import type { ChatMessage, Step } from '../types'
@@ -8,9 +8,13 @@ const PAGE_SIZE = 10
 const POLL_INTERVAL = 300
 const BG_POLL_INTERVAL = 7000
 
-export default function ChatPage() {
+interface Props {
+  sessionId: string
+  onFirstMessage?: () => void
+}
+
+export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [sessionId, setSessionId] = useState('')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [hasMore, setHasMore] = useState(false)
@@ -23,7 +27,7 @@ export default function ChatPage() {
   const prependingRef = useRef(false)
   const userScrolledUp = useRef(false)
 
-  const hasPending = messages.some(m => m.sessionId === sessionId && m.status === 'pending')
+  const hasPending = messages.some(m => m.status === 'pending')
 
   const poll = useCallback(async () => {
     try {
@@ -59,7 +63,7 @@ export default function ChatPage() {
   const bgPoll = useCallback(async () => {
     if (!sessionId || hasPending) return
     try {
-      const latest = await api.chat.listMessages({ limit: PAGE_SIZE, offset: 0 })
+      const latest = await api.chat.listMessages({ sessionId, limit: PAGE_SIZE, offset: 0 })
       setMessages(prev => {
         const byId = new Map<string, ChatMessage>()
         for (const m of prev) byId.set(m.id, m)
@@ -71,8 +75,6 @@ export default function ChatPage() {
         if (!changed && latest.length === prev.length) return prev
         return Array.from(byId.values()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
       })
-      const session = await api.chat.getSession()
-      if (session.id !== sessionId) setSessionId(session.id)
     } catch {}
   }, [sessionId, hasPending])
 
@@ -81,7 +83,14 @@ export default function ChatPage() {
     return () => { if (bgPollRef.current) clearInterval(bgPollRef.current) }
   }, [bgPoll])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    setMessages([])
+    setHasMore(false)
+    setActiveStep(null)
+    userScrolledUp.current = false
+    if (sessionId) load()
+  }, [sessionId])
+
   useEffect(() => {
     if (prependingRef.current) {
       prependingRef.current = false
@@ -90,7 +99,7 @@ export default function ChatPage() {
     if (!userScrolledUp.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'instant' })
     }
-  }, [messages, sessionId])
+  }, [messages])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -100,13 +109,11 @@ export default function ChatPage() {
   }
 
   async function load() {
-    const [session, msgs] = await Promise.all([
-      api.chat.getSession(),
-      api.chat.listMessages({ limit: PAGE_SIZE, offset: 0 }),
-    ])
-    setSessionId(session.id)
-    setMessages(msgs)
-    setHasMore(msgs.length === PAGE_SIZE)
+    try {
+      const msgs = await api.chat.listMessages({ sessionId, limit: PAGE_SIZE, offset: 0 })
+      setMessages(msgs)
+      setHasMore(msgs.length === PAGE_SIZE)
+    } catch {}
   }
 
   async function loadMoreMessages() {
@@ -114,7 +121,7 @@ export default function ChatPage() {
     setLoadingMore(true)
     try {
       const offset = messages.length
-      const older = await api.chat.listMessages({ limit: PAGE_SIZE, offset })
+      const older = await api.chat.listMessages({ sessionId, limit: PAGE_SIZE, offset })
       if (older.length < PAGE_SIZE) setHasMore(false)
       if (older.length > 0) {
         prependingRef.current = true
@@ -133,7 +140,7 @@ export default function ChatPage() {
   }
 
   async function send() {
-    if (!input.trim() || sending) return
+    if (!input.trim() || sending || !sessionId) return
     const text = input.trim()
     setInput('')
     setSending(true)
@@ -141,6 +148,7 @@ export default function ChatPage() {
     try {
       const res = await api.chat.sendMessage(sessionId, text)
       setMessages(prev => [...prev, res.userMessage, res.assistantMessage])
+      onFirstMessage?.()
     } catch (e) {
       console.error(e)
     } finally {
@@ -148,48 +156,16 @@ export default function ChatPage() {
     }
   }
 
-  async function resetContext() {
-    const session = await api.chat.resetContext()
-    setSessionId(session.id)
+  if (!sessionId) {
+    return (
+      <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
+        Select a chat or create a new one
+      </div>
+    )
   }
-
-  async function clearHistory() {
-    if (!confirm('Clear all chat history? This cannot be undone.')) return
-    await api.chat.clearHistory()
-    setMessages([])
-    setHasMore(false)
-    const session = await api.chat.getSession()
-    setSessionId(session.id)
-  }
-
-  const grouped = groupBySession(messages)
-  const pendingReset = grouped.length > 0 && grouped[grouped.length - 1].sessionId !== sessionId
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/40 flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-100">Chat</h2>
-          <p className="text-[11px] text-zinc-600 mt-0.5">Interactive session</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={clearHistory}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400/70 bg-zinc-800 rounded-lg hover:text-red-300 hover:bg-zinc-700"
-          >
-            <Trash2 size={13} />
-            Clear all
-          </button>
-          <button
-            onClick={resetContext}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-500 bg-zinc-800 rounded-lg hover:text-zinc-300 hover:bg-zinc-700"
-          >
-            <RotateCcw size={13} />
-            Reset
-          </button>
-        </div>
-      </div>
-
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto px-6 py-5 space-y-1">
         {hasMore && messages.length > 0 && (
           <div className="flex justify-center mb-4">
@@ -202,22 +178,16 @@ export default function ChatPage() {
             </button>
           </div>
         )}
-        {grouped.length === 0 && !pendingReset && (
+        {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
             Send a message to start the conversation
           </div>
         )}
-        {grouped.map((group, gi) => (
-          <div key={group.sessionId}>
-            {gi > 0 && <ResetDivider />}
-            <div className="space-y-3">
-              {group.messages.map(msg => (
-                <MessageBubble key={msg.id} msg={msg} onStepClick={setActiveStep} />
-              ))}
-            </div>
-          </div>
-        ))}
-        {pendingReset && <ResetDivider />}
+        <div className="space-y-3">
+          {messages.map(msg => (
+            <MessageBubble key={msg.id} msg={msg} onStepClick={setActiveStep} />
+          ))}
+        </div>
         <div ref={bottomRef} />
       </div>
 
@@ -244,27 +214,4 @@ export default function ChatPage() {
       {activeStep && <StepPanel step={activeStep} onClose={() => setActiveStep(null)} />}
     </div>
   )
-}
-
-function ResetDivider() {
-  return (
-    <div className="flex items-center gap-3 my-5">
-      <div className="flex-1 h-px bg-zinc-800" />
-      <span className="text-[11px] text-zinc-600 font-medium px-2">Context Reset</span>
-      <div className="flex-1 h-px bg-zinc-800" />
-    </div>
-  )
-}
-
-function groupBySession(messages: ChatMessage[]) {
-  const groups: { sessionId: string; messages: ChatMessage[] }[] = []
-  for (const msg of messages) {
-    const last = groups[groups.length - 1]
-    if (last && last.sessionId === msg.sessionId) {
-      last.messages.push(msg)
-    } else {
-      groups.push({ sessionId: msg.sessionId, messages: [msg] })
-    }
-  }
-  return groups
 }

@@ -91,6 +91,16 @@ export const api = {
   chat: {
     getSession: () => request<ChatSession>('/chat/session'),
     resetContext: () => request<ChatSession>('/chat/reset', { method: 'POST' }),
+    listSessions: (opts?: { limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams()
+      if (opts?.limit != null) qs.set('limit', String(opts.limit))
+      if (opts?.offset != null) qs.set('offset', String(opts.offset))
+      const q = qs.toString()
+      return request<ChatSession[]>(`/chat/sessions${q ? `?${q}` : ''}`)
+    },
+    createSession: (title?: string) => request<ChatSession>('/chat/sessions', { method: 'POST', body: JSON.stringify({ title: title ?? '' }) }),
+    updateSession: (id: string, title: string) => request<ChatSession>(`/chat/sessions/${id}`, { method: 'PUT', body: JSON.stringify({ title }) }),
+    deleteSession: (id: string) =>request<void>(`/chat/sessions/${id}`, { method: 'DELETE' }),
     listMessages: (opts?: { limit?: number; offset?: number; sessionId?: string; source?: string }) => {
       const qs = new URLSearchParams()
       if (opts?.limit != null) qs.set('limit', String(opts.limit))
