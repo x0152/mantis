@@ -6,11 +6,11 @@ import (
 )
 
 func ChatSessionToRow(s types.ChatSession) models.ChatSessionRow {
-	return models.ChatSessionRow{ID: s.ID, CreatedAt: s.CreatedAt}
+	return models.ChatSessionRow{ID: s.ID, Title: s.Title, CreatedAt: s.CreatedAt}
 }
 
 func ChatSessionFromRow(r models.ChatSessionRow) types.ChatSession {
-	return types.ChatSession{ID: r.ID, CreatedAt: r.CreatedAt}
+	return types.ChatSession{ID: r.ID, Title: r.Title, CreatedAt: r.CreatedAt}
 }
 
 func ChatMessageToRow(m types.ChatMessage) models.ChatMessageRow {

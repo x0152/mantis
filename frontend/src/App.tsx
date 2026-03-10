@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Settings, Plug, Clock, MessageSquare, ScrollText, Link2, Radio, ShieldAlert } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert } from 'lucide-react'
 import ConfigPage from './pages/ConfigPage'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
@@ -9,7 +9,9 @@ import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import SetupWizard from './pages/SetupWizard'
+import ChatSidebar from './components/ChatSidebar'
 import { api } from './api'
+import type { ChatSession } from './types'
 
 type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'cron-jobs' | 'guard-profiles' | 'config'
 
@@ -18,7 +20,6 @@ type NavItem = { id: Page; label: string; icon: typeof Settings }
 type NavSection = { title: string; items: NavItem[] }
 
 const nav: NavSection[] = [
-  { title: 'Chat', items: [{ id: 'chat', label: 'Chat', icon: MessageSquare }] },
   {
     title: 'Activity',
     items: [
@@ -46,11 +47,37 @@ const nav: NavSection[] = [
 export default function App() {
   const [page, setPage] = useState<Page>('chat')
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
 
   useEffect(() => {
     api.llmConnections.list()
       .then(list => setNeedsSetup(list.length === 0))
       .catch(() => setNeedsSetup(false))
+  }, [])
+
+  useEffect(() => {
+    if (needsSetup === false && !activeSessionId) {
+      api.chat.getSession().then(s => setActiveSessionId(s.id)).catch(() => {})
+    }
+  }, [needsSetup])
+
+  const handleSelectSession = useCallback((session: ChatSession) => {
+    setActiveSessionId(session.id)
+    setPage('chat')
+  }, [])
+
+  const handleNewChat = useCallback(async () => {
+    try {
+      const session = await api.chat.createSession()
+      setActiveSessionId(session.id)
+      setPage('chat')
+      setSidebarRefreshKey(k => k + 1)
+    } catch {}
+  }, [])
+
+  const handleFirstMessage = useCallback(() => {
+    setSidebarRefreshKey(k => k + 1)
   }, [])
 
   if (needsSetup === null) return null
@@ -81,8 +108,21 @@ export default function App() {
           </div>
           <p className="text-[11px] text-zinc-600 mt-0.5 ml-[18px]">Control Plane</p>
         </div>
-        <nav className="flex-1 p-2 overflow-auto">
-          <div className="space-y-3">
+
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="px-2 pt-2">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Chat</div>
+          </div>
+          <div className="flex-1 overflow-auto min-h-0">
+            <ChatSidebar
+              activeSessionId={activeSessionId}
+              onSelect={handleSelectSession}
+              onNew={handleNewChat}
+              refreshKey={sidebarRefreshKey}
+            />
+          </div>
+
+          <div className="border-t border-zinc-800/80 p-2 space-y-3 overflow-auto">
             {nav.map(s => (
               <div key={s.title}>
                 <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{s.title}</div>
@@ -92,10 +132,10 @@ export default function App() {
               </div>
             ))}
           </div>
-        </nav>
+        </div>
       </aside>
       <main className="flex-1 overflow-auto">
-        {page === 'chat' && <ChatPage />}
+        {page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
         {page === 'channels' && <ChannelsPage />}
         {page === 'config' && <ConfigPage />}
         {page === 'llm' && <LlmPage />}

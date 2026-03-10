@@ -10,6 +10,7 @@ import (
 type ChatSessionRow struct {
 	bun.BaseModel `bun:"table:chat_sessions"`
 	ID            string    `bun:"id,pk"`
+	Title         string    `bun:"title"`
 	CreatedAt     time.Time `bun:"created_at"`
 }
 
