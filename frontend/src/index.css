@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-border: oklch(0.274 0.006 286);
+  --color-input: oklch(0.274 0.006 286);
+  --color-ring: oklch(0.488 0.118 181);
+  --color-background: oklch(0.141 0.005 286);
+  --color-foreground: oklch(0.985 0 0);
+  --color-primary: oklch(0.488 0.118 181);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-secondary: oklch(0.274 0.006 286);
+  --color-secondary-foreground: oklch(0.871 0.006 286);
+  --color-destructive: oklch(0.577 0.245 27.33);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-muted: oklch(0.274 0.006 286);
+  --color-muted-foreground: oklch(0.552 0.016 286);
+  --color-accent: oklch(0.274 0.006 286);
+  --color-accent-foreground: oklch(0.871 0.006 286);
+  --color-popover: oklch(0.21 0.006 286);
+  --color-popover-foreground: oklch(0.985 0 0);
+  --color-card: oklch(0.21 0.006 286);
+  --color-card-foreground: oklch(0.985 0 0);
+  --color-sidebar: oklch(0.21 0.006 286);
+  --color-sidebar-foreground: oklch(0.871 0.006 286);
+  --color-sidebar-accent: oklch(0.274 0.006 286);
+  --color-sidebar-accent-foreground: oklch(0.871 0.006 286);
+  --color-sidebar-border: oklch(0.274 0.006 286);
+  --radius: 0.5rem;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #27272a transparent;
@@ -8,6 +38,8 @@
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
 }
 
 @layer components {

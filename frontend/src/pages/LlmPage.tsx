@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Link2, Box, AlertTriangle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react'
+import { Plus, Pencil, Trash2, Link2, Box, ChevronDown, ChevronRight, Copy } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../api'
 import type { LlmConnection, Model } from '../types'
-import Modal from '../components/Modal'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/EmptyState'
+import { FormField } from '@/components/FormField'
+import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 type ConnForm = { id: string; provider: string; baseUrl: string; apiKey: string }
 type ModelForm = { name: string; connectionId: string; thinkingMode: string }
@@ -14,7 +21,8 @@ export default function LlmPage() {
   const [roles, setRoles] = useState<Roles>({ summaryModelId: null, visionModelId: null })
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [deleteConnTarget, setDeleteConnTarget] = useState<string | null>(null)
+  const [deleteModelTarget, setDeleteModelTarget] = useState<string | null>(null)
 
   const [connModalOpen, setConnModalOpen] = useState(false)
   const [editingConn, setEditingConn] = useState<LlmConnection | null>(null)
@@ -23,11 +31,6 @@ export default function LlmPage() {
   const [modelModalOpen, setModelModalOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [modelForm, setModelForm] = useState<ModelForm>({ name: '', connectionId: '', thinkingMode: '' })
-
-  const showToast = (type: 'success' | 'error', text: string) => {
-    setToast({ type, text })
-    setTimeout(() => setToast(null), 3000)
-  }
 
   const load = useCallback(async () => {
     try {
@@ -44,7 +47,7 @@ export default function LlmPage() {
         setExpanded(new Set(conns.map(c => c.id)))
       }
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to load')
+      toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -72,27 +75,27 @@ export default function LlmPage() {
     try {
       if (editingConn) {
         await api.llmConnections.update(editingConn.id, { provider: connForm.provider, baseUrl: connForm.baseUrl, apiKey: connForm.apiKey })
-        showToast('success', 'Connection updated')
+        toast.success('Connection updated')
       } else {
         await api.llmConnections.create(connForm)
-        showToast('success', 'Connection created')
+        toast.success('Connection created')
       }
       setConnModalOpen(false)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Operation failed')
+      toast.error(e instanceof Error ? e.message : 'Operation failed')
     }
   }
   const removeConn = async (id: string) => {
-    if (!confirm('Delete this connection and all its models?')) return
     try {
       const connModels = models.filter(m => m.connectionId === id)
       for (const m of connModels) await api.models.delete(m.id)
       await api.llmConnections.delete(id)
-      showToast('success', 'Connection deleted')
+      toast.success('Connection deleted')
+      setDeleteConnTarget(null)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Delete failed')
+      toast.error(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -110,25 +113,25 @@ export default function LlmPage() {
     try {
       if (editingModel) {
         await api.models.update(editingModel.id, modelForm.connectionId, modelForm.name, modelForm.thinkingMode)
-        showToast('success', 'Model updated')
+        toast.success('Model updated')
       } else {
         await api.models.create(modelForm.connectionId, modelForm.name, modelForm.thinkingMode)
-        showToast('success', 'Model created')
+        toast.success('Model created')
       }
       setModelModalOpen(false)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Operation failed')
+      toast.error(e instanceof Error ? e.message : 'Operation failed')
     }
   }
   const removeModel = async (id: string) => {
-    if (!confirm('Delete this model?')) return
     try {
       await api.models.delete(id)
-      showToast('success', 'Model deleted')
+      toast.success('Model deleted')
+      setDeleteModelTarget(null)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Delete failed')
+      toast.error(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -139,9 +142,9 @@ export default function LlmPage() {
       const cfg = await api.config.get()
       const data = (cfg.data ?? {}) as Record<string, unknown>
       await api.config.update({ ...data, ...next })
-      showToast('success', 'Role updated')
+      toast.success('Role updated')
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to update role')
+      toast.error(e instanceof Error ? e.message : 'Failed to update role')
     }
   }
 
@@ -158,28 +161,15 @@ export default function LlmPage() {
           <h1 className="text-lg font-semibold text-zinc-100">LLM</h1>
           <p className="text-xs text-zinc-600 mt-0.5">Connections and models</p>
         </div>
-        <button onClick={openCreateConn} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
+        <Button size="sm" onClick={openCreateConn}>
           <Plus size={14} /> Add Connection
-        </button>
+        </Button>
       </div>
-
-      {toast && (
-        <div className={`mb-4 flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-xs font-medium ${
-          toast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
-        }`}>
-          {toast.type === 'success' ? <Check size={14} /> : <AlertTriangle size={14} />}
-          {toast.text}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
       ) : connections.length === 0 ? (
-        <div className="text-center py-20">
-          <Link2 size={40} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-400 text-sm font-medium">No LLM connections yet</p>
-          <p className="text-xs text-zinc-600 mt-1">Add a connection to start configuring models</p>
-        </div>
+        <EmptyState icon={Link2} title="No LLM connections yet" description="Add a connection to start configuring models" />
       ) : (
         <div className="space-y-3">
           {connections.map(conn => {
@@ -196,17 +186,17 @@ export default function LlmPage() {
                       {isExpanded ? <ChevronDown size={14} className="text-zinc-600 shrink-0" /> : <ChevronRight size={14} className="text-zinc-600 shrink-0" />}
                       <Link2 size={14} className="text-teal-500 shrink-0" />
                       <span className="font-medium text-zinc-200 text-sm">{conn.id}</span>
-                      <span className="px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-zinc-800 text-zinc-500">{conn.provider}</span>
+                      <Badge variant="muted">{conn.provider}</Badge>
                       <span className="text-xs text-zinc-600 truncate">{conn.baseUrl}</span>
                     </div>
                     <div className="flex items-center gap-1 ml-3">
                       <span className="text-[11px] text-zinc-600 mr-1">{connModels.length} model{connModels.length !== 1 ? 's' : ''}</span>
-                      <button onClick={() => openEditConn(conn)} className="p-1.5 rounded-md text-zinc-600 hover:text-teal-400 hover:bg-teal-500/10">
+                      <Button variant="ghost" size="icon" onClick={() => openEditConn(conn)}>
                         <Pencil size={14} />
-                      </button>
-                      <button onClick={() => removeConn(conn.id)} className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10">
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => setDeleteConnTarget(conn.id)}>
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -216,12 +206,9 @@ export default function LlmPage() {
                     {connModels.length === 0 ? (
                       <div className="px-4 py-4 text-center">
                         <p className="text-xs text-zinc-600 mb-2">No models in this connection</p>
-                        <button
-                          onClick={() => openCreateModel(conn.id)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-teal-400 bg-teal-500/10 rounded-md hover:bg-teal-500/20"
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => openCreateModel(conn.id)}>
                           <Plus size={12} /> Add Model
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <div>
@@ -232,10 +219,10 @@ export default function LlmPage() {
                                 <Box size={13} className="text-zinc-600 shrink-0" />
                                 <span className="text-sm text-zinc-300 font-medium">{m.name}</span>
                                 {m.thinkingMode && (
-                                  <span className="px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-violet-500/15 text-violet-400">{m.thinkingMode}</span>
+                                  <Badge variant="secondary">{m.thinkingMode}</Badge>
                                 )}
                                 <button
-                                  onClick={() => { navigator.clipboard.writeText(m.id); showToast('success', 'Model ID copied') }}
+                                  onClick={() => { navigator.clipboard.writeText(m.id); toast.success('Model ID copied') }}
                                   className="inline-flex items-center gap-1 text-[11px] text-zinc-700 font-mono hover:text-zinc-400 transition-colors"
                                   title={m.id}
                                 >
@@ -243,12 +230,12 @@ export default function LlmPage() {
                                 </button>
                               </div>
                               <div className="flex gap-0.5">
-                                <button onClick={() => openEditModel(m)} className="p-1 rounded-md text-zinc-600 hover:text-teal-400 hover:bg-teal-500/10">
+                                <Button variant="ghost" size="icon" onClick={() => openEditModel(m)}>
                                   <Pencil size={13} />
-                                </button>
-                                <button onClick={() => removeModel(m.id)} className="p-1 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10">
+                                </Button>
+                                <Button variant="destructive" size="icon" onClick={() => setDeleteModelTarget(m.id)}>
                                   <Trash2 size={13} />
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           ))}
@@ -303,104 +290,116 @@ export default function LlmPage() {
         </div>
       )}
 
-      <Modal open={connModalOpen} onClose={() => setConnModalOpen(false)} title={editingConn ? 'Edit Connection' : 'New Connection'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">ID</label>
-            <input
-              value={connForm.id}
-              disabled={!!editingConn}
-              onChange={e => setConnForm(f => ({ ...f, id: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50 disabled:opacity-50"
-              placeholder="openai-prod"
-            />
+      <Dialog open={connModalOpen} onOpenChange={setConnModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingConn ? 'Edit Connection' : 'New Connection'}</DialogTitle>
+            <DialogDescription />
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label="ID">
+              <Input
+                value={connForm.id}
+                disabled={!!editingConn}
+                onChange={e => setConnForm(f => ({ ...f, id: e.target.value }))}
+                placeholder="openai-prod"
+              />
+            </FormField>
+            <FormField label="Provider">
+              <select
+                value={connForm.provider}
+                onChange={e => setConnForm(f => ({ ...f, provider: e.target.value }))}
+                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+              >
+                <option value="openai">openai</option>
+              </select>
+            </FormField>
+            <FormField label="Base URL">
+              <Input
+                value={connForm.baseUrl}
+                onChange={e => setConnForm(f => ({ ...f, baseUrl: e.target.value }))}
+                placeholder="http://localhost:1234/v1"
+              />
+            </FormField>
+            <FormField label="API Key">
+              <Input
+                type="password"
+                value={connForm.apiKey}
+                onChange={e => setConnForm(f => ({ ...f, apiKey: e.target.value }))}
+                placeholder="optional"
+              />
+            </FormField>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setConnModalOpen(false)}>Cancel</Button>
+              <Button onClick={submitConn} disabled={!connForm.id || !connForm.provider || !connForm.baseUrl}>
+                {editingConn ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Provider</label>
-            <select
-              value={connForm.provider}
-              onChange={e => setConnForm(f => ({ ...f, provider: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50"
-            >
-              <option value="openai">openai</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Base URL</label>
-            <input
-              value={connForm.baseUrl}
-              onChange={e => setConnForm(f => ({ ...f, baseUrl: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="http://localhost:1234/v1"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">API Key</label>
-            <input
-              type="password"
-              value={connForm.apiKey}
-              onChange={e => setConnForm(f => ({ ...f, apiKey: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="optional"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setConnModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
-              Cancel
-            </button>
-            <button onClick={submitConn} disabled={!connForm.id || !connForm.provider || !connForm.baseUrl} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
-              {editingConn ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
-      <Modal open={modelModalOpen} onClose={() => setModelModalOpen(false)} title={editingModel ? 'Edit Model' : 'New Model'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Model name</label>
-            <input
-              value={modelForm.name}
-              onChange={e => setModelForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="gpt-4o"
-            />
+      <Dialog open={modelModalOpen} onOpenChange={setModelModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingModel ? 'Edit Model' : 'New Model'}</DialogTitle>
+            <DialogDescription />
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label="Model name">
+              <Input
+                value={modelForm.name}
+                onChange={e => setModelForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="gpt-4o"
+              />
+            </FormField>
+            <FormField label="Connection">
+              <select
+                value={modelForm.connectionId}
+                onChange={e => setModelForm(f => ({ ...f, connectionId: e.target.value }))}
+                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+              >
+                <option value="">Select connection...</option>
+                {connections.map(c => (
+                  <option key={c.id} value={c.id}>{c.id} ({c.provider})</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Thinking mode">
+              <select
+                value={modelForm.thinkingMode}
+                onChange={e => setModelForm(f => ({ ...f, thinkingMode: e.target.value }))}
+                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+              >
+                <option value="">None (default)</option>
+                <option value="skip">Skip — remove thinking blocks</option>
+                <option value="inline">Inline — strip tags, keep content</option>
+              </select>
+            </FormField>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setModelModalOpen(false)}>Cancel</Button>
+              <Button onClick={submitModel} disabled={!modelForm.name || !modelForm.connectionId}>
+                {editingModel ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Connection</label>
-            <select
-              value={modelForm.connectionId}
-              onChange={e => setModelForm(f => ({ ...f, connectionId: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50"
-            >
-              <option value="">Select connection...</option>
-              {connections.map(c => (
-                <option key={c.id} value={c.id}>{c.id} ({c.provider})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Thinking mode</label>
-            <select
-              value={modelForm.thinkingMode}
-              onChange={e => setModelForm(f => ({ ...f, thinkingMode: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50"
-            >
-              <option value="">None (default)</option>
-              <option value="skip">Skip — remove thinking blocks</option>
-              <option value="inline">Inline — strip tags, keep content</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setModelModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
-              Cancel
-            </button>
-            <button onClick={submitModel} disabled={!modelForm.name || !modelForm.connectionId} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
-              {editingModel ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDelete
+        open={!!deleteConnTarget}
+        onCancel={() => setDeleteConnTarget(null)}
+        onConfirm={() => deleteConnTarget && removeConn(deleteConnTarget)}
+        title="Delete connection?"
+        description="This will delete the connection and all its models."
+      />
+      <ConfirmDelete
+        open={!!deleteModelTarget}
+        onCancel={() => setDeleteModelTarget(null)}
+        onConfirm={() => deleteModelTarget && removeModel(deleteModelTarget)}
+        title="Delete model?"
+        description="This will permanently remove the model."
+      />
     </div>
   )
 }

@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, AlertTriangle, Check, Send, Shield } from 'lucide-react'
+import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../api'
 import type { Connection, Model, GuardProfile } from '../types'
-import Modal from '../components/Modal'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/EmptyState'
+import { FormField } from '@/components/FormField'
+import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 export default function ConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([])
@@ -17,12 +26,7 @@ export default function ConnectionsPage() {
   const [ssh, setSsh] = useState(emptySsh)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const [memoryInput, setMemoryInput] = useState('')
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-
-  const showToast = (type: 'success' | 'error', text: string) => {
-    setToast({ type, text })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -32,7 +36,7 @@ export default function ConnectionsPage() {
       setModels(m)
       setProfiles(p)
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to load')
+      toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -83,27 +87,27 @@ export default function ConnectionsPage() {
       const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config, profileIds: form.profileIds, memoryEnabled: form.memoryEnabled }
       if (editing) {
         await api.connections.update(editing.id, data)
-        showToast('success', 'Server updated')
+        toast.success('Server updated')
       } else {
         await api.connections.create(data)
-        showToast('success', 'Server created')
+        toast.success('Server created')
       }
       setModalOpen(false)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Operation failed')
+      toast.error(e instanceof Error ? e.message : 'Operation failed')
     }
   }
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this server?')) return
     try {
       await api.connections.delete(id)
-      showToast('success', 'Server deleted')
+      toast.success('Server deleted')
+      setDeleteTarget(null)
       if (expanded === id) setExpanded(null)
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Delete failed')
+      toast.error(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -112,20 +116,20 @@ export default function ConnectionsPage() {
     try {
       await api.connections.addMemory(connectionId, memoryInput.trim())
       setMemoryInput('')
-      showToast('success', 'Memory added')
+      toast.success('Memory added')
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to add memory')
+      toast.error(e instanceof Error ? e.message : 'Failed to add memory')
     }
   }
 
   const deleteMemory = async (connectionId: string, memoryId: string) => {
     try {
       await api.connections.deleteMemory(connectionId, memoryId)
-      showToast('success', 'Memory deleted')
+      toast.success('Memory deleted')
       load()
     } catch (e: unknown) {
-      showToast('error', e instanceof Error ? e.message : 'Failed to delete memory')
+      toast.error(e instanceof Error ? e.message : 'Failed to delete memory')
     }
   }
 
@@ -144,28 +148,15 @@ export default function ConnectionsPage() {
           <h1 className="text-lg font-semibold text-zinc-100">Servers</h1>
           <p className="text-xs text-zinc-600 mt-0.5">Manage SSH servers with configs, memories, and security profiles</p>
         </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500">
+        <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> Add Server
-        </button>
+        </Button>
       </div>
-
-      {toast && (
-        <div className={`mb-4 flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-xs font-medium ${
-          toast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
-        }`}>
-          {toast.type === 'success' ? <Check size={14} /> : <AlertTriangle size={14} />}
-          {toast.text}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
       ) : connections.length === 0 ? (
-        <div className="text-center py-20">
-          <Plug size={40} className="mx-auto text-zinc-700 mb-3" />
-          <p className="text-zinc-400 text-sm font-medium">No servers yet</p>
-          <p className="text-xs text-zinc-600 mt-1">Create your first server to get started</p>
-        </div>
+        <EmptyState icon={Plug} title="No servers yet" description="Create your first server to get started" />
       ) : (
         <div className="space-y-2.5">
           {connections.map(conn => (
@@ -177,28 +168,28 @@ export default function ConnectionsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-zinc-200 text-sm">{conn.name}</span>
-                    <span className="px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-blue-500/15 text-blue-400 uppercase">{conn.type}</span>
+                    <Badge className="uppercase">{conn.type}</Badge>
                     {conn.memories.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-violet-500/15 text-violet-400">
+                      <Badge variant="secondary">
                         <MessageSquare size={10} /> {conn.memories.length}
-                      </span>
+                      </Badge>
                     )}
                     {conn.profileIds?.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-400">
+                      <Badge variant="warning">
                         <Shield size={10} /> {conn.profileIds.map(id => profileName(id)).join(', ')}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   {conn.description && <p className="text-xs text-zinc-500 mt-0.5">{conn.description}</p>}
                   <p className="text-[11px] text-zinc-600 mt-0.5">LLM: {modelName(conn.modelId)}</p>
                 </div>
                 <div className="flex gap-0.5 ml-3" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => openEdit(conn)} className="p-1.5 rounded-md text-zinc-600 hover:text-teal-400 hover:bg-teal-500/10">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(conn)}>
                     <Pencil size={14} />
-                  </button>
-                  <button onClick={() => remove(conn.id)} className="p-1.5 rounded-md text-zinc-600 hover:text-red-400 hover:bg-red-500/10">
+                  </Button>
+                  <Button variant="destructive" size="icon" onClick={() => setDeleteTarget(conn.id)}>
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -247,24 +238,23 @@ export default function ConnectionsPage() {
                               <p className="text-sm text-zinc-300">{mem.content}</p>
                               <p className="text-[11px] text-zinc-600 mt-1">{new Date(mem.createdAt).toLocaleString()}</p>
                             </div>
-                            <button onClick={() => deleteMemory(conn.id, mem.id)} className="p-1 rounded-md text-zinc-700 hover:text-red-400 hover:bg-red-500/10 shrink-0">
+                            <Button variant="ghost" size="icon" onClick={() => deleteMemory(conn.id, mem.id)} className="shrink-0">
                               <Trash2 size={12} />
-                            </button>
+                            </Button>
                           </div>
                         ))}
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         value={memoryInput}
                         onChange={e => setMemoryInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addMemory(conn.id)}
-                        className="flex-1 px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
                         placeholder="Add a memory..."
                       />
-                      <button onClick={() => addMemory(conn.id)} disabled={!memoryInput.trim()} className="px-3 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
+                      <Button size="sm" onClick={() => addMemory(conn.id)} disabled={!memoryInput.trim()}>
                         <Send size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -274,136 +264,131 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Server' : 'New Server'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Name</label>
-            <input
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
-              placeholder="My SSH Server"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Description</label>
-            <textarea
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50 resize-none h-20"
-              placeholder="What this connection is used for..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Type</label>
-            <select
-              value={form.type}
-              onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50"
-            >
-              <option value="ssh">SSH</option>
-            </select>
-          </div>
-          {form.type === 'ssh' && (
-            <div className="space-y-3 p-3.5 bg-zinc-950 rounded-lg border border-zinc-800">
-              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">SSH Configuration</p>
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="col-span-2">
-                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">host</label>
-                  <input value={ssh.host} onChange={e => setSsh(s => ({ ...s, host: e.target.value }))} className="w-full px-2.5 py-1.5 border border-zinc-700 rounded-md text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50" placeholder="192.168.1.100" />
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit Server' : 'New Server'}</DialogTitle>
+            <DialogDescription />
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormField label="Name">
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My SSH Server" />
+            </FormField>
+            <FormField label="Description">
+              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="h-20" placeholder="What this connection is used for..." />
+            </FormField>
+            <FormField label="Type">
+              <select
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+              >
+                <option value="ssh">SSH</option>
+              </select>
+            </FormField>
+            {form.type === 'ssh' && (
+              <div className="space-y-3 p-3.5 bg-zinc-950 rounded-lg border border-zinc-800">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">SSH Configuration</p>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-zinc-500 mb-1">host</label>
+                    <Input value={ssh.host} onChange={e => setSsh(s => ({ ...s, host: e.target.value }))} placeholder="192.168.1.100" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-zinc-500 mb-1">port</label>
+                    <Input value={ssh.port} onChange={e => setSsh(s => ({ ...s, port: e.target.value }))} placeholder="22" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">port</label>
-                  <input value={ssh.port} onChange={e => setSsh(s => ({ ...s, port: e.target.value }))} className="w-full px-2.5 py-1.5 border border-zinc-700 rounded-md text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50" placeholder="22" />
+                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">username</label>
+                  <Input value={ssh.username} onChange={e => setSsh(s => ({ ...s, username: e.target.value }))} placeholder="root" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">password</label>
+                  <Input type="password" value={ssh.password} onChange={e => setSsh(s => ({ ...s, password: e.target.value }))} placeholder="optional" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">privateKey</label>
+                  <Textarea value={ssh.privateKey} onChange={e => setSsh(s => ({ ...s, privateKey: e.target.value }))} className="h-20 font-mono" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" />
                 </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-500 mb-1">username</label>
-                <input value={ssh.username} onChange={e => setSsh(s => ({ ...s, username: e.target.value }))} className="w-full px-2.5 py-1.5 border border-zinc-700 rounded-md text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50" placeholder="root" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-500 mb-1">password</label>
-                <input type="password" value={ssh.password} onChange={e => setSsh(s => ({ ...s, password: e.target.value }))} className="w-full px-2.5 py-1.5 border border-zinc-700 rounded-md text-sm bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50" placeholder="optional" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-500 mb-1">privateKey</label>
-                <textarea value={ssh.privateKey} onChange={e => setSsh(s => ({ ...s, privateKey: e.target.value }))} className="w-full h-20 px-2.5 py-1.5 border border-zinc-700 rounded-md text-sm font-mono bg-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50 resize-none" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" />
-              </div>
-            </div>
-          )}
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Model</label>
-            <select
-              value={form.modelId}
-              onChange={e => setForm(f => ({ ...f, modelId: e.target.value }))}
-              className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50"
-            >
-              <option value="">Select model...</option>
-              {models.map(m => (
-                <option key={m.id} value={m.id}>{m.name} ({m.connectionId})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
-              form.memoryEnabled ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900'
-            }`}>
-              <input type="checkbox" checked={form.memoryEnabled} onChange={e => setForm(f => ({ ...f, memoryEnabled: e.target.checked }))}
-                className="rounded border-zinc-600 bg-zinc-800 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0" />
-              <div>
-                <span className="text-sm font-medium text-zinc-200">Memory</span>
-                <p className="text-[11px] text-zinc-500 mt-0.5">Auto-extract and remember facts about this server</p>
-              </div>
-            </label>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Security Profiles</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setProfileDropdownOpen(o => !o)}
-                className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50 text-left flex items-center justify-between"
+            )}
+            <FormField label="Model">
+              <select
+                value={form.modelId}
+                onChange={e => setForm(f => ({ ...f, modelId: e.target.value }))}
+                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
-                <span className={form.profileIds.length === 0 ? 'text-zinc-600' : ''}>
-                  {form.profileIds.length === 0 ? 'No profiles (unrestricted)' : form.profileIds.map(id => profileName(id)).join(', ')}
-                </span>
-                <ChevronDown size={14} className={`text-zinc-600 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {profileDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setProfileDropdownOpen(false)} />
-                  <div className="absolute z-20 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
-                    {profiles.map(p => (
-                      <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700/50 cursor-pointer text-sm text-zinc-300">
-                        <input
-                          type="checkbox"
-                          checked={form.profileIds.includes(p.id)}
-                          onChange={() => setForm(f => ({
-                            ...f,
-                            profileIds: f.profileIds.includes(p.id)
-                              ? f.profileIds.filter(x => x !== p.id)
-                              : [...f.profileIds, p.id]
-                          }))}
-                          className="rounded border-zinc-600 bg-zinc-900 text-teal-500 focus:ring-teal-500/30 focus:ring-offset-0"
-                        />
-                        {p.name}{p.builtin ? ' (built-in)' : ''}
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
+                <option value="">Select model...</option>
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.connectionId})</option>
+                ))}
+              </select>
+            </FormField>
+            <div>
+              <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
+                form.memoryEnabled ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900'
+              }`}>
+                <Checkbox checked={form.memoryEnabled} onCheckedChange={v => setForm(f => ({ ...f, memoryEnabled: !!v }))} />
+                <div>
+                  <span className="text-sm font-medium text-zinc-200">Memory</span>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Auto-extract and remember facts about this server</p>
+                </div>
+              </label>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Security Profiles</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileDropdownOpen(o => !o)}
+                  className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50 text-left flex items-center justify-between"
+                >
+                  <span className={form.profileIds.length === 0 ? 'text-zinc-600' : ''}>
+                    {form.profileIds.length === 0 ? 'No profiles (unrestricted)' : form.profileIds.map(id => profileName(id)).join(', ')}
+                  </span>
+                  <ChevronDown size={14} className={`text-zinc-600 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {profileDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setProfileDropdownOpen(false)} />
+                    <div className="absolute z-20 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
+                      {profiles.map(p => (
+                        <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700/50 cursor-pointer text-sm text-zinc-300">
+                          <Checkbox
+                            checked={form.profileIds.includes(p.id)}
+                            onCheckedChange={() => setForm(f => ({
+                              ...f,
+                              profileIds: f.profileIds.includes(p.id)
+                                ? f.profileIds.filter(x => x !== p.id)
+                                : [...f.profileIds, p.id]
+                            }))}
+                          />
+                          {p.name}{p.builtin ? ' (built-in)' : ''}
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button onClick={submit} disabled={!form.name || !form.modelId}>
+                {editing ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setModalOpen(false)} className="px-3.5 py-2 text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-700">
-              Cancel
-            </button>
-            <button onClick={submit} disabled={!form.name || !form.modelId} className="px-3.5 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-40">
-              {editing ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDelete
+        open={!!deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && remove(deleteTarget)}
+        title="Delete server?"
+        description="This will permanently remove the server and its memories."
+      />
     </div>
   )
 }

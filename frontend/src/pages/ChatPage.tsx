@@ -3,6 +3,8 @@ import { Send } from 'lucide-react'
 import { api } from '../api'
 import { MessageBubble, StepPanel } from '../components/ChatMessages'
 import type { ChatMessage, Step } from '../types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const PAGE_SIZE = 10
 const POLL_INTERVAL = 300
@@ -169,13 +171,9 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto px-6 py-5 space-y-1">
         {hasMore && messages.length > 0 && (
           <div className="flex justify-center mb-4">
-            <button
-              onClick={loadMoreMessages}
-              disabled={loadingMore}
-              className="px-3 py-1.5 text-xs font-medium text-zinc-500 bg-zinc-800 rounded-lg hover:text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
+            <Button variant="secondary" size="sm" onClick={loadMoreMessages} disabled={loadingMore}>
               {loadingMore ? 'Loading...' : `Load previous ${PAGE_SIZE}`}
-            </button>
+            </Button>
           </div>
         )}
         {messages.length === 0 && (
@@ -193,21 +191,20 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
 
       <div className="px-6 py-3 border-t border-zinc-800/80 bg-zinc-900/40 shrink-0">
         <div className="flex gap-2">
-          <input
+          <Input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
             placeholder="Type a message..."
-            className="flex-1 px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-teal-500/50"
+            className="flex-1 bg-zinc-900 border-zinc-800"
             disabled={sending || hasPending}
           />
-          <button
+          <Button
             onClick={send}
             disabled={sending || hasPending || !input.trim()}
-            className="px-3.5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-500 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Send size={16} />
-          </button>
+          </Button>
         </div>
       </div>
 
