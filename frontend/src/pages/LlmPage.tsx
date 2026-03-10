@@ -158,8 +158,8 @@ export default function LlmPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">LLM</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Connections and models</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">LLM</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Connections and models</p>
         </div>
         <Button size="sm" onClick={openCreateConn}>
           <Plus size={14} /> Add Connection
@@ -167,7 +167,7 @@ export default function LlmPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : connections.length === 0 ? (
         <EmptyState icon={Link2} title="No LLM connections yet" description="Add a connection to start configuring models" />
       ) : (
@@ -176,7 +176,7 @@ export default function LlmPage() {
             const connModels = models.filter(m => m.connectionId === conn.id)
             const isExpanded = expanded.has(conn.id)
             return (
-              <div key={conn.id} className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+              <div key={conn.id} className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                 <div className="px-4 py-3.5">
                   <div className="flex items-center justify-between">
                     <div
@@ -185,12 +185,12 @@ export default function LlmPage() {
                     >
                       {isExpanded ? <ChevronDown size={14} className="text-zinc-600 shrink-0" /> : <ChevronRight size={14} className="text-zinc-600 shrink-0" />}
                       <Link2 size={14} className="text-teal-500 shrink-0" />
-                      <span className="font-medium text-zinc-200 text-sm">{conn.id}</span>
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{conn.id}</span>
                       <Badge variant="muted">{conn.provider}</Badge>
-                      <span className="text-xs text-zinc-600 truncate">{conn.baseUrl}</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-600 truncate">{conn.baseUrl}</span>
                     </div>
                     <div className="flex items-center gap-1 ml-3">
-                      <span className="text-[11px] text-zinc-600 mr-1">{connModels.length} model{connModels.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[11px] text-zinc-500 dark:text-zinc-600 mr-1">{connModels.length} model{connModels.length !== 1 ? 's' : ''}</span>
                       <Button variant="ghost" size="icon" onClick={() => openEditConn(conn)}>
                         <Pencil size={14} />
                       </Button>
@@ -202,7 +202,7 @@ export default function LlmPage() {
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-zinc-800">
+                  <div className="border-t border-zinc-200 dark:border-zinc-800">
                     {connModels.length === 0 ? (
                       <div className="px-4 py-4 text-center">
                         <p className="text-xs text-zinc-600 mb-2">No models in this connection</p>
@@ -212,18 +212,18 @@ export default function LlmPage() {
                       </div>
                     ) : (
                       <div>
-                        <div className="divide-y divide-zinc-800/50">
+                          <div className="divide-y divide-zinc-200/50 dark:divide-zinc-800/50">
                           {connModels.map(m => (
-                            <div key={m.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-zinc-800/30">
+                            <div key={m.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-zinc-100/50 dark:hover:bg-zinc-800/30">
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <Box size={13} className="text-zinc-600 shrink-0" />
-                                <span className="text-sm text-zinc-300 font-medium">{m.name}</span>
+                                <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium">{m.name}</span>
                                 {m.thinkingMode && (
                                   <Badge variant="secondary">{m.thinkingMode}</Badge>
                                 )}
                                 <button
                                   onClick={() => { navigator.clipboard.writeText(m.id); toast.success('Model ID copied') }}
-                                  className="inline-flex items-center gap-1 text-[11px] text-zinc-700 font-mono hover:text-zinc-400 transition-colors"
+                                  className="inline-flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-700 font-mono hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
                                   title={m.id}
                                 >
                                   {m.id.slice(0, 12)}... <Copy size={11} />
@@ -240,7 +240,7 @@ export default function LlmPage() {
                             </div>
                           ))}
                         </div>
-                        <div className="px-4 py-2 border-t border-zinc-800/50">
+                        <div className="px-4 py-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
                           <button
                             onClick={() => openCreateModel(conn.id)}
                             className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-600 hover:text-teal-400"
@@ -259,8 +259,8 @@ export default function LlmPage() {
       )}
 
       {!loading && models.length > 0 && (
-        <div className="mt-6 bg-zinc-900 rounded-lg border border-zinc-800 p-4">
-          <h2 className="text-sm font-semibold text-zinc-200 mb-3">Model Roles</h2>
+        <div className="mt-6 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Model Roles</h2>
           <div className="grid grid-cols-2 gap-4">
             {([
               { key: 'summaryModelId' as const, label: 'Summary Model', hint: 'Used for conversation summaries and memory extraction' },
@@ -269,11 +269,11 @@ export default function LlmPage() {
               const stale = !!roles[key] && !models.find(m => m.id === roles[key])
               return (
                 <div key={key}>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">{label}</label>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">{label}</label>
                   <select
                     value={roles[key] ?? ''}
                     onChange={e => updateRole(key, e.target.value || null)}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50 ${stale ? 'border-amber-500/50' : 'border-zinc-700'}`}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50 ${stale ? 'border-amber-500/50' : 'border-zinc-300 dark:border-zinc-700'}`}
                   >
                     <option value="">None</option>
                     {stale && <option value={roles[key]!}>(deleted) {modelLabel(roles[key])}</option>}
@@ -282,7 +282,7 @@ export default function LlmPage() {
                     ))}
                   </select>
                   {stale && <p className="text-[11px] text-amber-400 mt-1">Selected model was deleted — please choose another</p>}
-                  <p className="text-[11px] text-zinc-600 mt-1">{hint}</p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1">{hint}</p>
                 </div>
               )
             })}
@@ -309,7 +309,7 @@ export default function LlmPage() {
               <select
                 value={connForm.provider}
                 onChange={e => setConnForm(f => ({ ...f, provider: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="openai">openai</option>
               </select>
@@ -357,7 +357,7 @@ export default function LlmPage() {
               <select
                 value={modelForm.connectionId}
                 onChange={e => setModelForm(f => ({ ...f, connectionId: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="">Select connection...</option>
                 {connections.map(c => (
@@ -369,7 +369,7 @@ export default function LlmPage() {
               <select
                 value={modelForm.thinkingMode}
                 onChange={e => setModelForm(f => ({ ...f, thinkingMode: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="">None (default)</option>
                 <option value="skip">Skip — remove thinking blocks</option>

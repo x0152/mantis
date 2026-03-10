@@ -3,35 +3,49 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-border: oklch(0.274 0.006 286);
-  --color-input: oklch(0.274 0.006 286);
+  --color-border: oklch(0.9 0.006 286);
+  --color-input: oklch(0.9 0.006 286);
   --color-ring: oklch(0.488 0.118 181);
-  --color-background: oklch(0.141 0.005 286);
-  --color-foreground: oklch(0.985 0 0);
+  --color-background: oklch(0.99 0 0);
+  --color-foreground: oklch(0.141 0.005 286);
   --color-primary: oklch(0.488 0.118 181);
   --color-primary-foreground: oklch(0.985 0 0);
-  --color-secondary: oklch(0.274 0.006 286);
-  --color-secondary-foreground: oklch(0.871 0.006 286);
+  --color-secondary: oklch(0.95 0.006 286);
+  --color-secondary-foreground: oklch(0.2 0.006 286);
   --color-destructive: oklch(0.577 0.245 27.33);
   --color-destructive-foreground: oklch(0.985 0 0);
-  --color-muted: oklch(0.274 0.006 286);
-  --color-muted-foreground: oklch(0.552 0.016 286);
-  --color-accent: oklch(0.274 0.006 286);
-  --color-accent-foreground: oklch(0.871 0.006 286);
-  --color-popover: oklch(0.21 0.006 286);
-  --color-popover-foreground: oklch(0.985 0 0);
-  --color-card: oklch(0.21 0.006 286);
-  --color-card-foreground: oklch(0.985 0 0);
-  --color-sidebar: oklch(0.21 0.006 286);
-  --color-sidebar-foreground: oklch(0.871 0.006 286);
-  --color-sidebar-accent: oklch(0.274 0.006 286);
-  --color-sidebar-accent-foreground: oklch(0.871 0.006 286);
-  --color-sidebar-border: oklch(0.274 0.006 286);
+  --color-muted: oklch(0.95 0.006 286);
+  --color-muted-foreground: oklch(0.5 0.016 286);
+  --color-accent: oklch(0.95 0.006 286);
+  --color-accent-foreground: oklch(0.2 0.006 286);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.141 0.005 286);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.141 0.005 286);
+  --color-sidebar: oklch(0.97 0.006 286);
+  --color-sidebar-foreground: oklch(0.2 0.006 286);
+  --color-sidebar-accent: oklch(0.92 0.006 286);
+  --color-sidebar-accent-foreground: oklch(0.2 0.006 286);
+  --color-sidebar-border: oklch(0.9 0.006 286);
   --radius: 0.5rem;
+}
+
+:root {
+  --color-background: oklch(0.99 0 0);
+  --color-foreground: oklch(0.141 0.005 286);
+}
+
+.dark {
+  --color-background: oklch(0.141 0.005 286);
+  --color-foreground: oklch(0.985 0 0);
 }
 
 * {
   scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+.dark * {
   scrollbar-color: #27272a transparent;
 }
 
@@ -44,7 +58,7 @@ body {
 
 @layer components {
   .markdown :not(pre) > code {
-    @apply text-[0.85em] bg-zinc-800 text-zinc-300 rounded px-1 py-0.5;
+    @apply text-[0.85em] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1 py-0.5;
   }
 
   .markdown pre code {

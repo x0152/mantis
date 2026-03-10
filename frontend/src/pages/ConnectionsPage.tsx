@@ -145,8 +145,8 @@ export default function ConnectionsPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Servers</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Manage SSH servers with configs, memories, and security profiles</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Servers</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Manage SSH servers with configs, memories, and security profiles</p>
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus size={14} /> Add Server
@@ -154,20 +154,20 @@ export default function ConnectionsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : connections.length === 0 ? (
         <EmptyState icon={Plug} title="No servers yet" description="Create your first server to get started" />
       ) : (
         <div className="space-y-2.5">
           {connections.map(conn => (
-            <div key={conn.id} className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-              <div className="flex items-center px-4 py-3.5 cursor-pointer hover:bg-zinc-800/40" onClick={() => toggle(conn.id)}>
+            <div key={conn.id} className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+              <div className="flex items-center px-4 py-3.5 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40" onClick={() => toggle(conn.id)}>
                 <div className="mr-2.5 text-zinc-600">
                   {expanded === conn.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-200 text-sm">{conn.name}</span>
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{conn.name}</span>
                     <Badge className="uppercase">{conn.type}</Badge>
                     {conn.memories.length > 0 && (
                       <Badge variant="secondary">
@@ -180,8 +180,8 @@ export default function ConnectionsPage() {
                       </Badge>
                     )}
                   </div>
-                  {conn.description && <p className="text-xs text-zinc-500 mt-0.5">{conn.description}</p>}
-                  <p className="text-[11px] text-zinc-600 mt-0.5">LLM: {modelName(conn.modelId)}</p>
+                  {conn.description && <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-0.5">{conn.description}</p>}
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5">LLM: {modelName(conn.modelId)}</p>
                 </div>
                 <div className="flex gap-0.5 ml-3" onClick={e => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(conn)}>
@@ -194,11 +194,11 @@ export default function ConnectionsPage() {
               </div>
 
               {expanded === conn.id && (
-                <div className="border-t border-zinc-800 px-4 py-4 bg-zinc-950/50">
+                <div className="border-t border-zinc-200 dark:border-zinc-800 px-4 py-4 bg-zinc-50 dark:bg-zinc-950/50">
                   <div className="grid grid-cols-2 gap-5">
                     <div>
                       <h3 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">SSH Config</h3>
-                      <pre className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-400 overflow-auto max-h-48">
+                      <pre className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-600 dark:text-zinc-400 overflow-auto max-h-48">
                         {JSON.stringify(conn.config, null, 2)}
                       </pre>
                     </div>
@@ -206,20 +206,20 @@ export default function ConnectionsPage() {
                       <h3 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Details</h3>
                       <dl className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <dt className="text-zinc-500">ID</dt>
-                          <dd className="font-mono text-[11px] text-zinc-600">{conn.id}</dd>
+                          <dt className="text-zinc-600 dark:text-zinc-500">ID</dt>
+                          <dd className="font-mono text-[11px] text-zinc-500 dark:text-zinc-600">{conn.id}</dd>
                         </div>
                         <div className="flex justify-between">
-                          <dt className="text-zinc-500">Type</dt>
-                          <dd className="text-zinc-300">{conn.type}</dd>
+                          <dt className="text-zinc-600 dark:text-zinc-500">Type</dt>
+                          <dd className="text-zinc-700 dark:text-zinc-300">{conn.type}</dd>
                         </div>
                         <div className="flex justify-between">
-                          <dt className="text-zinc-500">Model</dt>
-                          <dd className="text-zinc-300">{modelName(conn.modelId)}</dd>
+                          <dt className="text-zinc-600 dark:text-zinc-500">Model</dt>
+                          <dd className="text-zinc-700 dark:text-zinc-300">{modelName(conn.modelId)}</dd>
                         </div>
                         <div className="flex justify-between">
-                          <dt className="text-zinc-500">Profiles</dt>
-                          <dd className="text-zinc-300">{conn.profileIds?.length ? conn.profileIds.map(id => profileName(id)).join(', ') : 'None (unrestricted)'}</dd>
+                          <dt className="text-zinc-600 dark:text-zinc-500">Profiles</dt>
+                          <dd className="text-zinc-700 dark:text-zinc-300">{conn.profileIds?.length ? conn.profileIds.map(id => profileName(id)).join(', ') : 'None (unrestricted)'}</dd>
                         </div>
                       </dl>
                     </div>
@@ -232,11 +232,11 @@ export default function ConnectionsPage() {
                     {conn.memories.length > 0 && (
                       <div className="space-y-1.5 mb-3">
                         {conn.memories.map(mem => (
-                          <div key={mem.id} className="flex items-start gap-2.5 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5">
+                          <div key={mem.id} className="flex items-start gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2.5">
                             <MessageSquare size={13} className="text-violet-400 mt-0.5 shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-zinc-300">{mem.content}</p>
-                              <p className="text-[11px] text-zinc-600 mt-1">{new Date(mem.createdAt).toLocaleString()}</p>
+                              <p className="text-sm text-zinc-700 dark:text-zinc-300">{mem.content}</p>
+                              <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1">{new Date(mem.createdAt).toLocaleString()}</p>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => deleteMemory(conn.id, mem.id)} className="shrink-0">
                               <Trash2 size={12} />
@@ -281,7 +281,7 @@ export default function ConnectionsPage() {
               <select
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="ssh">SSH</option>
               </select>
@@ -317,7 +317,7 @@ export default function ConnectionsPage() {
               <select
                 value={form.modelId}
                 onChange={e => setForm(f => ({ ...f, modelId: e.target.value }))}
-                className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
                 <option value="">Select model...</option>
                 {models.map(m => (
@@ -327,22 +327,22 @@ export default function ConnectionsPage() {
             </FormField>
             <div>
               <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer ${
-                form.memoryEnabled ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-800 bg-zinc-900'
+                form.memoryEnabled ? 'border-teal-500/40 bg-teal-500/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
               }`}>
                 <Checkbox checked={form.memoryEnabled} onCheckedChange={v => setForm(f => ({ ...f, memoryEnabled: !!v }))} />
                 <div>
-                  <span className="text-sm font-medium text-zinc-200">Memory</span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Memory</span>
                   <p className="text-[11px] text-zinc-500 mt-0.5">Auto-extract and remember facts about this server</p>
                 </div>
               </label>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Security Profiles</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">Security Profiles</label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setProfileDropdownOpen(o => !o)}
-                  className="w-full px-3 py-2 border border-zinc-700 rounded-lg text-sm bg-zinc-800 text-zinc-100 focus:outline-none focus:border-teal-500/50 text-left flex items-center justify-between"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50 text-left flex items-center justify-between"
                 >
                   <span className={form.profileIds.length === 0 ? 'text-zinc-600' : ''}>
                     {form.profileIds.length === 0 ? 'No profiles (unrestricted)' : form.profileIds.map(id => profileName(id)).join(', ')}
@@ -352,9 +352,9 @@ export default function ConnectionsPage() {
                 {profileDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setProfileDropdownOpen(false)} />
-                    <div className="absolute z-20 mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
+                    <div className="absolute z-20 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
                       {profiles.map(p => (
-                        <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-700/50 cursor-pointer text-sm text-zinc-300">
+                        <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                           <Checkbox
                             checked={form.profileIds.includes(p.id)}
                             onCheckedChange={() => setForm(f => ({

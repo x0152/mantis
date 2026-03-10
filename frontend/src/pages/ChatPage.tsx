@@ -189,14 +189,14 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-6 py-3 border-t border-zinc-800/80 bg-zinc-900/40 shrink-0">
+      <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0">
         <div className="flex gap-2">
           <Input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
             placeholder="Type a message..."
-            className="flex-1 bg-zinc-900 border-zinc-800"
+            className="flex-1 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
             disabled={sending || hasPending}
           />
           <Button

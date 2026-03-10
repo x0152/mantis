@@ -54,8 +54,8 @@ export default function ConfigPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Configuration</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Global application configuration stored as JSON</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Configuration</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Global application configuration stored as JSON</p>
         </div>
         <div className="flex items-center gap-2">
           {!isValid && value.length > 0 && (
@@ -75,10 +75,10 @@ export default function ConfigPage() {
         </div>
       </div>
 
-      <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
-          <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">JSON Editor</span>
-          <span className="text-[11px] text-zinc-600">{value.split('\n').length} lines</span>
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+          <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-500 uppercase tracking-wider">JSON Editor</span>
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-600">{value.split('\n').length} lines</span>
         </div>
         <CodeMirror
           value={value}

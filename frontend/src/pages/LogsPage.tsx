@@ -29,12 +29,12 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
   const isRunning = log.status === 'running'
 
   return (
-    <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       <div
-        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-800/40"
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
         onClick={onToggle}
       >
-        <div className="text-zinc-600">
+        <div className="text-zinc-400 dark:text-zinc-600">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </div>
         <div className={`p-1.5 rounded-md ${isRunning ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
@@ -45,7 +45,7 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-200 text-sm">{log.agentName}</span>
+            <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{log.agentName}</span>
             <Badge variant={isRunning ? 'warning' : 'success'}>
               {log.status}
             </Badge>
@@ -53,20 +53,20 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
           {log.prompt && (
             <p className="text-xs text-zinc-500 mt-0.5 truncate">{log.prompt}</p>
           )}
-          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-600">
+          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-600">
             <span className="flex items-center gap-1"><Clock size={10} />{timeAgo(log.startedAt)}</span>
             <span>{duration(log.startedAt, log.finishedAt)}</span>
             <span>{log.entries.length} entries</span>
           </div>
         </div>
-        <span className="font-mono text-[11px] text-zinc-700">{log.id.slice(0, 8)}</span>
+        <span className="font-mono text-[11px] text-zinc-400 dark:text-zinc-700">{log.id.slice(0, 8)}</span>
       </div>
 
       {expanded && (
-        <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-3.5 space-y-1 max-h-125 overflow-y-auto">
+        <div className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-4 py-3.5 space-y-1 max-h-125 overflow-y-auto">
           {log.prompt && <PromptBanner prompt={log.prompt} />}
           {log.entries.length === 0 && !log.prompt ? (
-            <p className="text-zinc-600 text-xs font-mono">No entries yet</p>
+            <p className="text-zinc-500 dark:text-zinc-600 text-xs font-mono">No entries yet</p>
           ) : (
             log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)
           )}
@@ -151,8 +151,8 @@ export default function LogsPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">Session Logs</h1>
-          <p className="text-xs text-zinc-600 mt-0.5">Execution history per connection</p>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Session Logs</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Execution history per connection</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -167,7 +167,7 @@ export default function LogsPage() {
           <select
             value={selectedConn}
             onChange={e => { setSelectedConn(e.target.value); setExpanded(null) }}
-            className="px-2.5 py-1.5 border border-zinc-800 rounded-lg text-xs bg-zinc-900 text-zinc-400 focus:outline-none focus:border-teal-500/50"
+            className="px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 focus:outline-none focus:border-teal-500/50"
           >
             <option value="">All connections</option>
             {connections.map(c => (
@@ -178,7 +178,7 @@ export default function LogsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Loading...</div>
+        <div className="text-center py-12 text-zinc-500 dark:text-zinc-600 text-sm">Loading...</div>
       ) : logs.length === 0 ? (
         <EmptyState icon={ScrollText} title="No session logs yet" description="Logs will appear here as agents execute tasks" />
       ) : (
@@ -186,7 +186,7 @@ export default function LogsPage() {
           {logs.map(log => (
             <div key={log.id}>
               {selectedConn === '' && (
-                <p className="text-[11px] text-zinc-600 mb-1 ml-1 flex items-center gap-1.5">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mb-1 ml-1 flex items-center gap-1.5">
                   <Terminal size={10} />
                   {connName(log.connectionId)}
                 </p>
