@@ -60,9 +60,9 @@ Multi-agent system where an LLM orchestrates a pool of isolated agents, each run
 docker compose up --build
 ```
 
-Starts postgres, runs migrations, API on `:8080`, frontend on `:5173`, and 5 SSH sandboxes.
+Starts postgres, runs migrations, API on `:27480`, frontend on `:27173`, and 5 SSH sandboxes (internal network only, not exposed to host ports).
 
-Go to http://localhost:5173 — first time it'll ask for your LLM provider URL and API key. Sets up the model, sandbox connections, and optionally a Telegram bot. After that just start chatting.
+Go to http://localhost:27173 — first time it'll ask for your LLM provider URL and API key. Sets up the model, sandbox connections, and optionally a Telegram bot. After that just start chatting.
 
 ## Dev setup
 
