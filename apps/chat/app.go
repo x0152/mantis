@@ -27,14 +27,15 @@ func NewApp(
 	sessionStore protocols.Store[string, types.ChatSession],
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
 	channelStore protocols.Store[string, types.Channel],
-	configStore protocols.Store[string, types.Config],
+	settingsStore protocols.Store[string, types.Settings],
 	mantisAgent *agents.MantisAgent,
 	buf *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
 ) *App {
-	modelResolver := modelplugin.NewResolver(channelStore, configStore)
+	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
 	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor)
 	return &App{
 		endpoints: api.NewEndpoints(api.UseCases{

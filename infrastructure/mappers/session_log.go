@@ -12,7 +12,9 @@ func SessionLogToRow(s types.SessionLog) models.SessionLogRow {
 	return models.SessionLogRow{
 		ID: s.ID, ConnectionID: s.ConnectionID, AgentName: s.AgentName,
 		Prompt: s.Prompt, Status: s.Status,
-		MessageID: s.MessageID, StepID: s.StepID, ModelName: s.ModelName,
+		MessageID: s.MessageID, StepID: s.StepID,
+		ModelID: s.ModelID, ModelName: s.ModelName,
+		PresetID: s.PresetID, PresetName: s.PresetName, ModelRole: s.ModelRole,
 		Entries: entries, StartedAt: s.StartedAt, FinishedAt: s.FinishedAt,
 	}
 }
@@ -26,7 +28,9 @@ func SessionLogFromRow(r models.SessionLogRow) types.SessionLog {
 	return types.SessionLog{
 		ID: r.ID, ConnectionID: r.ConnectionID, AgentName: r.AgentName,
 		Prompt: r.Prompt, Status: r.Status,
-		MessageID: r.MessageID, StepID: r.StepID, ModelName: r.ModelName,
+		MessageID: r.MessageID, StepID: r.StepID,
+		ModelID: r.ModelID, ModelName: r.ModelName,
+		PresetID: r.PresetID, PresetName: r.PresetName, ModelRole: r.ModelRole,
 		Entries: entries, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt,
 	}
 }

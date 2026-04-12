@@ -22,7 +22,11 @@ type ChatMessageRow struct {
 	Content       string          `bun:"content"`
 	Status        string          `bun:"status"`
 	Source        string          `bun:"source"`
+	ModelID       string          `bun:"model_id"`
 	ModelName     string          `bun:"model_name"`
+	PresetID      string          `bun:"preset_id"`
+	PresetName    string          `bun:"preset_name"`
+	ModelRole     string          `bun:"model_role"`
 	Steps         json.RawMessage `bun:"steps,type:jsonb"`
 	CreatedAt     time.Time       `bun:"created_at"`
 }

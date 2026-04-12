@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../api'
-import type { Connection, Model, GuardProfile } from '../types'
+import type { Connection, Preset, GuardProfile } from '../types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,14 +15,14 @@ import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 export default function ConnectionsPage() {
   const [connections, setConnections] = useState<Connection[]>([])
-  const [models, setModels] = useState<Model[]>([])
+  const [presets, setPresets] = useState<Preset[]>([])
   const [profiles, setProfiles] = useState<GuardProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Connection | null>(null)
   const emptySsh = { host: '', port: '22', username: '', password: '', privateKey: '' }
-  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [] as string[], memoryEnabled: true })
+  const [form, setForm] = useState({ type: 'ssh', name: '', description: '', presetId: '', profileIds: [] as string[], memoryEnabled: true })
   const [ssh, setSsh] = useState(emptySsh)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const [memoryInput, setMemoryInput] = useState('')
@@ -31,10 +31,10 @@ export default function ConnectionsPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [c, m, p] = await Promise.all([api.connections.list(), api.models.list(), api.guardProfiles.list()])
+      const [c, p, gp] = await Promise.all([api.connections.list(), api.presets.list(), api.guardProfiles.list()])
       setConnections(c)
-      setModels(m)
-      setProfiles(p)
+      setPresets(p)
+      setProfiles(gp)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -67,7 +67,7 @@ export default function ConnectionsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ type: 'ssh', name: '', description: '', modelId: '', profileIds: [], memoryEnabled: true })
+    setForm({ type: 'ssh', name: '', description: '', presetId: '', profileIds: [], memoryEnabled: true })
     setSsh(emptySsh)
     setProfileDropdownOpen(false)
     setModalOpen(true)
@@ -75,7 +75,7 @@ export default function ConnectionsPage() {
 
   const openEdit = (c: Connection) => {
     setEditing(c)
-    setForm({ type: c.type, name: c.name, description: c.description, modelId: c.modelId, profileIds: c.profileIds || [], memoryEnabled: c.memoryEnabled })
+    setForm({ type: c.type, name: c.name, description: c.description, presetId: c.presetId ?? '', profileIds: c.profileIds || [], memoryEnabled: c.memoryEnabled })
     setSsh(parseSshConfig(c.config))
     setProfileDropdownOpen(false)
     setModalOpen(true)
@@ -84,7 +84,7 @@ export default function ConnectionsPage() {
   const submit = async () => {
     try {
       const config = buildConfig()
-      const data = { type: form.type, name: form.name, description: form.description, modelId: form.modelId, config, profileIds: form.profileIds, memoryEnabled: form.memoryEnabled }
+      const data = { type: form.type, name: form.name, description: form.description, presetId: form.presetId, config, profileIds: form.profileIds, memoryEnabled: form.memoryEnabled }
       if (editing) {
         await api.connections.update(editing.id, data)
         toast.success('Server updated')
@@ -135,10 +135,10 @@ export default function ConnectionsPage() {
 
   const profileName = (id: string) => profiles.find(p => p.id === id)?.name ?? id.slice(0, 8)
 
-  const modelName = (id: string) => {
-    const model = models.find(m => m.id === id)
-    if (model) return `${model.name} (${model.connectionId})`
-    return id.slice(0, 8) + '...'
+  const presetName = (id: string) => {
+    const p = presets.find(x => x.id === id)
+    if (p) return p.name
+    return id ? (id.slice(0, 8) + '...') : '—'
   }
 
   return (
@@ -181,7 +181,7 @@ export default function ConnectionsPage() {
                     )}
                   </div>
                   {conn.description && <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-0.5">{conn.description}</p>}
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5">LLM: {modelName(conn.modelId)}</p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5">Preset: {conn.presetId ? presetName(conn.presetId) : <span className="italic">Inherit</span>}</p>
                 </div>
                 <div className="flex gap-0.5 ml-3" onClick={e => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(conn)}>
@@ -214,8 +214,8 @@ export default function ConnectionsPage() {
                           <dd className="text-zinc-700 dark:text-zinc-300">{conn.type}</dd>
                         </div>
                         <div className="flex justify-between">
-                          <dt className="text-zinc-600 dark:text-zinc-500">Model</dt>
-                          <dd className="text-zinc-700 dark:text-zinc-300">{modelName(conn.modelId)}</dd>
+                          <dt className="text-zinc-600 dark:text-zinc-500">Preset</dt>
+                          <dd className="text-zinc-700 dark:text-zinc-300">{conn.presetId ? presetName(conn.presetId) : <span className="italic text-zinc-500">Inherit (global)</span>}</dd>
                         </div>
                         <div className="flex justify-between">
                           <dt className="text-zinc-600 dark:text-zinc-500">Profiles</dt>
@@ -313,15 +313,15 @@ export default function ConnectionsPage() {
                 </div>
               </div>
             )}
-            <FormField label="Model">
+            <FormField label="Preset">
               <select
-                value={form.modelId}
-                onChange={e => setForm(f => ({ ...f, modelId: e.target.value }))}
+                value={form.presetId}
+                onChange={e => setForm(f => ({ ...f, presetId: e.target.value }))}
                 className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
               >
-                <option value="">Select model...</option>
-                {models.map(m => (
-                  <option key={m.id} value={m.id}>{m.name} ({m.connectionId})</option>
+                <option value="">Inherit (use global server preset)</option>
+                {presets.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </FormField>
@@ -374,7 +374,7 @@ export default function ConnectionsPage() {
             </div>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-              <Button onClick={submit} disabled={!form.name || !form.modelId}>
+              <Button onClick={submit} disabled={!form.name}>
                 {editing ? 'Update' : 'Create'}
               </Button>
             </DialogFooter>

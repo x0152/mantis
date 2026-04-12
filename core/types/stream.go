@@ -7,13 +7,17 @@ type ToolCall struct {
 }
 
 type StreamEvent struct {
-	Type      string
-	Sequence  int
-	Iteration int
-	Delta     string
-	ToolID    string
-	LogID     string
-	ModelName string
-	ToolCalls []ToolCall
-	IsFinal   bool
+	Type       string
+	Sequence   int
+	Iteration  int
+	Delta      string
+	ToolID     string
+	LogID      string
+	ModelID    string
+	ModelName  string
+	PresetID   string
+	PresetName string
+	ModelRole  string
+	ToolCalls  []ToolCall
+	IsFinal    bool
 }

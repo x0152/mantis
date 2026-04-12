@@ -13,6 +13,7 @@ type ConnectionRow struct {
 	Name          string          `bun:"name"`
 	Description   string          `bun:"description"`
 	ModelID       string          `bun:"model_id"`
+	PresetID      string          `bun:"preset_id"`
 	Config        json.RawMessage `bun:"config,type:jsonb"`
 	Memories      json.RawMessage `bun:"memories,type:jsonb"`
 	ProfileIDs    json.RawMessage `bun:"profile_ids,type:jsonb"`

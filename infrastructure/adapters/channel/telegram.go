@@ -149,7 +149,9 @@ func (t *Telegram) handleCallback(ctx context.Context, cq *tgCallbackQuery) {
 	var text string
 	if strings.HasPrefix(data, "model:") {
 		id := strings.TrimSpace(strings.TrimPrefix(data, "model:"))
-		if id != "" {
+		if id == "" || id == "inherit" {
+			text = "/model inherit"
+		} else {
 			text = "/model " + id
 		}
 	}

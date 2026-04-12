@@ -25,7 +25,7 @@ func (uc *SendMessage) Execute(ctx context.Context, sessionID, content string) (
 		SessionID:   sessionID,
 		Content:     content,
 		Source:      "web",
-		ModelConfig: modelplugin.Input{ChannelID: "chat", ConfigPath: []string{"chat", "model_id"}},
+		ModelConfig: modelplugin.Input{ChannelID: "chat", DefaultPreset: "chat"},
 		Timeout:     5 * time.Minute,
 	})
 	if err != nil {

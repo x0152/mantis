@@ -13,5 +13,6 @@ type ChannelRow struct {
 	Name           string          `bun:"name"`
 	Token          string          `bun:"token"`
 	ModelID        string          `bun:"model_id"`
+	PresetID       string          `bun:"preset_id"`
 	AllowedUserIDs json.RawMessage `bun:"allowed_user_ids,type:jsonb"`
 }

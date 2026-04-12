@@ -1,0 +1,27 @@
+-- +goose Up
+
+ALTER TABLE chat_messages
+    ADD COLUMN IF NOT EXISTS model_id TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS preset_id TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS preset_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS model_role TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE session_logs
+    ADD COLUMN IF NOT EXISTS model_id TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS preset_id TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS preset_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS model_role TEXT NOT NULL DEFAULT '';
+
+-- +goose Down
+
+ALTER TABLE session_logs
+    DROP COLUMN IF EXISTS model_role,
+    DROP COLUMN IF EXISTS preset_name,
+    DROP COLUMN IF EXISTS preset_id,
+    DROP COLUMN IF EXISTS model_id;
+
+ALTER TABLE chat_messages
+    DROP COLUMN IF EXISTS model_role,
+    DROP COLUMN IF EXISTS preset_name,
+    DROP COLUMN IF EXISTS preset_id,
+    DROP COLUMN IF EXISTS model_id;

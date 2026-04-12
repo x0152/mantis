@@ -1,3 +1,3 @@
 package usecases
 
-const configID = "default"
+const settingsID = "default"

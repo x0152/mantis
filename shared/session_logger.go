@@ -21,8 +21,12 @@ const (
 )
 
 type ToolMeta struct {
-	LogID     string
-	ModelName string
+	LogID      string
+	ModelID    string
+	ModelName  string
+	PresetID   string
+	PresetName string
+	ModelRole  string
 }
 
 func ContextWithStep(ctx context.Context, stepID, messageID string) context.Context {
@@ -75,6 +79,44 @@ func GetModelName(ctx context.Context) string {
 	return ""
 }
 
+func SetModelMeta(ctx context.Context, modelID, modelName, presetID, presetName, modelRole string) {
+	if m := ToolMetaFromContext(ctx); m != nil {
+		m.ModelID = modelID
+		m.ModelName = modelName
+		m.PresetID = presetID
+		m.PresetName = presetName
+		m.ModelRole = modelRole
+	}
+}
+
+func GetModelID(ctx context.Context) string {
+	if m := ToolMetaFromContext(ctx); m != nil {
+		return m.ModelID
+	}
+	return ""
+}
+
+func GetPresetID(ctx context.Context) string {
+	if m := ToolMetaFromContext(ctx); m != nil {
+		return m.PresetID
+	}
+	return ""
+}
+
+func GetPresetName(ctx context.Context) string {
+	if m := ToolMetaFromContext(ctx); m != nil {
+		return m.PresetName
+	}
+	return ""
+}
+
+func GetModelRole(ctx context.Context) string {
+	if m := ToolMetaFromContext(ctx); m != nil {
+		return m.ModelRole
+	}
+	return ""
+}
+
 type SessionLogger struct {
 	store protocols.Store[string, types.SessionLog]
 }
@@ -94,7 +136,11 @@ func (l *SessionLogger) Wrap(ctx context.Context, connectionID, agentName, promp
 		Prompt:       prompt,
 		MessageID:    messageID,
 		StepID:       stepID,
+		ModelID:      GetModelID(ctx),
 		ModelName:    GetModelName(ctx),
+		PresetID:     GetPresetID(ctx),
+		PresetName:   GetPresetName(ctx),
+		ModelRole:    GetModelRole(ctx),
 		Status:       "running",
 		Entries:      []types.LogEntry{},
 		StartedAt:    now,

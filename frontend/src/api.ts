@@ -1,4 +1,4 @@
-import type { Config, Model, Connection, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
+import type { Settings, Model, Preset, Connection, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -14,10 +14,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  config: {
-    get: () => request<Config>('/config'),
-    update: (data: unknown) =>
-      request<Config>('/config', { method: 'PUT', body: JSON.stringify({ data }) }),
+  settings: {
+    get: () => request<Settings>('/settings'),
+    update: (data: Omit<Settings, 'id'>) =>
+      request<Settings>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
   llmConnections: {
     list: () => request<LlmConnection[]>('/llm-connections'),
@@ -37,12 +37,20 @@ export const api = {
       request<Model>(`/models/${id}`, { method: 'PUT', body: JSON.stringify({ connectionId, name, thinkingMode }) }),
     delete: (id: string) => request<void>(`/models/${id}`, { method: 'DELETE' }),
   },
+  presets: {
+    list: () => request<Preset[]>('/presets'),
+    create: (data: Omit<Preset, 'id'>) =>
+      request<Preset>('/presets', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Omit<Preset, 'id'>) =>
+      request<Preset>(`/presets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/presets/${id}`, { method: 'DELETE' }),
+  },
   connections: {
     list: () => request<Connection[]>('/connections'),
     get: (id: string) => request<Connection>(`/connections/${id}`),
-    create: (data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
+    create: (data: { type: string; name: string; description: string; modelId?: string; presetId?: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
       request<Connection>('/connections', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { type: string; name: string; description: string; modelId: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
+    update: (id: string, data: { type: string; name: string; description: string; modelId?: string; presetId?: string; config: unknown; profileIds?: string[]; memoryEnabled?: boolean }) =>
       request<Connection>(`/connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/connections/${id}`, { method: 'DELETE' }),
     addMemory: (id: string, content: string) =>
@@ -72,7 +80,7 @@ export const api = {
     get: (id: string) => request<Channel>(`/channels/${id}`),
     create: (data: Omit<Channel, 'id'>) =>
       request<Channel>('/channels', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { name: string; token: string; modelId: string; allowedUserIds: number[] }) =>
+    update: (id: string, data: { name: string; token: string; modelId?: string; presetId?: string; allowedUserIds: number[] }) =>
       request<Channel>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/channels/${id}`, { method: 'DELETE' }),
   },

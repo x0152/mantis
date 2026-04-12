@@ -53,6 +53,25 @@ function SessionCard({ log, expanded, onToggle }: { log: SessionLog; expanded: b
           {log.prompt && (
             <p className="text-xs text-zinc-500 mt-0.5 truncate">{log.prompt}</p>
           )}
+          {(log.presetName || log.modelName || log.modelRole === 'fallback') && (
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {log.presetName && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
+                  {log.presetName}
+                </span>
+              )}
+              {log.modelName && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
+                  {log.modelName}
+                </span>
+              )}
+              {log.modelRole === 'fallback' && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400">
+                  fallback
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-600">
             <span className="flex items-center gap-1"><Clock size={10} />{timeAgo(log.startedAt)}</span>
             <span>{duration(log.startedAt, log.finishedAt)}</span>

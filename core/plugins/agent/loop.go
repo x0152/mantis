@@ -77,15 +77,15 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 				}
 			}
 
-		if len(toolCalls) == 0 {
-			return
-		}
+			if len(toolCalls) == 0 {
+				return
+			}
 
-		messages = append(messages, protocols.LLMMessage{
-			Role:      "assistant",
-			Content:   reply.String(),
-			ToolCalls: toolCalls,
-		})
+			messages = append(messages, protocols.LLMMessage{
+				Role:      "assistant",
+				Content:   reply.String(),
+				ToolCalls: toolCalls,
+			})
 
 			for _, tc := range toolCalls {
 				tool, ok := toolMap[tc.Name]
@@ -111,48 +111,56 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 				stepJSON, _ := json.Marshal(step)
 				ch <- types.StreamEvent{Type: "tool_start", Delta: string(stepJSON), ToolID: stepID, Iteration: iter}
 
-			toolCtx := shared.ContextWithStep(ctx, stepID, in.MessageID)
+				toolCtx := shared.ContextWithStep(ctx, stepID, in.MessageID)
 
-			type toolResult struct {
-				result string
-				err    error
-			}
-			resCh := make(chan toolResult, 1)
-			toolDone := make(chan struct{})
-			go func() {
-				r, e := tool.Execute(toolCtx, tc.Arguments)
-				close(toolDone)
-				resCh <- toolResult{r, e}
-			}()
+				type toolResult struct {
+					result string
+					err    error
+				}
+				resCh := make(chan toolResult, 1)
+				toolDone := make(chan struct{})
+				go func() {
+					r, e := tool.Execute(toolCtx, tc.Arguments)
+					close(toolDone)
+					resCh <- toolResult{r, e}
+				}()
 
-			go func() {
-				ticker := time.NewTicker(50 * time.Millisecond)
-				defer ticker.Stop()
-				for {
-					select {
-					case <-toolDone:
-						return
-					case <-ticker.C:
-						if meta := shared.ToolMetaFromContext(toolCtx); meta != nil && meta.LogID != "" {
-							ch <- types.StreamEvent{Type: "tool_meta", ToolID: stepID, LogID: meta.LogID, ModelName: meta.ModelName, Iteration: iter}
+				go func() {
+					ticker := time.NewTicker(50 * time.Millisecond)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-toolDone:
 							return
+						case <-ticker.C:
+							if meta := shared.ToolMetaFromContext(toolCtx); meta != nil && meta.LogID != "" {
+								ch <- types.StreamEvent{
+									Type: "tool_meta", ToolID: stepID, Iteration: iter,
+									LogID: meta.LogID, ModelID: meta.ModelID, ModelName: meta.ModelName,
+									PresetID: meta.PresetID, PresetName: meta.PresetName, ModelRole: meta.ModelRole,
+								}
+								return
+							}
 						}
 					}
+				}()
+
+				res := <-resCh
+				result := res.result
+				if res.err != nil {
+					result = "error: " + res.err.Error()
 				}
-			}()
 
-			res := <-resCh
-			result := res.result
-			if res.err != nil {
-				result = "error: " + res.err.Error()
-			}
-
-			ev := types.StreamEvent{Type: "tool_end", Delta: result, ToolID: stepID, Iteration: iter}
-			if meta := shared.ToolMetaFromContext(toolCtx); meta != nil {
-				ev.LogID = meta.LogID
-				ev.ModelName = meta.ModelName
-			}
-			ch <- ev
+				ev := types.StreamEvent{Type: "tool_end", Delta: result, ToolID: stepID, Iteration: iter}
+				if meta := shared.ToolMetaFromContext(toolCtx); meta != nil {
+					ev.LogID = meta.LogID
+					ev.ModelID = meta.ModelID
+					ev.ModelName = meta.ModelName
+					ev.PresetID = meta.PresetID
+					ev.PresetName = meta.PresetName
+					ev.ModelRole = meta.ModelRole
+				}
+				ch <- ev
 
 				messages = append(messages, protocols.LLMMessage{
 					Role: "tool", ToolCallID: tc.ID, Content: result,

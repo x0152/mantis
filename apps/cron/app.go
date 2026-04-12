@@ -30,29 +30,36 @@ type App struct {
 	syncFreq time.Duration
 }
 
+type DeliveryConfig struct {
+	Channel string
+}
+
 func NewApp(
-	configStore protocols.Store[string, types.Config],
+	settingsStore protocols.Store[string, types.Settings],
 	channelStore protocols.Store[string, types.Channel],
 	sessionStore protocols.Store[string, types.ChatSession],
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
 	cronJobStore protocols.Store[string, types.CronJob],
 	agent *agents.MantisAgent,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	delivery DeliveryConfig,
 ) *App {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 
-	modelResolver := modelplugin.NewResolver(nil, configStore)
+	modelResolver := modelplugin.NewResolver(nil, settingsStore, presetStore)
 	workflow := messageworkflow.New(messageStore, modelStore, agent, nil, modelResolver, artifactMgr, memoryExtractor)
 
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
-	loadConfigUC := usecases.NewLoadConfig(configStore)
 	ensureSessionUC := usecases.NewEnsureSession(sessionPolicy)
-	executeJobUC := usecases.NewExecuteJob(loadConfigUC, ensureSessionUC, channelStore, workflow)
+	executeJobUC := usecases.NewExecuteJob(usecases.DeliveryConfig{
+		Channel: delivery.Channel,
+	}, ensureSessionUC, channelStore, workflow)
 
 	return &App{
 		ucSyncJobs:   usecases.NewSyncJobs(cronJobStore),

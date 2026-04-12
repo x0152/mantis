@@ -16,7 +16,7 @@ func NewUpdateChannel(store protocols.Store[string, types.Channel]) *UpdateChann
 	return &UpdateChannel{store: store}
 }
 
-func (uc *UpdateChannel) Execute(ctx context.Context, id, name, token, modelID string, allowedUserIDs []int64) (types.Channel, error) {
+func (uc *UpdateChannel) Execute(ctx context.Context, id, name, token, modelID, presetID string, allowedUserIDs []int64) (types.Channel, error) {
 	existing, err := uc.store.Get(ctx, []string{id})
 	if err != nil {
 		return types.Channel{}, err
@@ -28,7 +28,10 @@ func (uc *UpdateChannel) Execute(ctx context.Context, id, name, token, modelID s
 	c := old
 	c.Name = name
 	c.Token = token
-	c.ModelID = modelID
+	if modelID != "" {
+		c.ModelID = modelID
+	}
+	c.PresetID = presetID
 	if allowedUserIDs == nil {
 		allowedUserIDs = []int64{}
 	}

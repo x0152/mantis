@@ -27,6 +27,7 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable
       PORT: "8080"
+      CRON_DELIVERY_CHANNEL: "${CRON_DELIVERY_CHANNEL:-}"
       ASR_API_URL: "${ASR_API_URL:-}"
       OCR_API_URL: "${OCR_API_URL:-}"
       TTS_API_URL: "${TTS_API_URL:-}"

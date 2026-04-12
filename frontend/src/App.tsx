@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert } from 'lucide-react'
+import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert, Layers } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
-import ConfigPage from './pages/ConfigPage'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
 import ChannelsPage from './pages/ChannelsPage'
@@ -9,13 +8,14 @@ import CronJobsPage from './pages/CronJobsPage'
 import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
+import PresetsPage from './pages/PresetsPage'
 import SetupWizard from './pages/SetupWizard'
 import ChatSidebar from './components/ChatSidebar'
 import { ModeToggle } from './components/mode-toggle'
 import { api } from './api'
 import type { ChatSession } from './types'
 
-type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'cron-jobs' | 'guard-profiles' | 'config'
+type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'presets' | 'cron-jobs' | 'guard-profiles'
 
 type NavItem = { id: Page; label: string; icon: typeof Settings }
 
@@ -33,6 +33,7 @@ const nav: NavSection[] = [
     title: 'Connections',
     items: [
       { id: 'llm', label: 'LLMs & Models', icon: Link2 },
+      { id: 'presets', label: 'Presets', icon: Layers },
       { id: 'channels', label: 'Channels', icon: Radio },
       { id: 'connections', label: 'Servers', icon: Plug },
     ],
@@ -41,7 +42,6 @@ const nav: NavSection[] = [
     title: 'System',
     items: [
       { id: 'guard-profiles', label: 'Guard Profiles', icon: ShieldAlert },
-      { id: 'config', label: 'Configuration', icon: Settings },
     ],
   },
 ]
@@ -142,8 +142,8 @@ export default function App() {
       <main className="flex-1 overflow-auto bg-white dark:bg-zinc-950 transition-colors">
         {page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
         {page === 'channels' && <ChannelsPage />}
-        {page === 'config' && <ConfigPage />}
         {page === 'llm' && <LlmPage />}
+        {page === 'presets' && <PresetsPage />}
         {page === 'connections' && <ConnectionsPage />}
         {page === 'logs' && <LogsPage />}
         {page === 'cron-jobs' && <CronJobsPage />}

@@ -81,30 +81,33 @@ Only add when truly warranted: {"add": ["certbot renewal failing due to port 80 
 
 type Extractor struct {
 	llm             protocols.LLM
-	configStore     protocols.Store[string, types.Config]
+	settingsStore   protocols.Store[string, types.Settings]
 	connectionStore protocols.Store[string, types.Connection]
 	modelStore      protocols.Store[string, types.Model]
+	presetStore     protocols.Store[string, types.Preset]
 	llmConnStore    protocols.Store[string, types.LlmConnection]
 }
 
 func NewExtractor(
 	llm protocols.LLM,
-	configStore protocols.Store[string, types.Config],
+	settingsStore protocols.Store[string, types.Settings],
 	connectionStore protocols.Store[string, types.Connection],
 	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
 	llmConnStore protocols.Store[string, types.LlmConnection],
 ) *Extractor {
 	return &Extractor{
 		llm:             llm,
-		configStore:     configStore,
+		settingsStore:   settingsStore,
 		connectionStore: connectionStore,
 		modelStore:      modelStore,
+		presetStore:     presetStore,
 		llmConnStore:    llmConnStore,
 	}
 }
 
 func (e *Extractor) Extract(ctx context.Context, userContent, assistantContent string, sshSteps []pipeline.SSHStep) {
-	cfg, modelID, userFacts, ok := e.loadConfig(ctx)
+	settings, modelID, userFacts, ok := e.loadSettings(ctx)
 	if !ok || modelID == "" {
 		return
 	}
@@ -120,11 +123,11 @@ func (e *Extractor) Extract(ctx context.Context, userContent, assistantContent s
 		return
 	}
 
-	e.extractUser(ctx, llmConn, model, cfg, userFacts, userContent, assistantContent)
+	e.extractUser(ctx, llmConn, model, settings, userFacts, userContent, assistantContent)
 	e.extractConnections(ctx, llmConn, model, sshSteps)
 }
 
-func (e *Extractor) extractUser(ctx context.Context, llmConn types.LlmConnection, model types.Model, cfg types.Config, existing []string, userContent, assistantContent string) {
+func (e *Extractor) extractUser(ctx context.Context, llmConn types.LlmConnection, model types.Model, settings types.Settings, existing []string, userContent, assistantContent string) {
 	if userContent == "" || assistantContent == "" {
 		return
 	}
@@ -148,7 +151,7 @@ func (e *Extractor) extractUser(ctx context.Context, llmConn types.LlmConnection
 	if len(diff.Add) == 0 && len(diff.Remove) == 0 {
 		return
 	}
-	e.saveUserFacts(ctx, cfg, mergeFacts(existing, diff))
+	e.saveUserFacts(ctx, settings, mergeFacts(existing, diff))
 }
 
 func (e *Extractor) extractConnections(ctx context.Context, llmConn types.LlmConnection, model types.Model, sshSteps []pipeline.SSHStep) {
@@ -300,45 +303,51 @@ func mergeFacts(existing []string, diff memoryDiff) []string {
 	return result
 }
 
-func (e *Extractor) loadConfig(ctx context.Context) (types.Config, string, []string, bool) {
-	cfgs, err := e.configStore.Get(ctx, []string{"default"})
+func (e *Extractor) loadSettings(ctx context.Context) (types.Settings, string, []string, bool) {
+	if e.settingsStore == nil {
+		return types.Settings{}, "", nil, false
+	}
+	settingsMap, err := e.settingsStore.Get(ctx, []string{"default"})
 	if err != nil {
-		log.Printf("memory: load config: %v", err)
-		return types.Config{}, "", nil, false
+		log.Printf("memory: load settings: %v", err)
+		return types.Settings{}, "", nil, false
 	}
-	cfg, ok := cfgs["default"]
+	settings, ok := settingsMap["default"]
 	if !ok {
-		return types.Config{}, "", nil, false
+		return types.Settings{}, "", nil, false
 	}
-	var data map[string]any
-	if err := json.Unmarshal(cfg.Data, &data); err != nil {
-		return cfg, "", nil, false
+	if !settings.MemoryEnabled {
+		return settings, "", nil, false
 	}
-	enabled, _ := data["memoryEnabled"].(bool)
-	if !enabled {
-		return cfg, "", nil, false
-	}
-	modelID, _ := data["summaryModelId"].(string)
-	var facts []string
-	if raw, ok := data["userMemories"].([]any); ok {
-		for _, v := range raw {
-			if s, ok := v.(string); ok {
-				facts = append(facts, s)
+	modelID := ""
+	if settings.ChatPresetID != "" {
+		if p, err := shared.ResolvePreset(ctx, e.presetStore, settings.ChatPresetID); err == nil {
+			switch {
+			case p.SummaryModelID != "":
+				modelID = p.SummaryModelID
+			case p.ChatModelID != "":
+				modelID = p.ChatModelID
+			case p.FallbackModelID != "":
+				modelID = p.FallbackModelID
 			}
 		}
 	}
-	return cfg, modelID, facts, true
+	facts := settings.UserMemories
+	if facts == nil {
+		facts = []string{}
+	}
+	return settings, modelID, facts, true
 }
 
-func (e *Extractor) saveUserFacts(ctx context.Context, cfg types.Config, facts []string) {
-	var data map[string]any
-	_ = json.Unmarshal(cfg.Data, &data)
-	if data == nil {
-		data = map[string]any{}
+func (e *Extractor) saveUserFacts(ctx context.Context, settings types.Settings, facts []string) {
+	settings.UserMemories = facts
+	if settings.UserMemories == nil {
+		settings.UserMemories = []string{}
 	}
-	data["userMemories"] = facts
-	cfg.Data, _ = json.Marshal(data)
-	if _, err := e.configStore.Update(ctx, []types.Config{cfg}); err != nil {
+	if _, err := e.settingsStore.Update(ctx, []types.Settings{settings}); err == nil {
+		return
+	}
+	if _, err := e.settingsStore.Create(ctx, []types.Settings{settings}); err != nil {
 		log.Printf("memory: save user facts: %v", err)
 	}
 }

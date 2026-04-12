@@ -18,7 +18,7 @@ func NewCreateConnection(store protocols.Store[string, types.Connection]) *Creat
 	return &CreateConnection{store: store}
 }
 
-func (uc *CreateConnection) Execute(ctx context.Context, connType, name, description, modelID string, config json.RawMessage, profileIDs []string, memoryEnabled bool) (types.Connection, error) {
+func (uc *CreateConnection) Execute(ctx context.Context, connType, name, description, modelID, presetID string, config json.RawMessage, profileIDs []string, memoryEnabled bool) (types.Connection, error) {
 	if profileIDs == nil {
 		profileIDs = []string{}
 	}
@@ -28,6 +28,7 @@ func (uc *CreateConnection) Execute(ctx context.Context, connType, name, descrip
 		Name:          name,
 		Description:   description,
 		ModelID:       modelID,
+		PresetID:      presetID,
 		Config:        config,
 		Memories:      []types.Memory{},
 		ProfileIDs:    profileIDs,

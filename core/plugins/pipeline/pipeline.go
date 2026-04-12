@@ -48,12 +48,12 @@ type MemoryExtractor interface {
 }
 
 type RequestHandlePipeline struct {
-	agent            *agents.MantisAgent
-	buffer           *shared.Buffer
-	messageStore     protocols.Store[string, types.ChatMessage]
-	modelStore       protocols.Store[string, types.Model]
-	modelResolver    *modelplugin.Resolver
-	memoryExtractor  MemoryExtractor
+	agent           *agents.MantisAgent
+	buffer          *shared.Buffer
+	messageStore    protocols.Store[string, types.ChatMessage]
+	modelStore      protocols.Store[string, types.Model]
+	modelResolver   *modelplugin.Resolver
+	memoryExtractor MemoryExtractor
 }
 
 func New(
@@ -92,8 +92,13 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 	if modelID == "" {
 		return p.fail(ctx, in, fmt.Errorf("model not configured"))
 	}
+	in.Message.ModelID = modelID
+	in.Message.PresetID = strings.TrimSpace(modelOut.PresetID)
+	in.Message.PresetName = strings.TrimSpace(modelOut.PresetName)
+	in.Message.ModelRole = strings.TrimSpace(modelOut.ModelRole)
 
 	if model, err := shared.ResolveModel(ctx, p.modelStore, modelID); err == nil {
+		in.Message.ModelID = model.ID
 		in.Message.ModelName = model.Name
 	}
 
@@ -172,7 +177,11 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 		case "tool_meta":
 			if idx, ok := stepIdx[event.ToolID]; ok {
 				steps[idx].LogID = event.LogID
+				steps[idx].ModelID = event.ModelID
 				steps[idx].ModelName = event.ModelName
+				steps[idx].PresetID = event.PresetID
+				steps[idx].PresetName = event.PresetName
+				steps[idx].ModelRole = event.ModelRole
 				if p.buffer != nil {
 					p.buffer.SetStep(requestID, steps[idx])
 				}
@@ -182,7 +191,11 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 				steps[idx].Status = "completed"
 				steps[idx].Result = event.Delta
 				steps[idx].LogID = event.LogID
+				steps[idx].ModelID = event.ModelID
 				steps[idx].ModelName = event.ModelName
+				steps[idx].PresetID = event.PresetID
+				steps[idx].PresetName = event.PresetName
+				steps[idx].ModelRole = event.ModelRole
 				steps[idx].FinishedAt = time.Now().UTC().Format(time.RFC3339)
 				if p.buffer != nil {
 					p.buffer.SetStep(requestID, steps[idx])

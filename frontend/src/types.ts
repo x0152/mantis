@@ -5,9 +5,12 @@ export interface LlmConnection {
   apiKey: string
 }
 
-export interface Config {
+export interface Settings {
   id: string
-  data: Record<string, unknown>
+  chatPresetId: string
+  serverPresetId: string
+  memoryEnabled: boolean
+  userMemories: string[]
 }
 
 export interface Model {
@@ -15,6 +18,17 @@ export interface Model {
   connectionId: string
   name: string
   thinkingMode: '' | 'skip' | 'inline'
+}
+
+export interface Preset {
+  id: string
+  name: string
+  chatModelId: string
+  summaryModelId: string
+  imageModelId: string
+  fallbackModelId: string
+  temperature: number | null
+  systemPrompt: string
 }
 
 export interface Memory {
@@ -37,6 +51,7 @@ export interface Connection {
   name: string
   description: string
   modelId: string
+  presetId: string
   config: Record<string, unknown>
   memories: Memory[]
   profileIds: string[]
@@ -79,6 +94,7 @@ export interface Channel {
   name: string
   token: string
   modelId: string
+  presetId: string
   allowedUserIds: number[]
 }
 
@@ -97,7 +113,11 @@ export interface Step {
   status: 'running' | 'completed' | 'error'
   result?: string
   logId?: string
+  modelId?: string
   modelName?: string
+  presetId?: string
+  presetName?: string
+  modelRole?: string
   contentOffset?: number
   startedAt: string
   finishedAt?: string
@@ -110,7 +130,11 @@ export interface ChatMessage {
   content: string
   status: string
   source?: string
+  modelId?: string
   modelName?: string
+  presetId?: string
+  presetName?: string
+  modelRole?: string
   steps?: Step[]
   createdAt: string
 }
@@ -127,6 +151,11 @@ export interface SessionLog {
   agentName: string
   prompt: string
   status: 'running' | 'finished'
+  modelId?: string
+  modelName?: string
+  presetId?: string
+  presetName?: string
+  modelRole?: string
   entries: LogEntry[]
   startedAt: string
   finishedAt?: string

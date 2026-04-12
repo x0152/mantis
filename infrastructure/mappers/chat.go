@@ -17,7 +17,9 @@ func ChatMessageToRow(m types.ChatMessage) models.ChatMessageRow {
 	return models.ChatMessageRow{
 		ID: m.ID, SessionID: m.SessionID, Role: m.Role,
 		Content: m.Content, Status: m.Status, Source: m.Source,
-		ModelName: m.ModelName, Steps: m.Steps, CreatedAt: m.CreatedAt,
+		ModelID: m.ModelID, ModelName: m.ModelName,
+		PresetID: m.PresetID, PresetName: m.PresetName, ModelRole: m.ModelRole,
+		Steps: m.Steps, CreatedAt: m.CreatedAt,
 	}
 }
 
@@ -25,6 +27,8 @@ func ChatMessageFromRow(r models.ChatMessageRow) types.ChatMessage {
 	return types.ChatMessage{
 		ID: r.ID, SessionID: r.SessionID, Role: r.Role,
 		Content: r.Content, Status: r.Status, Source: r.Source,
-		ModelName: r.ModelName, Steps: r.Steps, CreatedAt: r.CreatedAt,
+		ModelID: r.ModelID, ModelName: r.ModelName,
+		PresetID: r.PresetID, PresetName: r.PresetName, ModelRole: r.ModelRole,
+		Steps: r.Steps, CreatedAt: r.CreatedAt,
 	}
 }

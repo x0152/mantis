@@ -19,7 +19,7 @@ func NewCreateChannel(store protocols.Store[string, types.Channel]) *CreateChann
 	return &CreateChannel{store: store}
 }
 
-func (uc *CreateChannel) Execute(ctx context.Context, chType, name, token, modelID string, allowedUserIDs []int64) (types.Channel, error) {
+func (uc *CreateChannel) Execute(ctx context.Context, chType, name, token, modelID, presetID string, allowedUserIDs []int64) (types.Channel, error) {
 	if strings.TrimSpace(chType) != "telegram" {
 		return types.Channel{}, base.ErrValidation
 	}
@@ -35,6 +35,7 @@ func (uc *CreateChannel) Execute(ctx context.Context, chType, name, token, model
 		Name:           name,
 		Token:          token,
 		ModelID:        modelID,
+		PresetID:       presetID,
 		AllowedUserIDs: allowedUserIDs,
 	}
 	result, err := uc.store.Create(ctx, []types.Channel{c})

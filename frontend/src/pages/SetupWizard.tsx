@@ -35,46 +35,66 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
         .catch(() => api.llmConnections.update('default', { provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }))
 
       const names = modelName.split(',').map((s: string) => s.trim()).filter(Boolean)
+      if (names.length === 0) {
+        throw new Error('Enter at least one valid model name')
+      }
       const existing = await api.models.list()
       const models: { id: string }[] = []
       for (const name of names) {
         const found = existing.find(m => m.connectionId === 'default' && m.name === name)
         models.push(found ?? await api.models.create('default', name, ''))
       }
-      const model = models[0]
-      const summaryModel = models[models.length - 1]
+
+      const primaryModelId = models[0].id
+      const summaryModelId = models.length > 1 ? models[models.length - 1].id : ''
+
+      const existingPresets = await api.presets.list()
+      const existingDefault = existingPresets.find(p => p.name === 'Default')
+      const preset = existingDefault
+        ? await api.presets.update(existingDefault.id, {
+            name: 'Default',
+            chatModelId: primaryModelId,
+            summaryModelId,
+            imageModelId: '',
+            fallbackModelId: '',
+            temperature: null,
+            systemPrompt: '',
+          })
+        : await api.presets.create({
+            name: 'Default',
+            chatModelId: primaryModelId,
+            summaryModelId,
+            imageModelId: '',
+            fallbackModelId: '',
+            temperature: null,
+            systemPrompt: '',
+          })
 
       for (const sb of SANDBOXES) {
         await api.connections.create({
           type: 'ssh',
           name: sb.name,
           description: sb.description,
-          modelId: model.id,
           config: { host: sb.host, port: sb.port, username: 'mantis', password: 'mantis' },
           profileIds: [sb.profileId],
           memoryEnabled: true,
         }).catch(() => {})
       }
 
-      await api.channels.update('chat', { name: 'Chat', token: '', modelId: model.id, allowedUserIds: [] })
+      await api.channels.update('chat', { name: 'Chat', token: '', allowedUserIds: [] })
 
-      const cronConfig: Record<string, string> = { model_id: model.id }
       const token = tgToken.trim()
       if (token) {
         const ids = tgUserIds.trim()
           ? tgUserIds.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n))
           : []
-        await api.channels.create({ type: 'telegram', name: 'Telegram', token, modelId: model.id, allowedUserIds: ids })
+        await api.channels.create({ type: 'telegram', name: 'Telegram', token, modelId: '', presetId: '', allowedUserIds: ids })
           .catch(() => {})
-        cronConfig.channel = 'telegram'
-        if (ids.length) cronConfig.sender = ids[0].toString()
       }
-      await api.config.update({
-        cron: cronConfig,
-        chat: { model_id: model.id },
+      await api.settings.update({
+        chatPresetId: preset.id,
+        serverPresetId: preset.id,
         memoryEnabled: true,
-        summaryModelId: summaryModel.id,
-        visionModelId: null,
         userMemories: [],
       })
 
@@ -108,7 +128,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                 <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
               </FormField>
               <div>
-                <Label>Models <span className="text-zinc-500 dark:text-zinc-600">(comma-separated, last = summary)</span></Label>
+                <Label>Models <span className="text-zinc-500 dark:text-zinc-600">(comma-separated; first = chat, last = summary)</span></Label>
                 <Input value={modelName} onChange={e => setModelName(e.target.value)} placeholder="gpt-4o-mini, gpt-4o" />
               </div>
             </div>

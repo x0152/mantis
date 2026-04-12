@@ -6,5 +6,6 @@ type Channel struct {
 	Name           string  `json:"name"`
 	Token          string  `json:"token"`
 	ModelID        string  `json:"modelId"`
+	PresetID       string  `json:"presetId"`
 	AllowedUserIDs []int64 `json:"allowedUserIds"`
 }

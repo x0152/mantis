@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +19,12 @@ type ExecuteJobOutput struct {
 	Skipped bool
 }
 
+type DeliveryConfig struct {
+	Channel string
+}
+
 type ExecuteJob struct {
-	loadConfig    *LoadConfig
+	delivery      DeliveryConfig
 	ensureSession *EnsureSession
 	channelStore  protocols.Store[string, types.Channel]
 	workflow      *messageworkflow.Workflow
@@ -29,13 +34,13 @@ type ExecuteJob struct {
 }
 
 func NewExecuteJob(
-	loadConfig *LoadConfig,
+	delivery DeliveryConfig,
 	ensureSession *EnsureSession,
 	channelStore protocols.Store[string, types.Channel],
 	workflow *messageworkflow.Workflow,
 ) *ExecuteJob {
 	return &ExecuteJob{
-		loadConfig:    loadConfig,
+		delivery:      delivery,
 		ensureSession: ensureSession,
 		channelStore:  channelStore,
 		workflow:      workflow,
@@ -48,19 +53,13 @@ func (uc *ExecuteJob) Execute(ctx context.Context, job types.CronJob) (ExecuteJo
 		return ExecuteJobOutput{Skipped: true}, nil
 	}
 
-	cfg, err := uc.loadConfig.Execute(ctx)
-	if err != nil {
-		uc.unmarkRunning(job.ID)
-		return ExecuteJobOutput{}, err
-	}
-
 	sessionID := "cron:" + job.ID
 	if err := uc.ensureSession.Execute(ctx, sessionID); err != nil {
 		uc.unmarkRunning(job.ID)
 		return ExecuteJobOutput{}, err
 	}
 
-	sender, err := uc.resolveSender(ctx, cfg.Cron.Channel, cfg.Cron.Sender)
+	sender, err := uc.resolveSender(ctx, uc.delivery.Channel)
 	if err != nil {
 		uc.unmarkRunning(job.ID)
 		return ExecuteJobOutput{}, err
@@ -71,7 +70,7 @@ func (uc *ExecuteJob) Execute(ctx context.Context, job types.CronJob) (ExecuteJo
 		Content:        job.Prompt,
 		Source:         "cron",
 		ResponseTo:     sender,
-		ModelConfig:    modelplugin.Input{ConfigPath: []string{"cron", "model_id"}},
+		ModelConfig:    modelplugin.Input{DefaultPreset: "chat"},
 		DisableHistory: true,
 		ErrorPrefix:    "[Error]",
 		Timeout:        5 * time.Minute,
@@ -85,19 +84,23 @@ func (uc *ExecuteJob) Execute(ctx context.Context, job types.CronJob) (ExecuteJo
 	return ExecuteJobOutput{}, nil
 }
 
-func (uc *ExecuteJob) resolveSender(ctx context.Context, channel, recipient string) (protocols.ResponseTo, error) {
+func (uc *ExecuteJob) resolveSender(ctx context.Context, channel string) (protocols.ResponseTo, error) {
 	channel = strings.TrimSpace(strings.ToLower(channel))
-	if channel == "" {
-		return nil, nil
-	}
+
 	switch channel {
+	case "":
+		return nil, nil
 	case "telegram":
-		token, err := uc.telegramToken(ctx)
+		token, recipient, err := uc.telegramDelivery(ctx)
 		if err != nil {
 			return nil, err
 		}
 		if token == "" {
 			return nil, fmt.Errorf("telegram channel configured but no token found")
+		}
+		recipient = strings.TrimSpace(recipient)
+		if recipient == "" {
+			return nil, fmt.Errorf("telegram delivery recipient is empty (set allowedUserIds in telegram channel)")
 		}
 		return adapter.NewTelegramResponseTo(token, recipient), nil
 	default:
@@ -105,20 +108,27 @@ func (uc *ExecuteJob) resolveSender(ctx context.Context, channel, recipient stri
 	}
 }
 
-func (uc *ExecuteJob) telegramToken(ctx context.Context) (string, error) {
+func (uc *ExecuteJob) telegramDelivery(ctx context.Context) (string, string, error) {
 	if uc.channelStore == nil {
-		return "", nil
+		return "", "", nil
 	}
 	channels, err := uc.channelStore.List(ctx, types.ListQuery{})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
+	token := ""
 	for _, ch := range channels {
-		if ch.Type == "telegram" && ch.Token != "" {
-			return ch.Token, nil
+		if ch.Type != "telegram" || strings.TrimSpace(ch.Token) == "" {
+			continue
+		}
+		if token == "" {
+			token = strings.TrimSpace(ch.Token)
+		}
+		if len(ch.AllowedUserIDs) > 0 {
+			return token, strconv.FormatInt(ch.AllowedUserIDs[0], 10), nil
 		}
 	}
-	return "", nil
+	return token, "", nil
 }
 
 func (uc *ExecuteJob) markRunning(jobID string) bool {

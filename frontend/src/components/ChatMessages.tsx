@@ -44,9 +44,25 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
   return (
     <div className="flex justify-start">
       <div className="max-w-[70%] rounded-xl rounded-bl-sm text-sm bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        {msg.modelName && (
+        {(msg.modelName || msg.presetName || msg.modelRole === 'fallback') && (
           <div className="px-3.5 pt-2 pb-0">
-            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-600">{msg.modelName}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {msg.presetName && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
+                  {msg.presetName}
+                </span>
+              )}
+              {msg.modelName && (
+                <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-600">
+                  {msg.modelName}
+                </span>
+              )}
+              {msg.modelRole === 'fallback' && (
+                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400">
+                  fallback
+                </span>
+              )}
+            </div>
           </div>
         )}
         {isPending && (
@@ -259,8 +275,14 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
         <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-zinc-500 dark:text-zinc-600 font-mono">{step.tool}</span>
+            {step.presetName && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.presetName}</span>
+            )}
             {step.modelName && (
               <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.modelName}</span>
+            )}
+            {step.modelRole === 'fallback' && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">fallback</span>
             )}
             {step.finishedAt && step.startedAt && (
               <span className="text-[11px] text-zinc-500 dark:text-zinc-600">{fmtDuration(step.startedAt, step.finishedAt)}</span>
@@ -306,6 +328,19 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
                   <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
                     log.status === 'running' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
                   }`}>{log.status}</span>
+                )}
+                {log && (log.presetName || log.modelName || log.modelRole === 'fallback') && (
+                  <div className="flex items-center gap-1.5">
+                    {log.presetName && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{log.presetName}</span>
+                    )}
+                    {log.modelName && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{log.modelName}</span>
+                    )}
+                    {log.modelRole === 'fallback' && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">fallback</span>
+                    )}
+                  </div>
                 )}
                 {!log && <Loader2 size={12} className="text-zinc-500 dark:text-zinc-600 animate-spin" />}
               </div>

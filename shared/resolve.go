@@ -23,6 +23,33 @@ func ResolveModel(ctx context.Context, store protocols.Store[string, types.Model
 	return model, nil
 }
 
+func ResolvePreset(ctx context.Context, presetStore protocols.Store[string, types.Preset], presetID string) (types.Preset, error) {
+	if presetID == "" {
+		return types.Preset{}, fmt.Errorf("preset is not set")
+	}
+	presets, err := presetStore.Get(ctx, []string{presetID})
+	if err != nil {
+		return types.Preset{}, err
+	}
+	p, ok := presets[presetID]
+	if !ok {
+		return types.Preset{}, fmt.Errorf("preset %s not found", presetID)
+	}
+	return p, nil
+}
+
+func ResolveModelViaPreset(ctx context.Context, presetStore protocols.Store[string, types.Preset], modelStore protocols.Store[string, types.Model], presetID string) (types.Model, error) {
+	preset, err := ResolvePreset(ctx, presetStore, presetID)
+	if err != nil {
+		return types.Model{}, err
+	}
+	modelID := preset.ChatModelID
+	if modelID == "" {
+		modelID = preset.FallbackModelID
+	}
+	return ResolveModel(ctx, modelStore, modelID)
+}
+
 func ResolveConnection(ctx context.Context, store protocols.Store[string, types.LlmConnection], connectionID string) (types.LlmConnection, error) {
 	if connectionID == "" {
 		return types.LlmConnection{}, fmt.Errorf("llm connection is not set")

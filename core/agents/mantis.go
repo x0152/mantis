@@ -117,10 +117,11 @@ type MantisInput struct {
 type MantisAgent struct {
 	messageStore    protocols.Store[string, types.ChatMessage]
 	modelStore      protocols.Store[string, types.Model]
+	presetStore     protocols.Store[string, types.Preset]
 	llmConnStore    protocols.Store[string, types.LlmConnection]
 	connectionStore protocols.Store[string, types.Connection]
 	cronJobStore    protocols.Store[string, types.CronJob]
-	configStore     protocols.Store[string, types.Config]
+	settingsStore   protocols.Store[string, types.Settings]
 	agent           *agent.Agent
 	sshAgent        *SSHAgent
 	asr             protocols.ASR
@@ -131,10 +132,11 @@ type MantisAgent struct {
 func NewMantisAgent(
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
 	llmConnStore protocols.Store[string, types.LlmConnection],
 	connectionStore protocols.Store[string, types.Connection],
 	cronJobStore protocols.Store[string, types.CronJob],
-	configStore protocols.Store[string, types.Config],
+	settingsStore protocols.Store[string, types.Settings],
 	llm protocols.LLM,
 	g *guard.Guard,
 	sessionLogger *shared.SessionLogger,
@@ -145,10 +147,11 @@ func NewMantisAgent(
 	return &MantisAgent{
 		messageStore:    messageStore,
 		modelStore:      modelStore,
+		presetStore:     presetStore,
 		llmConnStore:    llmConnStore,
 		connectionStore: connectionStore,
 		cronJobStore:    cronJobStore,
-		configStore:     configStore,
+		settingsStore:   settingsStore,
 		agent:           agent.New(llm),
 		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger),
 		asr:             asr,
@@ -223,29 +226,23 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 }
 
 func (a *MantisAgent) loadUserMemories() []string {
-	cfgs, err := a.configStore.Get(context.Background(), []string{"default"})
+	if a.settingsStore == nil {
+		return nil
+	}
+	settingsMap, err := a.settingsStore.Get(context.Background(), []string{"default"})
 	if err != nil {
 		return nil
 	}
-	cfg, ok := cfgs["default"]
+	settings, ok := settingsMap["default"]
 	if !ok {
 		return nil
 	}
-	var data map[string]any
-	if err := json.Unmarshal(cfg.Data, &data); err != nil {
-		return nil
-	}
-	enabled, _ := data["memoryEnabled"].(bool)
-	if !enabled {
-		return nil
-	}
-	raw, ok := data["userMemories"].([]any)
-	if !ok {
+	if !settings.MemoryEnabled {
 		return nil
 	}
 	var facts []string
-	for _, v := range raw {
-		if s, ok := v.(string); ok && s != "" {
+	for _, s := range settings.UserMemories {
+		if s != "" {
 			facts = append(facts, s)
 		}
 	}
@@ -340,9 +337,79 @@ func (a *MantisAgent) buildTools(connections []types.Connection, artifacts *shar
 	return tools
 }
 
+type modelSelection struct {
+	ModelID    string
+	PresetID   string
+	PresetName string
+	ModelRole  string // primary | fallback | legacy
+}
+
+func (a *MantisAgent) resolveConnectionModelSelection(c types.Connection) modelSelection {
+	if c.PresetID != "" {
+		if p, err := shared.ResolvePreset(context.Background(), a.presetStore, c.PresetID); err == nil {
+			if id, role := presetChatModelID(p); id != "" {
+				return modelSelection{ModelID: id, PresetID: p.ID, PresetName: p.Name, ModelRole: role}
+			}
+		}
+	}
+	pid := a.loadDefaultPresetID("server")
+	if pid == "" {
+		pid = a.loadDefaultPresetID("chat")
+	}
+	if pid != "" {
+		if p, err := shared.ResolvePreset(context.Background(), a.presetStore, pid); err == nil {
+			if id, role := presetChatModelID(p); id != "" {
+				return modelSelection{ModelID: id, PresetID: p.ID, PresetName: p.Name, ModelRole: role}
+			}
+		}
+	}
+	return modelSelection{ModelID: strings.TrimSpace(c.ModelID), ModelRole: "legacy"}
+}
+
+func presetChatModelID(p types.Preset) (string, string) {
+	if strings.TrimSpace(p.ChatModelID) != "" {
+		return strings.TrimSpace(p.ChatModelID), "primary"
+	}
+	if strings.TrimSpace(p.FallbackModelID) != "" {
+		return strings.TrimSpace(p.FallbackModelID), "fallback"
+	}
+	return "", ""
+}
+
+func presetImageModelID(p types.Preset) (string, string) {
+	if strings.TrimSpace(p.ImageModelID) != "" {
+		return strings.TrimSpace(p.ImageModelID), "primary"
+	}
+	if strings.TrimSpace(p.FallbackModelID) != "" {
+		return strings.TrimSpace(p.FallbackModelID), "fallback"
+	}
+	return "", ""
+}
+
+func (a *MantisAgent) loadDefaultPresetID(slot string) string {
+	if a.settingsStore == nil {
+		return ""
+	}
+	settingsMap, err := a.settingsStore.Get(context.Background(), []string{"default"})
+	if err != nil {
+		return ""
+	}
+	settings, ok := settingsMap["default"]
+	if !ok {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(slot)) {
+	case "chat":
+		return strings.TrimSpace(settings.ChatPresetID)
+	case "server":
+		return strings.TrimSpace(settings.ServerPresetID)
+	default:
+		return ""
+	}
+}
+
 func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 	connName := c.Name
-	modelID := c.ModelID
 	rawConfig := c.Config
 	connCopy := c
 
@@ -381,11 +448,12 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
 				return "", err
 			}
-			model, err := shared.ResolveModel(ctx, a.modelStore, modelID)
+			selection := a.resolveConnectionModelSelection(connCopy)
+			model, err := shared.ResolveModel(ctx, a.modelStore, selection.ModelID)
 			if err != nil {
 				return "", fmt.Errorf("agent %s: %w", connName, err)
 			}
-			shared.SetModelName(ctx, model.Name)
+			shared.SetModelMeta(ctx, model.ID, model.Name, selection.PresetID, selection.PresetName, selection.ModelRole)
 			var sshCfg SSHConfig
 			_ = json.Unmarshal(rawConfig, &sshCfg)
 			ch, err := a.sshAgent.Execute(ctx, SSHInput{
@@ -745,7 +813,9 @@ func artifactReadTextTool(artifacts *shared.ArtifactStore) types.Tool {
 		Description: "Read a small preview of a temporary artifact as text (for inspection only).",
 		Icon:        "eye",
 		Label: func(args string) string {
-			var input struct{ ArtifactID string `json:"artifactId"` }
+			var input struct {
+				ArtifactID string `json:"artifactId"`
+			}
 			json.Unmarshal([]byte(args), &input)
 			if input.ArtifactID != "" {
 				return "Read: " + input.ArtifactID[:8]
@@ -802,7 +872,9 @@ func artifactSendToChatTool(artifacts *shared.ArtifactStore, requestID string) t
 		Description: "Mark an artifact for delivery to the requester (if the channel supports sending files).",
 		Icon:        "download",
 		Label: func(args string) string {
-			var input struct{ FileName string `json:"fileName"` }
+			var input struct {
+				FileName string `json:"fileName"`
+			}
 			json.Unmarshal([]byte(args), &input)
 			if input.FileName != "" {
 				return "Send: " + input.FileName
@@ -864,7 +936,9 @@ func artifactTranscribeTool(artifacts *shared.ArtifactStore, asr protocols.ASR) 
 		Description: "Transcribe an audio artifact to text (speech-to-text).",
 		Icon:        "mic",
 		Label: func(args string) string {
-			var input struct{ ArtifactID string `json:"artifactId"` }
+			var input struct {
+				ArtifactID string `json:"artifactId"`
+			}
 			json.Unmarshal([]byte(args), &input)
 			if input.ArtifactID != "" {
 				return "Transcribe: " + input.ArtifactID[:8]
@@ -912,20 +986,21 @@ func artifactTranscribeTool(artifacts *shared.ArtifactStore, asr protocols.ASR) 
 }
 
 func (a *MantisAgent) loadVisionModelID() string {
-	cfgs, err := a.configStore.Get(context.Background(), []string{"default"})
-	if err != nil {
-		return ""
+	if pid := a.loadDefaultPresetID("chat"); pid != "" {
+		if p, err := shared.ResolvePreset(context.Background(), a.presetStore, pid); err == nil {
+			if id, _ := presetImageModelID(p); id != "" {
+				return id
+			}
+		}
 	}
-	cfg, ok := cfgs["default"]
-	if !ok {
-		return ""
+	if pid := a.loadDefaultPresetID("server"); pid != "" {
+		if p, err := shared.ResolvePreset(context.Background(), a.presetStore, pid); err == nil {
+			if id, _ := presetImageModelID(p); id != "" {
+				return id
+			}
+		}
 	}
-	var data map[string]any
-	if err := json.Unmarshal(cfg.Data, &data); err != nil {
-		return ""
-	}
-	id, _ := data["visionModelId"].(string)
-	return id
+	return ""
 }
 
 func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) types.Tool {
@@ -934,7 +1009,9 @@ func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) typ
 		Description: "Read an image artifact: extract text (OCR) and describe content (Vision LLM).",
 		Icon:        "eye",
 		Label: func(args string) string {
-			var input struct{ ArtifactID string `json:"artifactId"` }
+			var input struct {
+				ArtifactID string `json:"artifactId"`
+			}
 			json.Unmarshal([]byte(args), &input)
 			if input.ArtifactID != "" {
 				return "Read image: " + input.ArtifactID[:8]
@@ -988,10 +1065,10 @@ func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) typ
 				if err == nil {
 					conn, err := shared.ResolveConnection(ctx, a.llmConnStore, model.ConnectionID)
 					if err == nil {
-					prompt := "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler."
-					if ocrText != "" {
-						prompt = "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler. OCR extracted the following text from the image:\n" + ocrText
-					}
+						prompt := "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler."
+						if ocrText != "" {
+							prompt = "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler. OCR extracted the following text from the image:\n" + ocrText
+						}
 						visionText, visionErr = a.vision.Describe(ctx, conn.BaseURL, conn.APIKey, model.Name, art.Bytes, format, prompt)
 						visionText = strings.TrimSpace(visionText)
 					} else {
@@ -1017,7 +1094,7 @@ func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) typ
 			} else if visionModelID != "" && a.vision != nil && visionErr != nil {
 				parts = append(parts, "--- Vision ---\nError: "+visionErr.Error())
 			} else if visionModelID == "" || a.vision == nil {
-				parts = append(parts, "Note: Vision LLM is not configured (set visionModelId in settings)")
+				parts = append(parts, "Note: Vision LLM is not configured (set Image Model in your preset)")
 			}
 
 			return "<file_content>\n" + strings.Join(parts, "\n\n") + "\n</file_content>", nil

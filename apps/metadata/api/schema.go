@@ -6,8 +6,8 @@ import (
 	"mantis/core/types"
 )
 
-type ConfigOutput struct {
-	Body types.Config
+type SettingsOutput struct {
+	Body types.Settings
 }
 
 type LlmConnectionOutput struct {
@@ -40,9 +40,12 @@ type UpdateLlmConnectionInput struct {
 	}
 }
 
-type UpdateConfigInput struct {
+type UpdateSettingsInput struct {
 	Body struct {
-		Data json.RawMessage `json:"data" required:"true"`
+		ChatPresetID   string   `json:"chatPresetId"`
+		ServerPresetID string   `json:"serverPresetId"`
+		MemoryEnabled  bool     `json:"memoryEnabled"`
+		UserMemories   []string `json:"userMemories"`
 	}
 }
 
@@ -75,6 +78,43 @@ type UpdateModelInput struct {
 	}
 }
 
+type PresetOutput struct {
+	Body types.Preset
+}
+
+type PresetsOutput struct {
+	Body []types.Preset
+}
+
+type PresetIDInput struct {
+	ID string `path:"id"`
+}
+
+type CreatePresetInput struct {
+	Body struct {
+		Name            string   `json:"name" required:"true" minLength:"1"`
+		ChatModelID     string   `json:"chatModelId" required:"true" minLength:"1"`
+		SummaryModelID  string   `json:"summaryModelId"`
+		ImageModelID    string   `json:"imageModelId"`
+		FallbackModelID string   `json:"fallbackModelId"`
+		Temperature     *float64 `json:"temperature"`
+		SystemPrompt    string   `json:"systemPrompt"`
+	}
+}
+
+type UpdatePresetInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		Name            string   `json:"name" required:"true" minLength:"1"`
+		ChatModelID     string   `json:"chatModelId" required:"true" minLength:"1"`
+		SummaryModelID  string   `json:"summaryModelId"`
+		ImageModelID    string   `json:"imageModelId"`
+		FallbackModelID string   `json:"fallbackModelId"`
+		Temperature     *float64 `json:"temperature"`
+		SystemPrompt    string   `json:"systemPrompt"`
+	}
+}
+
 type ConnectionOutput struct {
 	Body types.Connection
 }
@@ -92,7 +132,8 @@ type CreateConnectionInput struct {
 		Type          string          `json:"type" required:"true" enum:"ssh"`
 		Name          string          `json:"name" required:"true" minLength:"1"`
 		Description   string          `json:"description"`
-		ModelID       string          `json:"modelId" required:"true" minLength:"1"`
+		ModelID       string          `json:"modelId"`
+		PresetID      string          `json:"presetId"`
 		Config        json.RawMessage `json:"config" required:"true"`
 		ProfileIDs    []string        `json:"profileIds"`
 		MemoryEnabled *bool           `json:"memoryEnabled"`
@@ -105,7 +146,8 @@ type UpdateConnectionInput struct {
 		Type          string          `json:"type" required:"true" enum:"ssh"`
 		Name          string          `json:"name" required:"true" minLength:"1"`
 		Description   string          `json:"description"`
-		ModelID       string          `json:"modelId" required:"true" minLength:"1"`
+		ModelID       string          `json:"modelId"`
+		PresetID      string          `json:"presetId"`
 		Config        json.RawMessage `json:"config" required:"true"`
 		ProfileIDs    []string        `json:"profileIds"`
 		MemoryEnabled *bool           `json:"memoryEnabled"`
@@ -172,7 +214,7 @@ type CreateGuardProfileInput struct {
 		Name         string                  `json:"name" required:"true" minLength:"1"`
 		Description  string                  `json:"description"`
 		Capabilities types.GuardCapabilities `json:"capabilities"`
-		Commands     []types.CommandRule      `json:"commands"`
+		Commands     []types.CommandRule     `json:"commands"`
 	}
 }
 
@@ -182,7 +224,7 @@ type UpdateGuardProfileInput struct {
 		Name         string                  `json:"name" required:"true" minLength:"1"`
 		Description  string                  `json:"description"`
 		Capabilities types.GuardCapabilities `json:"capabilities"`
-		Commands     []types.CommandRule      `json:"commands"`
+		Commands     []types.CommandRule     `json:"commands"`
 	}
 }
 
@@ -204,6 +246,7 @@ type CreateChannelInput struct {
 		Name           string  `json:"name"`
 		Token          string  `json:"token" required:"true" minLength:"1"`
 		ModelID        string  `json:"modelId"`
+		PresetID       string  `json:"presetId"`
 		AllowedUserIDs []int64 `json:"allowedUserIds"`
 	}
 }
@@ -214,6 +257,7 @@ type UpdateChannelInput struct {
 		Name           string  `json:"name"`
 		Token          string  `json:"token"`
 		ModelID        string  `json:"modelId"`
+		PresetID       string  `json:"presetId"`
 		AllowedUserIDs []int64 `json:"allowedUserIds"`
 	}
 }

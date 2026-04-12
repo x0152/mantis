@@ -20,7 +20,11 @@ type Step struct {
 	Status        string `json:"status"`
 	Result        string `json:"result,omitempty"`
 	LogID         string `json:"logId,omitempty"`
+	ModelID       string `json:"modelId,omitempty"`
 	ModelName     string `json:"modelName,omitempty"`
+	PresetID      string `json:"presetId,omitempty"`
+	PresetName    string `json:"presetName,omitempty"`
+	ModelRole     string `json:"modelRole,omitempty"`
 	ContentOffset int    `json:"contentOffset"`
 	StartedAt     string `json:"startedAt"`
 	FinishedAt    string `json:"finishedAt,omitempty"`

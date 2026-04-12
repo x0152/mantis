@@ -9,42 +9,47 @@ import (
 
 	usecases "mantis/apps/metadata/use_cases"
 	"mantis/core/base"
+	"mantis/core/types"
 )
 
 type UseCases struct {
-	GetConfig        *usecases.GetConfig
-	UpdateConfig     *usecases.UpdateConfig
-	CreateLlmConn    *usecases.CreateLlmConnection
-	GetLlmConn       *usecases.GetLlmConnection
-	ListLlmConns     *usecases.ListLlmConnections
-	UpdateLlmConn    *usecases.UpdateLlmConnection
-	DeleteLlmConn    *usecases.DeleteLlmConnection
-	CreateModel      *usecases.CreateModel
-	GetModel         *usecases.GetModel
-	ListModels       *usecases.ListModels
-	UpdateModel      *usecases.UpdateModel
-	DeleteModel      *usecases.DeleteModel
-	CreateConnection *usecases.CreateConnection
-	GetConnection    *usecases.GetConnection
-	ListConnections  *usecases.ListConnections
-	UpdateConnection *usecases.UpdateConnection
-	DeleteConnection *usecases.DeleteConnection
-	AddMemory        *usecases.AddMemory
-	DeleteMemory     *usecases.DeleteMemory
-	CreateCronJob    *usecases.CreateCronJob
-	GetCronJob       *usecases.GetCronJob
-	ListCronJobs     *usecases.ListCronJobs
-	UpdateCronJob    *usecases.UpdateCronJob
-	DeleteCronJob    *usecases.DeleteCronJob
-	CreateGuardProfile  *usecases.CreateGuardProfile
-	ListGuardProfiles   *usecases.ListGuardProfiles
-	UpdateGuardProfile  *usecases.UpdateGuardProfile
-	DeleteGuardProfile  *usecases.DeleteGuardProfile
-	CreateChannel    *usecases.CreateChannel
-	GetChannel       *usecases.GetChannel
-	ListChannels     *usecases.ListChannels
-	UpdateChannel    *usecases.UpdateChannel
-	DeleteChannel    *usecases.DeleteChannel
+	GetSettings        *usecases.GetSettings
+	UpdateSettings     *usecases.UpdateSettings
+	CreateLlmConn      *usecases.CreateLlmConnection
+	GetLlmConn         *usecases.GetLlmConnection
+	ListLlmConns       *usecases.ListLlmConnections
+	UpdateLlmConn      *usecases.UpdateLlmConnection
+	DeleteLlmConn      *usecases.DeleteLlmConnection
+	CreateModel        *usecases.CreateModel
+	GetModel           *usecases.GetModel
+	ListModels         *usecases.ListModels
+	UpdateModel        *usecases.UpdateModel
+	DeleteModel        *usecases.DeleteModel
+	CreatePreset       *usecases.CreatePreset
+	ListPresets        *usecases.ListPresets
+	UpdatePreset       *usecases.UpdatePreset
+	DeletePreset       *usecases.DeletePreset
+	CreateConnection   *usecases.CreateConnection
+	GetConnection      *usecases.GetConnection
+	ListConnections    *usecases.ListConnections
+	UpdateConnection   *usecases.UpdateConnection
+	DeleteConnection   *usecases.DeleteConnection
+	AddMemory          *usecases.AddMemory
+	DeleteMemory       *usecases.DeleteMemory
+	CreateCronJob      *usecases.CreateCronJob
+	GetCronJob         *usecases.GetCronJob
+	ListCronJobs       *usecases.ListCronJobs
+	UpdateCronJob      *usecases.UpdateCronJob
+	DeleteCronJob      *usecases.DeleteCronJob
+	CreateGuardProfile *usecases.CreateGuardProfile
+	ListGuardProfiles  *usecases.ListGuardProfiles
+	UpdateGuardProfile *usecases.UpdateGuardProfile
+	DeleteGuardProfile *usecases.DeleteGuardProfile
+	CreateChannel      *usecases.CreateChannel
+	GetChannel         *usecases.GetChannel
+	ListChannels       *usecases.ListChannels
+	UpdateChannel      *usecases.UpdateChannel
+	DeleteChannel      *usecases.DeleteChannel
 }
 
 type Endpoints struct {
@@ -56,8 +61,8 @@ func NewEndpoints(uc UseCases) *Endpoints {
 }
 
 func (e *Endpoints) Register(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "get-config", Method: http.MethodGet, Path: "/api/config"}, e.getConfig)
-	huma.Register(api, huma.Operation{OperationID: "update-config", Method: http.MethodPut, Path: "/api/config"}, e.updateConfig)
+	huma.Register(api, huma.Operation{OperationID: "get-settings", Method: http.MethodGet, Path: "/api/settings"}, e.getSettings)
+	huma.Register(api, huma.Operation{OperationID: "update-settings", Method: http.MethodPut, Path: "/api/settings"}, e.updateSettings)
 
 	huma.Register(api, huma.Operation{OperationID: "create-llm-connection", Method: http.MethodPost, Path: "/api/llm-connections", DefaultStatus: 201}, e.createLlmConnection)
 	huma.Register(api, huma.Operation{OperationID: "list-llm-connections", Method: http.MethodGet, Path: "/api/llm-connections"}, e.listLlmConnections)
@@ -70,6 +75,11 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "get-model", Method: http.MethodGet, Path: "/api/models/{id}"}, e.getModel)
 	huma.Register(api, huma.Operation{OperationID: "update-model", Method: http.MethodPut, Path: "/api/models/{id}"}, e.updateModel)
 	huma.Register(api, huma.Operation{OperationID: "delete-model", Method: http.MethodDelete, Path: "/api/models/{id}", DefaultStatus: 204}, e.deleteModel)
+
+	huma.Register(api, huma.Operation{OperationID: "create-preset", Method: http.MethodPost, Path: "/api/presets", DefaultStatus: 201}, e.createPreset)
+	huma.Register(api, huma.Operation{OperationID: "list-presets", Method: http.MethodGet, Path: "/api/presets"}, e.listPresets)
+	huma.Register(api, huma.Operation{OperationID: "update-preset", Method: http.MethodPut, Path: "/api/presets/{id}"}, e.updatePreset)
+	huma.Register(api, huma.Operation{OperationID: "delete-preset", Method: http.MethodDelete, Path: "/api/presets/{id}", DefaultStatus: 204}, e.deletePreset)
 
 	huma.Register(api, huma.Operation{OperationID: "create-connection", Method: http.MethodPost, Path: "/api/connections", DefaultStatus: 201}, e.createConnection)
 	huma.Register(api, huma.Operation{OperationID: "list-connections", Method: http.MethodGet, Path: "/api/connections"}, e.listConnections)
@@ -97,20 +107,20 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "delete-channel", Method: http.MethodDelete, Path: "/api/channels/{id}", DefaultStatus: 204}, e.deleteChannel)
 }
 
-func (e *Endpoints) getConfig(ctx context.Context, _ *struct{}) (*ConfigOutput, error) {
-	cfg, err := e.uc.GetConfig.Execute(ctx)
+func (e *Endpoints) getSettings(ctx context.Context, _ *struct{}) (*SettingsOutput, error) {
+	s, err := e.uc.GetSettings.Execute(ctx)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return toConfigOutput(cfg), nil
+	return toSettingsOutput(s), nil
 }
 
-func (e *Endpoints) updateConfig(ctx context.Context, input *UpdateConfigInput) (*ConfigOutput, error) {
-	cfg, err := e.uc.UpdateConfig.Execute(ctx, configDataFromInput(input))
+func (e *Endpoints) updateSettings(ctx context.Context, input *UpdateSettingsInput) (*SettingsOutput, error) {
+	s, err := e.uc.UpdateSettings.Execute(ctx, settingsFromInput(input))
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return toConfigOutput(cfg), nil
+	return toSettingsOutput(s), nil
 }
 
 func (e *Endpoints) createLlmConnection(ctx context.Context, input *CreateLlmConnectionInput) (*LlmConnectionOutput, error) {
@@ -195,9 +205,57 @@ func (e *Endpoints) deleteModel(ctx context.Context, input *ModelIDInput) (*stru
 	return nil, nil
 }
 
+func (e *Endpoints) createPreset(ctx context.Context, input *CreatePresetInput) (*PresetOutput, error) {
+	p, err := e.uc.CreatePreset.Execute(ctx, types.Preset{
+		Name:            input.Body.Name,
+		ChatModelID:     input.Body.ChatModelID,
+		SummaryModelID:  input.Body.SummaryModelID,
+		ImageModelID:    input.Body.ImageModelID,
+		FallbackModelID: input.Body.FallbackModelID,
+		Temperature:     input.Body.Temperature,
+		SystemPrompt:    input.Body.SystemPrompt,
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPresetOutput(p), nil
+}
+
+func (e *Endpoints) listPresets(ctx context.Context, _ *struct{}) (*PresetsOutput, error) {
+	items, err := e.uc.ListPresets.Execute(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPresetsOutput(items), nil
+}
+
+func (e *Endpoints) updatePreset(ctx context.Context, input *UpdatePresetInput) (*PresetOutput, error) {
+	p, err := e.uc.UpdatePreset.Execute(ctx, types.Preset{
+		ID:              input.ID,
+		Name:            input.Body.Name,
+		ChatModelID:     input.Body.ChatModelID,
+		SummaryModelID:  input.Body.SummaryModelID,
+		ImageModelID:    input.Body.ImageModelID,
+		FallbackModelID: input.Body.FallbackModelID,
+		Temperature:     input.Body.Temperature,
+		SystemPrompt:    input.Body.SystemPrompt,
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPresetOutput(p), nil
+}
+
+func (e *Endpoints) deletePreset(ctx context.Context, input *PresetIDInput) (*struct{}, error) {
+	if err := e.uc.DeletePreset.Execute(ctx, input.ID); err != nil {
+		return nil, mapErr(err)
+	}
+	return nil, nil
+}
+
 func (e *Endpoints) createConnection(ctx context.Context, input *CreateConnectionInput) (*ConnectionOutput, error) {
-	connType, name, description, modelID, config, profileIDs, memoryEnabled := connectionFromCreateInput(input)
-	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, config, profileIDs, memoryEnabled)
+	connType, name, description, modelID, presetID, config, profileIDs, memoryEnabled := connectionFromCreateInput(input)
+	c, err := e.uc.CreateConnection.Execute(ctx, connType, name, description, modelID, presetID, config, profileIDs, memoryEnabled)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -221,8 +279,8 @@ func (e *Endpoints) getConnection(ctx context.Context, input *ConnectionIDInput)
 }
 
 func (e *Endpoints) updateConnection(ctx context.Context, input *UpdateConnectionInput) (*ConnectionOutput, error) {
-	id, connType, name, description, modelID, config, profileIDs, memoryEnabled := connectionFromUpdateInput(input)
-	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, config, profileIDs, memoryEnabled)
+	id, connType, name, description, modelID, presetID, config, profileIDs, memoryEnabled := connectionFromUpdateInput(input)
+	c, err := e.uc.UpdateConnection.Execute(ctx, id, connType, name, description, modelID, presetID, config, profileIDs, memoryEnabled)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -327,8 +385,8 @@ func (e *Endpoints) deleteGuardProfile(ctx context.Context, input *GuardProfileI
 }
 
 func (e *Endpoints) createChannel(ctx context.Context, input *CreateChannelInput) (*ChannelOutput, error) {
-	chType, name, token, modelID, allowed := channelFromCreateInput(input)
-	c, err := e.uc.CreateChannel.Execute(ctx, chType, name, token, modelID, allowed)
+	chType, name, token, modelID, presetID, allowed := channelFromCreateInput(input)
+	c, err := e.uc.CreateChannel.Execute(ctx, chType, name, token, modelID, presetID, allowed)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -352,8 +410,8 @@ func (e *Endpoints) getChannel(ctx context.Context, input *ChannelIDInput) (*Cha
 }
 
 func (e *Endpoints) updateChannel(ctx context.Context, input *UpdateChannelInput) (*ChannelOutput, error) {
-	id, name, token, modelID, allowed := channelFromUpdateInput(input)
-	c, err := e.uc.UpdateChannel.Execute(ctx, id, name, token, modelID, allowed)
+	id, name, token, modelID, presetID, allowed := channelFromUpdateInput(input)
+	c, err := e.uc.UpdateChannel.Execute(ctx, id, name, token, modelID, presetID, allowed)
 	if err != nil {
 		return nil, mapErr(err)
 	}

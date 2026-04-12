@@ -29,6 +29,8 @@ func NewApp(
 	sessionStore protocols.Store[string, types.ChatSession],
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
+	settingsStore protocols.Store[string, types.Settings],
 	agent *agents.MantisAgent,
 	buffer *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
@@ -39,11 +41,11 @@ func NewApp(
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
-	modelResolver := modelplugin.NewResolver(channelStore, nil)
+	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
 	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor)
 
 	sessionUC := usecases.NewSession(sessionplugin.NewPolicy(sessionStore))
-	modelCommandUC := usecases.NewHandleModelCommand(modelStore, channelStore)
+	modelCommandUC := usecases.NewHandleModelCommand(presetStore, channelStore)
 	handleMessageUC := usecases.NewHandleMessage(sessionUC, modelCommandUC, channelStore, messageStore, workflow, buffer, asr, tts)
 
 	app := &App{

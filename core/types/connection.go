@@ -6,15 +6,16 @@ import (
 )
 
 type Connection struct {
-	ID             string          `json:"id"`
-	Type           string          `json:"type"`
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	ModelID        string          `json:"modelId"`
-	Config         json.RawMessage `json:"config"`
-	Memories       []Memory        `json:"memories"`
-	ProfileIDs     []string        `json:"profileIds"`
-	MemoryEnabled  bool            `json:"memoryEnabled"`
+	ID            string          `json:"id"`
+	Type          string          `json:"type"`
+	Name          string          `json:"name"`
+	Description   string          `json:"description"`
+	ModelID       string          `json:"modelId"`
+	PresetID      string          `json:"presetId"`
+	Config        json.RawMessage `json:"config"`
+	Memories      []Memory        `json:"memories"`
+	ProfileIDs    []string        `json:"profileIds"`
+	MemoryEnabled bool            `json:"memoryEnabled"`
 }
 
 type Memory struct {

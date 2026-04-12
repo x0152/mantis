@@ -13,12 +13,9 @@ import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 type ConnForm = { id: string; provider: string; baseUrl: string; apiKey: string }
 type ModelForm = { name: string; connectionId: string; thinkingMode: string }
-type Roles = { summaryModelId: string | null; visionModelId: string | null }
-
 export default function LlmPage() {
   const [connections, setConnections] = useState<LlmConnection[]>([])
   const [models, setModels] = useState<Model[]>([])
-  const [roles, setRoles] = useState<Roles>({ summaryModelId: null, visionModelId: null })
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [deleteConnTarget, setDeleteConnTarget] = useState<string | null>(null)
@@ -35,14 +32,9 @@ export default function LlmPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [conns, mdls, cfg] = await Promise.all([api.llmConnections.list(), api.models.list(), api.config.get()])
+      const [conns, mdls] = await Promise.all([api.llmConnections.list(), api.models.list()])
       setConnections(conns)
       setModels(mdls)
-      const data = (cfg.data ?? {}) as Record<string, unknown>
-      setRoles({
-        summaryModelId: (data.summaryModelId as string) ?? null,
-        visionModelId: (data.visionModelId as string) ?? null,
-      })
       if (conns.length > 0 && expanded.size === 0) {
         setExpanded(new Set(conns.map(c => c.id)))
       }
@@ -133,25 +125,6 @@ export default function LlmPage() {
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Delete failed')
     }
-  }
-
-  const updateRole = async (key: keyof Roles, value: string | null) => {
-    try {
-      const next = { ...roles, [key]: value }
-      setRoles(next)
-      const cfg = await api.config.get()
-      const data = (cfg.data ?? {}) as Record<string, unknown>
-      await api.config.update({ ...data, ...next })
-      toast.success('Role updated')
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update role')
-    }
-  }
-
-  const modelLabel = (id: string | null) => {
-    if (!id) return null
-    const m = models.find(m => m.id === id)
-    return m ? null : id.slice(0, 12) + '...'
   }
 
   return (
@@ -255,38 +228,6 @@ export default function LlmPage() {
               </div>
             )
           })}
-        </div>
-      )}
-
-      {!loading && models.length > 0 && (
-        <div className="mt-6 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Model Roles</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {([
-              { key: 'summaryModelId' as const, label: 'Summary Model', hint: 'Used for conversation summaries and memory extraction' },
-              { key: 'visionModelId' as const, label: 'Vision Model', hint: 'Used for image description (Vision LLM)' },
-            ]).map(({ key, label, hint }) => {
-              const stale = !!roles[key] && !models.find(m => m.id === roles[key])
-              return (
-                <div key={key}>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">{label}</label>
-                  <select
-                    value={roles[key] ?? ''}
-                    onChange={e => updateRole(key, e.target.value || null)}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50 ${stale ? 'border-amber-500/50' : 'border-zinc-300 dark:border-zinc-700'}`}
-                  >
-                    <option value="">None</option>
-                    {stale && <option value={roles[key]!}>(deleted) {modelLabel(roles[key])}</option>}
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({connections.find(c => c.id === m.connectionId)?.id ?? '?'})</option>
-                    ))}
-                  </select>
-                  {stale && <p className="text-[11px] text-amber-400 mt-1">Selected model was deleted — please choose another</p>}
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1">{hint}</p>
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
 

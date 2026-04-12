@@ -13,95 +13,110 @@ import (
 )
 
 type HandleModelCommand struct {
-	modelStore   protocols.Store[string, types.Model]
+	presetStore  protocols.Store[string, types.Preset]
 	channelStore protocols.Store[string, types.Channel]
 }
 
 func NewHandleModelCommand(
-	modelStore protocols.Store[string, types.Model],
+	presetStore protocols.Store[string, types.Preset],
 	channelStore protocols.Store[string, types.Channel],
 ) *HandleModelCommand {
 	return &HandleModelCommand{
-		modelStore:   modelStore,
+		presetStore:  presetStore,
 		channelStore: channelStore,
 	}
 }
 
 func (uc *HandleModelCommand) Execute(ctx context.Context, channelID string, args string) (adapter.Reply, error) {
-	if uc.modelStore == nil {
-		return adapter.Reply{Text: "Models unavailable: model store is not configured."}, nil
+	if uc.presetStore == nil {
+		return adapter.Reply{Text: "Presets unavailable."}, nil
 	}
 	if uc.channelStore == nil {
-		return adapter.Reply{Text: "Channel unavailable: channel store is not configured."}, nil
+		return adapter.Reply{Text: "Channel unavailable."}, nil
 	}
 
 	arg := strings.TrimSpace(args)
 	if arg == "" || arg == "list" {
-		currentID, err := uc.getChannelModelID(ctx, channelID)
+		currentID, err := uc.getChannelPresetID(ctx, channelID)
 		if err != nil {
 			return adapter.Reply{}, err
 		}
-		return uc.modelListReply(ctx, currentID), nil
+		return uc.presetListReply(ctx, currentID), nil
+	}
+	if arg == "inherit" || arg == "default" || arg == "clear" {
+		if err := uc.updateChannelPresetID(ctx, channelID, ""); err != nil {
+			return adapter.Reply{}, err
+		}
+		return adapter.Reply{Text: "Preset switched: Inherit (global default)"}, nil
 	}
 
 	newID := strings.Fields(arg)[0]
-	existing, err := uc.modelStore.Get(ctx, []string{newID})
+	existing, err := uc.presetStore.Get(ctx, []string{newID})
 	if err != nil {
 		return adapter.Reply{}, err
 	}
-	m, ok := existing[newID]
+	p, ok := existing[newID]
 	if !ok {
-		return adapter.Reply{Text: "Model not found: " + newID}, nil
+		return adapter.Reply{Text: "Preset not found: " + newID}, nil
 	}
 
-	if err := uc.updateChannelModelID(ctx, channelID, newID); err != nil {
+	if err := uc.updateChannelPresetID(ctx, channelID, newID); err != nil {
 		return adapter.Reply{}, err
 	}
-	return adapter.Reply{Text: fmt.Sprintf("Model switched: %s (%s)", m.Name, m.ID)}, nil
+	return adapter.Reply{Text: fmt.Sprintf("Preset switched: %s", p.Name)}, nil
 }
 
-func (uc *HandleModelCommand) modelListReply(ctx context.Context, currentID string) adapter.Reply {
-	items, err := uc.modelStore.List(ctx, types.ListQuery{})
+func (uc *HandleModelCommand) presetListReply(ctx context.Context, currentID string) adapter.Reply {
+	items, err := uc.presetStore.List(ctx, types.ListQuery{})
 	if err != nil {
 		return adapter.Reply{Text: fmt.Sprintf("Error: %v", err)}
 	}
 	if items == nil {
-		items = []types.Model{}
+		items = []types.Preset{}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 
 	currentName := ""
 	if currentID != "" {
-		if m, ok := mapByID(items)[currentID]; ok {
-			currentName = m.Name
+		for _, p := range items {
+			if p.ID == currentID {
+				currentName = p.Name
+				break
+			}
 		}
 	}
 
 	var sb strings.Builder
 	if currentID == "" {
-		sb.WriteString("Select a model.\n")
+		sb.WriteString("Using global default.\n")
 	} else if currentName != "" {
-		sb.WriteString(fmt.Sprintf("Current model: %s\n", currentName))
+		sb.WriteString(fmt.Sprintf("Current preset: %s\n", currentName))
 	} else {
-		sb.WriteString(fmt.Sprintf("Current model: %s\n", currentID))
+		sb.WriteString(fmt.Sprintf("Current preset: %s\n", currentID))
 	}
 	if len(items) == 0 {
-		sb.WriteString("\nNo models available. Create one in the web panel.")
+		sb.WriteString("\nNo presets available. Create one in the web panel.")
 		return adapter.Reply{Text: strings.TrimSpace(sb.String())}
 	}
-	sb.WriteString("\nTap a button to switch model.")
+	sb.WriteString("\nTap a button to switch preset.")
 
 	type btn map[string]string
 	var keyboard [][]btn
 	row := []btn{}
-	for _, m := range items {
-		label := m.Name
-		if m.ID == currentID {
+
+	row = append(row, btn{
+		"text":          func() string { if currentID == "" { return "✅ Inherit" }; return "Inherit" }(),
+		"callback_data": "model:inherit",
+	})
+
+	for _, p := range items {
+		label := p.Name
+		if p.ID == currentID {
 			label = "✅ " + label
 		}
 		row = append(row, btn{
 			"text":          label,
-			"callback_data": "model:" + m.ID,
+			"callback_data": "model:" + p.ID,
 		})
 		if len(row) == 2 {
 			keyboard = append(keyboard, row)
@@ -122,15 +137,7 @@ func (uc *HandleModelCommand) modelListReply(ctx context.Context, currentID stri
 	}
 }
 
-func mapByID(items []types.Model) map[string]types.Model {
-	out := make(map[string]types.Model, len(items))
-	for _, m := range items {
-		out[m.ID] = m
-	}
-	return out
-}
-
-func (uc *HandleModelCommand) getChannelModelID(ctx context.Context, channelID string) (string, error) {
+func (uc *HandleModelCommand) getChannelPresetID(ctx context.Context, channelID string) (string, error) {
 	existing, err := uc.channelStore.Get(ctx, []string{channelID})
 	if err != nil {
 		return "", err
@@ -139,10 +146,10 @@ func (uc *HandleModelCommand) getChannelModelID(ctx context.Context, channelID s
 	if !ok {
 		return "", fmt.Errorf("channel %q not found", channelID)
 	}
-	return strings.TrimSpace(ch.ModelID), nil
+	return strings.TrimSpace(ch.PresetID), nil
 }
 
-func (uc *HandleModelCommand) updateChannelModelID(ctx context.Context, channelID, modelID string) error {
+func (uc *HandleModelCommand) updateChannelPresetID(ctx context.Context, channelID, presetID string) error {
 	existing, err := uc.channelStore.Get(ctx, []string{channelID})
 	if err != nil {
 		return err
@@ -151,7 +158,8 @@ func (uc *HandleModelCommand) updateChannelModelID(ctx context.Context, channelI
 	if !ok {
 		return fmt.Errorf("channel %q not found", channelID)
 	}
-	ch.ModelID = modelID
+	ch.PresetID = presetID
+	ch.ModelID = ""
 	_, err = uc.channelStore.Update(ctx, []types.Channel{ch})
 	return err
 }

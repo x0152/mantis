@@ -15,6 +15,7 @@ func ChannelToRow(c types.Channel) models.ChannelRow {
 		Name:           c.Name,
 		Token:          c.Token,
 		ModelID:        c.ModelID,
+		PresetID:       c.PresetID,
 		AllowedUserIDs: allowed,
 	}
 }
@@ -31,6 +32,7 @@ func ChannelFromRow(r models.ChannelRow) types.Channel {
 		Name:           r.Name,
 		Token:          r.Token,
 		ModelID:        r.ModelID,
+		PresetID:       r.PresetID,
 		AllowedUserIDs: allowed,
 	}
 }

@@ -10,7 +10,11 @@ type SessionLog struct {
 	Status       string     `json:"status"`
 	MessageID    string     `json:"messageId,omitempty"`
 	StepID       string     `json:"stepId,omitempty"`
+	ModelID      string     `json:"modelId,omitempty"`
 	ModelName    string     `json:"modelName,omitempty"`
+	PresetID     string     `json:"presetId,omitempty"`
+	PresetName   string     `json:"presetName,omitempty"`
+	ModelRole    string     `json:"modelRole,omitempty"` // primary | fallback | explicit | legacy
 	Entries      []LogEntry `json:"entries"`
 	StartedAt    time.Time  `json:"startedAt"`
 	FinishedAt   *time.Time `json:"finishedAt,omitempty"`
