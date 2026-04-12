@@ -12,12 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { EmptyState } from '@/components/EmptyState'
 import { FormField } from '@/components/FormField'
 import { ConfirmDelete } from '@/components/ConfirmDelete'
+import { ParameterEditor } from '@/components/ParameterEditor'
 
 type SkillForm = {
   connectionId: string
   name: string
   description: string
-  parameters: string
+  parameters: Record<string, unknown>
   script: string
 }
 
@@ -25,8 +26,17 @@ const emptyForm: SkillForm = {
   connectionId: '',
   name: '',
   description: '',
-  parameters: '{\n  "type": "object",\n  "properties": {}\n}',
+  parameters: { type: 'object', properties: {} },
   script: '',
+}
+
+function scriptHint(params: Record<string, unknown>): string {
+  const props = params?.properties as Record<string, unknown> | undefined
+  if (!props || Object.keys(props).length === 0) {
+    return 'Bash script executed on the server via SSH'
+  }
+  const vars = Object.keys(props).map(k => `{{.${k}}}`).join(', ')
+  return `Use Go template syntax to inject parameters: ${vars}`
 }
 
 export default function SkillsPage() {
@@ -69,30 +79,19 @@ export default function SkillsPage() {
       connectionId: skill.connectionId,
       name: skill.name,
       description: skill.description,
-      parameters: JSON.stringify(skill.parameters ?? {}, null, 2),
+      parameters: skill.parameters ?? { type: 'object', properties: {} },
       script: skill.script,
     })
     setModalOpen(true)
   }
 
-  const parseParameters = () => {
-    const raw = form.parameters.trim()
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('Parameters must be a JSON object')
-    }
-    return parsed as Record<string, unknown>
-  }
-
   const submit = async () => {
     try {
-      const parameters = parseParameters()
       const payload = {
         connectionId: form.connectionId,
         name: form.name.trim(),
         description: form.description.trim(),
-        parameters,
+        parameters: form.parameters,
         script: form.script,
       }
       if (editing) {
@@ -224,20 +223,19 @@ export default function SkillsPage() {
               />
             </FormField>
 
-            <FormField label="Parameters JSON Schema">
-              <Textarea
+            <FormField label="Parameters" hint="Arguments the agent will fill when calling this skill">
+              <ParameterEditor
                 value={form.parameters}
-                onChange={e => setForm(f => ({ ...f, parameters: e.target.value }))}
-                className="h-36 font-mono text-xs"
+                onChange={parameters => setForm(f => ({ ...f, parameters }))}
               />
             </FormField>
 
-            <FormField label="Script">
+            <FormField label="Script" hint={scriptHint(form.parameters)}>
               <Textarea
                 value={form.script}
                 onChange={e => setForm(f => ({ ...f, script: e.target.value }))}
                 className="h-56 font-mono text-xs"
-                placeholder={'sudo systemctl restart nginx\nsudo systemctl status nginx --no-pager'}
+                placeholder={'sudo systemctl restart {{.service_name}}\nsudo systemctl status {{.service_name}} --no-pager'}
               />
             </FormField>
 

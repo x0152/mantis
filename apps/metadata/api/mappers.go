@@ -112,6 +112,43 @@ func skillFromUpdateInput(input *UpdateSkillInput) types.Skill {
 	}
 }
 
+func toPlanOutput(p types.Plan) *PlanOutput {
+	return &PlanOutput{Body: p}
+}
+
+func toPlansOutput(items []types.Plan) *PlansOutput {
+	return &PlansOutput{Body: items}
+}
+
+func planFromCreateInput(input *CreatePlanInput) types.Plan {
+	return types.Plan{
+		Name:        input.Body.Name,
+		Description: input.Body.Description,
+		Schedule:    input.Body.Schedule,
+		Enabled:     input.Body.Enabled,
+		Graph:       input.Body.Graph,
+	}
+}
+
+func planFromUpdateInput(input *UpdatePlanInput) types.Plan {
+	return types.Plan{
+		ID:          input.ID,
+		Name:        input.Body.Name,
+		Description: input.Body.Description,
+		Schedule:    input.Body.Schedule,
+		Enabled:     input.Body.Enabled,
+		Graph:       input.Body.Graph,
+	}
+}
+
+func toPlanRunOutput(r types.PlanRun) *PlanRunOutput {
+	return &PlanRunOutput{Body: r}
+}
+
+func toPlanRunsOutput(items []types.PlanRun) *PlanRunsOutput {
+	return &PlanRunsOutput{Body: items}
+}
+
 func toCronJobOutput(j types.CronJob) *CronJobOutput {
 	return &CronJobOutput{Body: j}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	usecases "mantis/apps/metadata/use_cases"
+	"mantis/apps/plans"
 	"mantis/core/base"
 	"mantis/core/types"
 )
@@ -40,6 +41,13 @@ type UseCases struct {
 	DeleteSkill        *usecases.DeleteSkill
 	AddMemory          *usecases.AddMemory
 	DeleteMemory       *usecases.DeleteMemory
+	CreatePlan         *usecases.CreatePlan
+	ListPlans          *usecases.ListPlans
+	UpdatePlan         *usecases.UpdatePlan
+	DeletePlan         *usecases.DeletePlan
+	ListPlanRuns       *usecases.ListPlanRuns
+	GetPlanRun         *usecases.GetPlanRun
+	PlanRunner         *plans.Runner
 	CreateCronJob      *usecases.CreateCronJob
 	GetCronJob         *usecases.GetCronJob
 	ListCronJobs       *usecases.ListCronJobs
@@ -96,6 +104,16 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "delete-skill", Method: http.MethodDelete, Path: "/api/skills/{id}", DefaultStatus: 204}, e.deleteSkill)
 	huma.Register(api, huma.Operation{OperationID: "add-memory", Method: http.MethodPost, Path: "/api/connections/{id}/memories", DefaultStatus: 201}, e.addMemory)
 	huma.Register(api, huma.Operation{OperationID: "delete-memory", Method: http.MethodDelete, Path: "/api/connections/{id}/memories/{memoryId}", DefaultStatus: 204}, e.deleteMemory)
+
+	huma.Register(api, huma.Operation{OperationID: "create-plan", Method: http.MethodPost, Path: "/api/plans", DefaultStatus: 201}, e.createPlan)
+	huma.Register(api, huma.Operation{OperationID: "list-plans", Method: http.MethodGet, Path: "/api/plans"}, e.listPlans)
+	huma.Register(api, huma.Operation{OperationID: "update-plan", Method: http.MethodPut, Path: "/api/plans/{id}"}, e.updatePlan)
+	huma.Register(api, huma.Operation{OperationID: "delete-plan", Method: http.MethodDelete, Path: "/api/plans/{id}", DefaultStatus: 204}, e.deletePlan)
+
+	huma.Register(api, huma.Operation{OperationID: "list-plan-runs", Method: http.MethodGet, Path: "/api/plans/{planId}/runs"}, e.listPlanRuns)
+	huma.Register(api, huma.Operation{OperationID: "trigger-plan-run", Method: http.MethodPost, Path: "/api/plans/{planId}/runs", DefaultStatus: 201}, e.triggerPlanRun)
+	huma.Register(api, huma.Operation{OperationID: "get-plan-run", Method: http.MethodGet, Path: "/api/plan-runs/{id}"}, e.getPlanRun)
+	huma.Register(api, huma.Operation{OperationID: "cancel-plan-run", Method: http.MethodPost, Path: "/api/plan-runs/{id}/cancel"}, e.cancelPlanRun)
 
 	huma.Register(api, huma.Operation{OperationID: "create-cron-job", Method: http.MethodPost, Path: "/api/cron-jobs", DefaultStatus: 201}, e.createCronJob)
 	huma.Register(api, huma.Operation{OperationID: "list-cron-jobs", Method: http.MethodGet, Path: "/api/cron-jobs"}, e.listCronJobs)
@@ -347,6 +365,75 @@ func (e *Endpoints) deleteMemory(ctx context.Context, input *DeleteMemoryInput) 
 		return nil, mapErr(err)
 	}
 	return nil, nil
+}
+
+func (e *Endpoints) createPlan(ctx context.Context, input *CreatePlanInput) (*PlanOutput, error) {
+	p, err := e.uc.CreatePlan.Execute(ctx, planFromCreateInput(input))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanOutput(p), nil
+}
+
+func (e *Endpoints) listPlans(ctx context.Context, _ *struct{}) (*PlansOutput, error) {
+	items, err := e.uc.ListPlans.Execute(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlansOutput(items), nil
+}
+
+func (e *Endpoints) updatePlan(ctx context.Context, input *UpdatePlanInput) (*PlanOutput, error) {
+	p, err := e.uc.UpdatePlan.Execute(ctx, planFromUpdateInput(input))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanOutput(p), nil
+}
+
+func (e *Endpoints) deletePlan(ctx context.Context, input *PlanIDInput) (*struct{}, error) {
+	if err := e.uc.DeletePlan.Execute(ctx, input.ID); err != nil {
+		return nil, mapErr(err)
+	}
+	return nil, nil
+}
+
+func (e *Endpoints) listPlanRuns(ctx context.Context, input *ListPlanRunsInput) (*PlanRunsOutput, error) {
+	items, err := e.uc.ListPlanRuns.Execute(ctx, input.PlanID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanRunsOutput(items), nil
+}
+
+func (e *Endpoints) triggerPlanRun(ctx context.Context, input *TriggerPlanRunInput) (*PlanRunOutput, error) {
+	if e.uc.PlanRunner == nil {
+		return nil, huma.NewError(http.StatusServiceUnavailable, "plan runner not available")
+	}
+	run, err := e.uc.PlanRunner.TriggerRun(ctx, input.PlanID, "manual")
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanRunOutput(run), nil
+}
+
+func (e *Endpoints) getPlanRun(ctx context.Context, input *PlanRunIDInput) (*PlanRunOutput, error) {
+	r, err := e.uc.GetPlanRun.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanRunOutput(r), nil
+}
+
+func (e *Endpoints) cancelPlanRun(ctx context.Context, input *CancelPlanRunInput) (*PlanRunOutput, error) {
+	if e.uc.PlanRunner == nil {
+		return nil, huma.NewError(http.StatusServiceUnavailable, "plan runner not available")
+	}
+	run, err := e.uc.PlanRunner.CancelRun(ctx, input.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toPlanRunOutput(run), nil
 }
 
 func (e *Endpoints) createCronJob(ctx context.Context, input *CreateCronJobInput) (*CronJobOutput, error) {

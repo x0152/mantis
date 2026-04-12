@@ -203,6 +203,63 @@ type DeleteMemoryInput struct {
 	MemoryID string `path:"memoryId"`
 }
 
+type PlanOutput struct {
+	Body types.Plan
+}
+
+type PlansOutput struct {
+	Body []types.Plan
+}
+
+type PlanIDInput struct {
+	ID string `path:"id"`
+}
+
+type CreatePlanInput struct {
+	Body struct {
+		Name        string          `json:"name" required:"true" minLength:"1"`
+		Description string          `json:"description"`
+		Schedule    string          `json:"schedule"`
+		Enabled     bool            `json:"enabled"`
+		Graph       types.PlanGraph `json:"graph"`
+	}
+}
+
+type UpdatePlanInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		Name        string          `json:"name" required:"true" minLength:"1"`
+		Description string          `json:"description"`
+		Schedule    string          `json:"schedule"`
+		Enabled     bool            `json:"enabled"`
+		Graph       types.PlanGraph `json:"graph"`
+	}
+}
+
+type PlanRunOutput struct {
+	Body types.PlanRun
+}
+
+type PlanRunsOutput struct {
+	Body []types.PlanRun
+}
+
+type PlanRunIDInput struct {
+	ID string `path:"id"`
+}
+
+type CancelPlanRunInput struct {
+	ID string `path:"id"`
+}
+
+type ListPlanRunsInput struct {
+	PlanID string `path:"planId"`
+}
+
+type TriggerPlanRunInput struct {
+	PlanID string `path:"planId"`
+}
+
 type CronJobOutput struct {
 	Body types.CronJob
 }

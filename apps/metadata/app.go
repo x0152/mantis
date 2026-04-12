@@ -9,6 +9,7 @@ import (
 
 	"mantis/apps/metadata/api"
 	usecases "mantis/apps/metadata/use_cases"
+	"mantis/apps/plans"
 	"mantis/core/protocols"
 	"mantis/core/types"
 )
@@ -24,6 +25,9 @@ func NewApp(
 	presetStore protocols.Store[string, types.Preset],
 	connectionStore protocols.Store[string, types.Connection],
 	skillStore protocols.Store[string, types.Skill],
+	planStore protocols.Store[string, types.Plan],
+	runStore protocols.Store[string, types.PlanRun],
+	planRunner *plans.Runner,
 	cronJobStore protocols.Store[string, types.CronJob],
 	guardProfileStore protocols.Store[string, types.GuardProfile],
 	channelStore protocols.Store[string, types.Channel],
@@ -57,6 +61,13 @@ func NewApp(
 			DeleteSkill:        usecases.NewDeleteSkill(skillStore),
 			AddMemory:          usecases.NewAddMemory(connectionStore),
 			DeleteMemory:       usecases.NewDeleteMemory(connectionStore),
+			CreatePlan:         usecases.NewCreatePlan(planStore),
+			ListPlans:          usecases.NewListPlans(planStore),
+			UpdatePlan:         usecases.NewUpdatePlan(planStore),
+			DeletePlan:         usecases.NewDeletePlan(planStore),
+			ListPlanRuns:       usecases.NewListPlanRuns(runStore),
+			GetPlanRun:         usecases.NewGetPlanRun(runStore),
+			PlanRunner:         planRunner,
 			CreateCronJob:      usecases.NewCreateCronJob(cronJobStore),
 			GetCronJob:         usecases.NewGetCronJob(cronJobStore),
 			ListCronJobs:       usecases.NewListCronJobs(cronJobStore),

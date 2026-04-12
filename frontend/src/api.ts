@@ -1,4 +1,4 @@
-import type { Settings, Model, Preset, Connection, Skill, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
+import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -70,6 +70,20 @@ export const api = {
     update: (id: string, data: Omit<Skill, 'id'>) =>
       request<Skill>(`/skills/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/skills/${id}`, { method: 'DELETE' }),
+  },
+  plans: {
+    list: () => request<Plan[]>('/plans'),
+    create: (data: Omit<Plan, 'id'>) =>
+      request<Plan>('/plans', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Omit<Plan, 'id'>) =>
+      request<Plan>(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/plans/${id}`, { method: 'DELETE' }),
+  },
+  planRuns: {
+    list: (planId: string) => request<PlanRun[]>(`/plans/${planId}/runs`),
+    get: (id: string) => request<PlanRun>(`/plan-runs/${id}`),
+    trigger: (planId: string) => request<PlanRun>(`/plans/${planId}/runs`, { method: 'POST' }),
+    cancel: (id: string) => request<PlanRun>(`/plan-runs/${id}/cancel`, { method: 'POST' }),
   },
   cronJobs: {
     list: () => request<CronJob[]>('/cron-jobs'),

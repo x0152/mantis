@@ -20,6 +20,7 @@ import (
 	"mantis/apps/cron"
 	"mantis/apps/logs"
 	"mantis/apps/metadata"
+	plansapp "mantis/apps/plans"
 	"mantis/apps/telegram"
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
@@ -83,6 +84,18 @@ func main() {
 		mappers.SkillToRow,
 		mappers.SkillFromRow,
 	)
+	planStore := store.NewPostgres[string, types.Plan, models.PlanRow](
+		db,
+		func(p types.Plan) string { return p.ID },
+		mappers.PlanToRow,
+		mappers.PlanFromRow,
+	)
+	planRunStore := store.NewPostgres[string, types.PlanRun, models.PlanRunRow](
+		db,
+		func(r types.PlanRun) string { return r.ID },
+		mappers.PlanRunToRow,
+		mappers.PlanRunFromRow,
+	)
 	cronJobStore := store.NewPostgres[string, types.CronJob, models.CronJobRow](
 		db,
 		func(j types.CronJob) string { return j.ID },
@@ -140,13 +153,16 @@ func main() {
 	}
 
 	visionAdapter := llm.NewVision()
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, cronJobStore, settingsStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, planStore, cronJobStore, settingsStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 	memoryExtractor := memory.NewExtractor(openaiAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
 
-	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, cronJobStore, guardProfileStore, channelStore)
+	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor)
+	mantisAgent.SetPlanRunner(plansApp.Runner())
+
+	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, planStore, planRunStore, plansApp.Runner(), cronJobStore, guardProfileStore, channelStore)
 	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor)
 	logsApp := logs.NewApp(logStore)
 	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)
@@ -156,6 +172,7 @@ func main() {
 
 	go telegramApp.Start(context.Background())
 	go cronApp.Start(context.Background())
+	go plansApp.Start(context.Background())
 
 	r := chi.NewMux()
 	api := humachi.New(r, huma.DefaultConfig("Mantis API", "1.0.0"))

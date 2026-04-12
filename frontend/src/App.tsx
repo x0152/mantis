@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert, Layers, Wrench } from 'lucide-react'
+import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert, Layers, Wrench, GitBranch } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
@@ -10,13 +10,14 @@ import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import PresetsPage from './pages/PresetsPage'
 import SkillsPage from './pages/SkillsPage'
+import PlansPage from './pages/PlansPage'
 import SetupWizard from './pages/SetupWizard'
 import ChatSidebar from './components/ChatSidebar'
 import { ModeToggle } from './components/mode-toggle'
 import { api } from './api'
 import type { ChatSession } from './types'
 
-type Page = 'chat' | 'channels' | 'connections' | 'skills' | 'logs' | 'llm' | 'presets' | 'cron-jobs' | 'guard-profiles'
+type Page = 'chat' | 'channels' | 'connections' | 'skills' | 'plans' | 'logs' | 'llm' | 'presets' | 'cron-jobs' | 'guard-profiles'
 
 type NavItem = { id: Page; label: string; icon: typeof Settings }
 
@@ -26,6 +27,7 @@ const nav: NavSection[] = [
   {
     title: 'Activity',
     items: [
+      { id: 'plans', label: 'Plans', icon: GitBranch },
       { id: 'cron-jobs', label: 'Cron Jobs', icon: Clock },
       { id: 'logs', label: 'Logs', icon: ScrollText },
     ],
@@ -148,6 +150,7 @@ export default function App() {
         {page === 'presets' && <PresetsPage />}
         {page === 'connections' && <ConnectionsPage />}
         {page === 'skills' && <SkillsPage />}
+        {page === 'plans' && <PlansPage />}
         {page === 'logs' && <LogsPage />}
         {page === 'cron-jobs' && <CronJobsPage />}
         {page === 'guard-profiles' && <GuardProfilesPage />}

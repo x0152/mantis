@@ -67,6 +67,64 @@ export interface Skill {
   script: string
 }
 
+export interface PlanNodePosition {
+  x: number
+  y: number
+}
+
+export interface PlanNode {
+  id: string
+  type: 'action' | 'decision'
+  label: string
+  prompt: string
+  position: PlanNodePosition
+  clearContext?: boolean
+  maxRetries?: number
+}
+
+export interface PlanEdge {
+  id: string
+  source: string
+  target: string
+  label: string
+}
+
+export interface PlanGraph {
+  nodes: PlanNode[]
+  edges: PlanEdge[]
+}
+
+export interface Plan {
+  id: string
+  name: string
+  description: string
+  schedule: string
+  enabled: boolean
+  graph: PlanGraph
+}
+
+export type PlanRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+
+export interface PlanStepRun {
+  nodeId: string
+  status: PlanStepStatus
+  result?: string
+  messageId?: string
+  startedAt?: string
+  finishedAt?: string
+}
+
+export interface PlanRun {
+  id: string
+  planId: string
+  status: PlanRunStatus
+  trigger: 'manual' | 'schedule'
+  steps: PlanStepRun[]
+  startedAt: string
+  finishedAt?: string
+}
+
 export interface GuardCapabilities {
   pipes: boolean
   redirects: boolean

@@ -81,6 +81,11 @@ cron_list — list scheduled jobs.
 
 cron_delete — delete a scheduled job by id.
 
+plan_list — list available agentic workflow plans.
+
+plan_run — trigger execution of a plan by id. The plan runs asynchronously.
+  Parameter id: plan ID.
+
 All artifacts are temporary (~30 min TTL, in-memory).
 
 Formatting:
@@ -122,6 +127,8 @@ type MantisAgent struct {
 	llmConnStore    protocols.Store[string, types.LlmConnection]
 	connectionStore protocols.Store[string, types.Connection]
 	skillStore      protocols.Store[string, types.Skill]
+	planStore       protocols.Store[string, types.Plan]
+	planRunner      protocols.PlanRunner
 	cronJobStore    protocols.Store[string, types.CronJob]
 	settingsStore   protocols.Store[string, types.Settings]
 	agent           *agent.Agent
@@ -138,6 +145,7 @@ func NewMantisAgent(
 	llmConnStore protocols.Store[string, types.LlmConnection],
 	connectionStore protocols.Store[string, types.Connection],
 	skillStore protocols.Store[string, types.Skill],
+	planStore protocols.Store[string, types.Plan],
 	cronJobStore protocols.Store[string, types.CronJob],
 	settingsStore protocols.Store[string, types.Settings],
 	llm protocols.LLM,
@@ -154,6 +162,7 @@ func NewMantisAgent(
 		llmConnStore:    llmConnStore,
 		connectionStore: connectionStore,
 		skillStore:      skillStore,
+		planStore:       planStore,
 		cronJobStore:    cronJobStore,
 		settingsStore:   settingsStore,
 		agent:           agent.New(llm),
@@ -162,6 +171,10 @@ func NewMantisAgent(
 		ocr:             ocr,
 		vision:          vision,
 	}
+}
+
+func (a *MantisAgent) SetPlanRunner(r protocols.PlanRunner) {
+	a.planRunner = r
 }
 
 func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types.StreamEvent, error) {
@@ -199,6 +212,14 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 		skills = []types.Skill{}
 	}
 
+	var plans []types.Plan
+	if a.planStore != nil {
+		plans, err = a.planStore.List(ctx, types.ListQuery{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	artifacts := in.Artifacts
 	if artifacts == nil {
 		artifacts = shared.NewArtifactStore()
@@ -210,7 +231,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	}
 
 	tools := a.buildTools(connections, skills, artifacts, requestID)
-	prompt := a.buildSystemPrompt(connections, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
+	prompt := a.buildSystemPrompt(connections, plans, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
 
 	messages := []protocols.LLMMessage{{Role: "system", Content: prompt}}
 	messages = append(messages, history...)
@@ -263,7 +284,7 @@ func (a *MantisAgent) loadUserMemories() []string {
 	return facts
 }
 
-func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
+func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, plans []types.Plan, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
 	var sb strings.Builder
 	sb.WriteString(mantisBasePrompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
@@ -324,6 +345,22 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 		}
 	}
 
+	if len(plans) > 0 {
+		sb.WriteString("\n\nAvailable plans (agentic workflows):\n")
+		for _, p := range plans {
+			status := "disabled"
+			if p.Enabled {
+				status = "enabled"
+			}
+			schedule := "manual only"
+			if p.Schedule != "" {
+				schedule = p.Schedule
+			}
+			nodes := len(p.Graph.Nodes)
+			sb.WriteString(fmt.Sprintf("\n- %s (id=%s, %s, schedule=%s, %d steps): %s", p.Name, p.ID, status, schedule, nodes, p.Description))
+		}
+	}
+
 	return sb.String()
 }
 
@@ -355,6 +392,8 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 		a.cronCreateTool(),
 		a.cronListTool(),
 		a.cronDeleteTool(),
+		a.planListTool(),
+		a.planRunTool(),
 		sumTool(),
 	)
 	return tools
@@ -945,6 +984,98 @@ func (a *MantisAgent) cronDeleteTool() types.Tool {
 				return "", err
 			}
 			out, _ := json.Marshal(map[string]any{"ok": true, "id": input.ID})
+			return string(out), nil
+		},
+	}
+}
+
+func (a *MantisAgent) planListTool() types.Tool {
+	return types.Tool{
+		Name:        "plan_list",
+		Description: "List available agentic workflow plans.",
+		Icon:        "git-branch",
+		Label:       func(_ string) string { return "List plans" },
+		Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
+		Execute: func(ctx context.Context, _ string) (string, error) {
+			if a.planStore == nil {
+				return "", fmt.Errorf("plans are not configured")
+			}
+			items, err := a.planStore.List(ctx, types.ListQuery{})
+			if err != nil {
+				return "", err
+			}
+			if items == nil {
+				items = []types.Plan{}
+			}
+			type planSummary struct {
+				ID          string `json:"id"`
+				Name        string `json:"name"`
+				Description string `json:"description"`
+				Schedule    string `json:"schedule"`
+				Enabled     bool   `json:"enabled"`
+				Nodes       int    `json:"nodes"`
+			}
+			summaries := make([]planSummary, len(items))
+			for i, p := range items {
+				summaries[i] = planSummary{
+					ID: p.ID, Name: p.Name, Description: p.Description,
+					Schedule: p.Schedule, Enabled: p.Enabled, Nodes: len(p.Graph.Nodes),
+				}
+			}
+			out, _ := json.Marshal(map[string]any{"plans": summaries})
+			return string(out), nil
+		},
+	}
+}
+
+func (a *MantisAgent) planRunTool() types.Tool {
+	return types.Tool{
+		Name:        "plan_run",
+		Description: "Trigger execution of an agentic workflow plan. The plan runs asynchronously and results can be viewed in the Plans UI.",
+		Icon:        "play",
+		Label: func(args string) string {
+			var input struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal([]byte(args), &input)
+			if input.ID != "" {
+				return "Run plan " + input.ID[:min(8, len(input.ID))]
+			}
+			return "Run plan"
+		},
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{
+					"type":        "string",
+					"description": "Plan ID to execute",
+				},
+			},
+			"required": []string{"id"},
+		},
+		Execute: func(ctx context.Context, args string) (string, error) {
+			if a.planRunner == nil {
+				return "", fmt.Errorf("plan runner is not configured")
+			}
+			var input struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			if strings.TrimSpace(input.ID) == "" {
+				return "", fmt.Errorf("plan id is required")
+			}
+			run, err := a.planRunner.TriggerRun(ctx, input.ID, "chat")
+			if err != nil {
+				return "", err
+			}
+			out, _ := json.Marshal(map[string]any{
+				"ok":     true,
+				"run_id": run.ID,
+				"status": run.Status,
+				"steps":  len(run.Steps),
+			})
 			return string(out), nil
 		},
 	}
