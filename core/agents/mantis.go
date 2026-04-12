@@ -85,6 +85,7 @@ plan_list — list available agentic workflow plans.
 
 plan_run — trigger execution of a plan by id. The plan runs asynchronously.
   Parameter id: plan ID.
+  IMPORTANT: Only use plan_list/plan_run when the user EXPLICITLY mentions plans, workflows, or asks to run/list/show plans. NEVER autonomously decide to run a plan to fulfill a regular task — solve it directly with SSH tools and skills instead.
 
 All artifacts are temporary (~30 min TTL, in-memory).
 
@@ -212,14 +213,6 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 		skills = []types.Skill{}
 	}
 
-	var plans []types.Plan
-	if a.planStore != nil {
-		plans, err = a.planStore.List(ctx, types.ListQuery{})
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	artifacts := in.Artifacts
 	if artifacts == nil {
 		artifacts = shared.NewArtifactStore()
@@ -230,8 +223,8 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 		requestID = uuid.New().String()
 	}
 
-	tools := a.buildTools(connections, skills, artifacts, requestID)
-	prompt := a.buildSystemPrompt(connections, plans, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
+	tools := a.buildTools(connections, skills, artifacts, requestID, in.Source)
+	prompt := a.buildSystemPrompt(connections, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
 
 	messages := []protocols.LLMMessage{{Role: "system", Content: prompt}}
 	messages = append(messages, history...)
@@ -284,7 +277,7 @@ func (a *MantisAgent) loadUserMemories() []string {
 	return facts
 }
 
-func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, plans []types.Plan, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
+func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
 	var sb strings.Builder
 	sb.WriteString(mantisBasePrompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
@@ -345,26 +338,10 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, plans []
 		}
 	}
 
-	if len(plans) > 0 {
-		sb.WriteString("\n\nAvailable plans (agentic workflows):\n")
-		for _, p := range plans {
-			status := "disabled"
-			if p.Enabled {
-				status = "enabled"
-			}
-			schedule := "manual only"
-			if p.Schedule != "" {
-				schedule = p.Schedule
-			}
-			nodes := len(p.Graph.Nodes)
-			sb.WriteString(fmt.Sprintf("\n- %s (id=%s, %s, schedule=%s, %d steps): %s", p.Name, p.ID, status, schedule, nodes, p.Description))
-		}
-	}
-
 	return sb.String()
 }
 
-func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.Skill, artifacts *shared.ArtifactStore, requestID string) []types.Tool {
+func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.Skill, artifacts *shared.ArtifactStore, requestID, source string) []types.Tool {
 	var tools []types.Tool
 	connectionByID := make(map[string]types.Connection, len(connections))
 	for _, c := range connections {
@@ -389,13 +366,17 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 		artifactSendToChatTool(artifacts, requestID),
 		artifactTranscribeTool(artifacts, a.asr),
 		a.artifactReadImageTool(artifacts),
-		a.cronCreateTool(),
-		a.cronListTool(),
-		a.cronDeleteTool(),
-		a.planListTool(),
-		a.planRunTool(),
 		sumTool(),
 	)
+	if source != "plan" {
+		tools = append(tools,
+			a.cronCreateTool(),
+			a.cronListTool(),
+			a.cronDeleteTool(),
+			a.planListTool(),
+			a.planRunTool(),
+		)
+	}
 	return tools
 }
 
