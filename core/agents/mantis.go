@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -120,6 +121,7 @@ type MantisAgent struct {
 	presetStore     protocols.Store[string, types.Preset]
 	llmConnStore    protocols.Store[string, types.LlmConnection]
 	connectionStore protocols.Store[string, types.Connection]
+	skillStore      protocols.Store[string, types.Skill]
 	cronJobStore    protocols.Store[string, types.CronJob]
 	settingsStore   protocols.Store[string, types.Settings]
 	agent           *agent.Agent
@@ -135,6 +137,7 @@ func NewMantisAgent(
 	presetStore protocols.Store[string, types.Preset],
 	llmConnStore protocols.Store[string, types.LlmConnection],
 	connectionStore protocols.Store[string, types.Connection],
+	skillStore protocols.Store[string, types.Skill],
 	cronJobStore protocols.Store[string, types.CronJob],
 	settingsStore protocols.Store[string, types.Settings],
 	llm protocols.LLM,
@@ -150,6 +153,7 @@ func NewMantisAgent(
 		presetStore:     presetStore,
 		llmConnStore:    llmConnStore,
 		connectionStore: connectionStore,
+		skillStore:      skillStore,
 		cronJobStore:    cronJobStore,
 		settingsStore:   settingsStore,
 		agent:           agent.New(llm),
@@ -184,6 +188,16 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	if err != nil {
 		return nil, err
 	}
+	var skills []types.Skill
+	if a.skillStore != nil {
+		skills, err = a.skillStore.List(ctx, types.ListQuery{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	if skills == nil {
+		skills = []types.Skill{}
+	}
 
 	artifacts := in.Artifacts
 	if artifacts == nil {
@@ -195,7 +209,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 		requestID = uuid.New().String()
 	}
 
-	tools := a.buildTools(connections, artifacts, requestID)
+	tools := a.buildTools(connections, skills, artifacts, requestID)
 	prompt := a.buildSystemPrompt(connections, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
 
 	messages := []protocols.LLMMessage{{Role: "system", Content: prompt}}
@@ -313,15 +327,24 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 	return sb.String()
 }
 
-func (a *MantisAgent) buildTools(connections []types.Connection, artifacts *shared.ArtifactStore, requestID string) []types.Tool {
+func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.Skill, artifacts *shared.ArtifactStore, requestID string) []types.Tool {
 	var tools []types.Tool
+	connectionByID := make(map[string]types.Connection, len(connections))
 	for _, c := range connections {
+		connectionByID[c.ID] = c
 		switch c.Type {
 		case "ssh":
 			tools = append(tools, a.sshTool(c))
 			tools = append(tools, a.sshDownloadTool(c, artifacts))
 			tools = append(tools, a.sshUploadTool(c, artifacts))
 		}
+	}
+	for _, s := range skills {
+		conn, ok := connectionByID[s.ConnectionID]
+		if !ok || conn.Type != "ssh" {
+			continue
+		}
+		tools = append(tools, a.skillTool(conn, s))
 	}
 	tools = append(tools,
 		artifactsListTool(artifacts, requestID),
@@ -468,6 +491,144 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 			return shared.CollectText(ch)
 		},
 	}
+}
+
+func (a *MantisAgent) skillTool(c types.Connection, s types.Skill) types.Tool {
+	connName := c.Name
+	rawConfig := c.Config
+	toolName := skillToolName(s)
+	params := skillParametersSchema(s.Parameters)
+	description := strings.TrimSpace(s.Description)
+	toolDescription := fmt.Sprintf("Run skill %q on %s.", s.Name, connName)
+	if description != "" {
+		toolDescription += " " + description
+	}
+
+	return types.Tool{
+		Name:        toolName,
+		Description: toolDescription,
+		Icon:        "terminal",
+		Label: func(args string) string {
+			payload := strings.TrimSpace(args)
+			if payload == "" || payload == "{}" {
+				return s.Name
+			}
+			if len(payload) > 40 {
+				payload = payload[:40] + "..."
+			}
+			return s.Name + ": " + payload
+		},
+		Parameters: params,
+		Execute: func(_ context.Context, args string) (string, error) {
+			input := map[string]any{}
+			payload := strings.TrimSpace(args)
+			if payload != "" && payload != "null" {
+				if err := json.Unmarshal([]byte(payload), &input); err != nil {
+					return "", err
+				}
+			}
+			script, err := renderSkillScript(s.Script, input)
+			if err != nil {
+				return "", err
+			}
+			var sshCfg SSHConfig
+			_ = json.Unmarshal(rawConfig, &sshCfg)
+			return executeSkillScript(sshCfg, script)
+		},
+	}
+}
+
+func skillParametersSchema(raw json.RawMessage) map[string]any {
+	fallback := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{},
+	}
+	if len(raw) == 0 {
+		return fallback
+	}
+	payload := strings.TrimSpace(string(raw))
+	if payload == "" || payload == "null" {
+		return fallback
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil || schema == nil {
+		return fallback
+	}
+	if _, ok := schema["type"]; !ok {
+		schema["type"] = "object"
+	}
+	if _, ok := schema["properties"]; !ok {
+		schema["properties"] = map[string]any{}
+	}
+	return schema
+}
+
+func renderSkillScript(source string, args map[string]any) (string, error) {
+	tmpl, err := template.New("skill").Option("missingkey=error").Parse(source)
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	if err := tmpl.Execute(&out, args); err != nil {
+		return "", err
+	}
+	script := out.String()
+	if strings.TrimSpace(script) == "" {
+		return "", fmt.Errorf("skill script is empty")
+	}
+	return script, nil
+}
+
+func executeSkillScript(cfg SSHConfig, script string) (string, error) {
+	delimiter := "MANTIS_SKILL_" + strings.ReplaceAll(uuid.New().String(), "-", "")
+	for strings.Contains(script, delimiter) {
+		delimiter = "MANTIS_SKILL_" + strings.ReplaceAll(uuid.New().String(), "-", "")
+	}
+	command := fmt.Sprintf("tmp=$(mktemp /tmp/mantis-skill-XXXXXX.sh)\ncat <<'%s' > \"$tmp\"\n%s\n%s\nchmod +x \"$tmp\"\nbash \"$tmp\"\nstatus=$?\nrm -f \"$tmp\"\nexit $status", delimiter, script, delimiter)
+	return execSSH(cfg, command)
+}
+
+func skillToolName(s types.Skill) string {
+	name := normalizeToolPart(s.Name)
+	if len(name) > 48 {
+		name = strings.Trim(name[:48], "_")
+	}
+	suffix := normalizeToolPart(s.ID)
+	if len(suffix) > 8 {
+		suffix = suffix[:8]
+	}
+	if suffix == "" {
+		suffix = strings.ReplaceAll(uuid.New().String(), "-", "")[:8]
+	}
+	out := "skill_" + name + "_" + suffix
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	return strings.Trim(out, "_")
+}
+
+func normalizeToolPart(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range value {
+		isAlpha := r >= 'a' && r <= 'z'
+		isDigit := r >= '0' && r <= '9'
+		if isAlpha || isDigit {
+			b.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if !lastUnderscore {
+			b.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+	out := strings.Trim(b.String(), "_")
+	if out == "" {
+		return "skill"
+	}
+	return out
 }
 
 func (a *MantisAgent) sshDownloadTool(c types.Connection, artifacts *shared.ArtifactStore) types.Tool {

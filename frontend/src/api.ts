@@ -1,4 +1,4 @@
-import type { Settings, Model, Preset, Connection, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
+import type { Settings, Model, Preset, Connection, Skill, CronJob, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -57,6 +57,19 @@ export const api = {
       request<Connection>(`/connections/${id}/memories`, { method: 'POST', body: JSON.stringify({ content }) }),
     deleteMemory: (id: string, memoryId: string) =>
       request<void>(`/connections/${id}/memories/${memoryId}`, { method: 'DELETE' }),
+  },
+  skills: {
+    list: (opts?: { connectionId?: string }) => {
+      const qs = new URLSearchParams()
+      if (opts?.connectionId) qs.set('connectionId', opts.connectionId)
+      const q = qs.toString()
+      return request<Skill[]>(`/skills${q ? `?${q}` : ''}`)
+    },
+    create: (data: Omit<Skill, 'id'>) =>
+      request<Skill>('/skills', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Omit<Skill, 'id'>) =>
+      request<Skill>(`/skills/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/skills/${id}`, { method: 'DELETE' }),
   },
   cronJobs: {
     list: () => request<CronJob[]>('/cron-jobs'),

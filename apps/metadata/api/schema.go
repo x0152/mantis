@@ -127,6 +127,43 @@ type ConnectionIDInput struct {
 	ID string `path:"id"`
 }
 
+type SkillOutput struct {
+	Body types.Skill
+}
+
+type SkillsOutput struct {
+	Body []types.Skill
+}
+
+type SkillIDInput struct {
+	ID string `path:"id"`
+}
+
+type ListSkillsInput struct {
+	ConnectionID string `query:"connectionId"`
+}
+
+type CreateSkillInput struct {
+	Body struct {
+		ConnectionID string          `json:"connectionId" required:"true" minLength:"1"`
+		Name         string          `json:"name" required:"true" minLength:"1"`
+		Description  string          `json:"description"`
+		Parameters   json.RawMessage `json:"parameters"`
+		Script       string          `json:"script" required:"true" minLength:"1"`
+	}
+}
+
+type UpdateSkillInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		ConnectionID string          `json:"connectionId" required:"true" minLength:"1"`
+		Name         string          `json:"name" required:"true" minLength:"1"`
+		Description  string          `json:"description"`
+		Parameters   json.RawMessage `json:"parameters"`
+		Script       string          `json:"script" required:"true" minLength:"1"`
+	}
+}
+
 type CreateConnectionInput struct {
 	Body struct {
 		Type          string          `json:"type" required:"true" enum:"ssh"`

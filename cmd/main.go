@@ -77,6 +77,12 @@ func main() {
 		mappers.ConnectionToRow,
 		mappers.ConnectionFromRow,
 	)
+	skillStore := store.NewPostgres[string, types.Skill, models.SkillRow](
+		db,
+		func(s types.Skill) string { return s.ID },
+		mappers.SkillToRow,
+		mappers.SkillFromRow,
+	)
 	cronJobStore := store.NewPostgres[string, types.CronJob, models.CronJobRow](
 		db,
 		func(j types.CronJob) string { return j.ID },
@@ -134,13 +140,13 @@ func main() {
 	}
 
 	visionAdapter := llm.NewVision()
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, cronJobStore, settingsStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, cronJobStore, settingsStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 	memoryExtractor := memory.NewExtractor(openaiAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
 
-	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, cronJobStore, guardProfileStore, channelStore)
+	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, cronJobStore, guardProfileStore, channelStore)
 	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor)
 	logsApp := logs.NewApp(logStore)
 	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)

@@ -42,6 +42,14 @@ func toConnectionsOutput(items []types.Connection) *ConnectionsOutput {
 	return &ConnectionsOutput{Body: items}
 }
 
+func toSkillOutput(s types.Skill) *SkillOutput {
+	return &SkillOutput{Body: s}
+}
+
+func toSkillsOutput(items []types.Skill) *SkillsOutput {
+	return &SkillsOutput{Body: items}
+}
+
 func settingsFromInput(input *UpdateSettingsInput) types.Settings {
 	return types.Settings{
 		ChatPresetID:   input.Body.ChatPresetID,
@@ -81,6 +89,27 @@ func connectionFromUpdateInput(input *UpdateConnectionInput) (string, string, st
 		memoryEnabled = *input.Body.MemoryEnabled
 	}
 	return input.ID, input.Body.Type, input.Body.Name, input.Body.Description, input.Body.ModelID, input.Body.PresetID, input.Body.Config, input.Body.ProfileIDs, memoryEnabled
+}
+
+func skillFromCreateInput(input *CreateSkillInput) types.Skill {
+	return types.Skill{
+		ConnectionID: input.Body.ConnectionID,
+		Name:         input.Body.Name,
+		Description:  input.Body.Description,
+		Parameters:   input.Body.Parameters,
+		Script:       input.Body.Script,
+	}
+}
+
+func skillFromUpdateInput(input *UpdateSkillInput) types.Skill {
+	return types.Skill{
+		ID:           input.ID,
+		ConnectionID: input.Body.ConnectionID,
+		Name:         input.Body.Name,
+		Description:  input.Body.Description,
+		Parameters:   input.Body.Parameters,
+		Script:       input.Body.Script,
+	}
 }
 
 func toCronJobOutput(j types.CronJob) *CronJobOutput {

@@ -34,6 +34,10 @@ type UseCases struct {
 	ListConnections    *usecases.ListConnections
 	UpdateConnection   *usecases.UpdateConnection
 	DeleteConnection   *usecases.DeleteConnection
+	CreateSkill        *usecases.CreateSkill
+	ListSkills         *usecases.ListSkills
+	UpdateSkill        *usecases.UpdateSkill
+	DeleteSkill        *usecases.DeleteSkill
 	AddMemory          *usecases.AddMemory
 	DeleteMemory       *usecases.DeleteMemory
 	CreateCronJob      *usecases.CreateCronJob
@@ -86,6 +90,10 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "get-connection", Method: http.MethodGet, Path: "/api/connections/{id}"}, e.getConnection)
 	huma.Register(api, huma.Operation{OperationID: "update-connection", Method: http.MethodPut, Path: "/api/connections/{id}"}, e.updateConnection)
 	huma.Register(api, huma.Operation{OperationID: "delete-connection", Method: http.MethodDelete, Path: "/api/connections/{id}", DefaultStatus: 204}, e.deleteConnection)
+	huma.Register(api, huma.Operation{OperationID: "create-skill", Method: http.MethodPost, Path: "/api/skills", DefaultStatus: 201}, e.createSkill)
+	huma.Register(api, huma.Operation{OperationID: "list-skills", Method: http.MethodGet, Path: "/api/skills"}, e.listSkills)
+	huma.Register(api, huma.Operation{OperationID: "update-skill", Method: http.MethodPut, Path: "/api/skills/{id}"}, e.updateSkill)
+	huma.Register(api, huma.Operation{OperationID: "delete-skill", Method: http.MethodDelete, Path: "/api/skills/{id}", DefaultStatus: 204}, e.deleteSkill)
 	huma.Register(api, huma.Operation{OperationID: "add-memory", Method: http.MethodPost, Path: "/api/connections/{id}/memories", DefaultStatus: 201}, e.addMemory)
 	huma.Register(api, huma.Operation{OperationID: "delete-memory", Method: http.MethodDelete, Path: "/api/connections/{id}/memories/{memoryId}", DefaultStatus: 204}, e.deleteMemory)
 
@@ -289,6 +297,37 @@ func (e *Endpoints) updateConnection(ctx context.Context, input *UpdateConnectio
 
 func (e *Endpoints) deleteConnection(ctx context.Context, input *ConnectionIDInput) (*struct{}, error) {
 	if err := e.uc.DeleteConnection.Execute(ctx, input.ID); err != nil {
+		return nil, mapErr(err)
+	}
+	return nil, nil
+}
+
+func (e *Endpoints) createSkill(ctx context.Context, input *CreateSkillInput) (*SkillOutput, error) {
+	s, err := e.uc.CreateSkill.Execute(ctx, skillFromCreateInput(input))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toSkillOutput(s), nil
+}
+
+func (e *Endpoints) listSkills(ctx context.Context, input *ListSkillsInput) (*SkillsOutput, error) {
+	items, err := e.uc.ListSkills.Execute(ctx, input.ConnectionID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toSkillsOutput(items), nil
+}
+
+func (e *Endpoints) updateSkill(ctx context.Context, input *UpdateSkillInput) (*SkillOutput, error) {
+	s, err := e.uc.UpdateSkill.Execute(ctx, skillFromUpdateInput(input))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toSkillOutput(s), nil
+}
+
+func (e *Endpoints) deleteSkill(ctx context.Context, input *SkillIDInput) (*struct{}, error) {
+	if err := e.uc.DeleteSkill.Execute(ctx, input.ID); err != nil {
 		return nil, mapErr(err)
 	}
 	return nil, nil

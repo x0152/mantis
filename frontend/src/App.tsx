@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert, Layers } from 'lucide-react'
+import { Settings, Plug, Clock, ScrollText, Link2, Radio, ShieldAlert, Layers, Wrench } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
@@ -9,13 +9,14 @@ import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import PresetsPage from './pages/PresetsPage'
+import SkillsPage from './pages/SkillsPage'
 import SetupWizard from './pages/SetupWizard'
 import ChatSidebar from './components/ChatSidebar'
 import { ModeToggle } from './components/mode-toggle'
 import { api } from './api'
 import type { ChatSession } from './types'
 
-type Page = 'chat' | 'channels' | 'connections' | 'logs' | 'llm' | 'presets' | 'cron-jobs' | 'guard-profiles'
+type Page = 'chat' | 'channels' | 'connections' | 'skills' | 'logs' | 'llm' | 'presets' | 'cron-jobs' | 'guard-profiles'
 
 type NavItem = { id: Page; label: string; icon: typeof Settings }
 
@@ -36,6 +37,7 @@ const nav: NavSection[] = [
       { id: 'presets', label: 'Presets', icon: Layers },
       { id: 'channels', label: 'Channels', icon: Radio },
       { id: 'connections', label: 'Servers', icon: Plug },
+      { id: 'skills', label: 'Skills', icon: Wrench },
     ],
   },
   {
@@ -145,6 +147,7 @@ export default function App() {
         {page === 'llm' && <LlmPage />}
         {page === 'presets' && <PresetsPage />}
         {page === 'connections' && <ConnectionsPage />}
+        {page === 'skills' && <SkillsPage />}
         {page === 'logs' && <LogsPage />}
         {page === 'cron-jobs' && <CronJobsPage />}
         {page === 'guard-profiles' && <GuardProfilesPage />}

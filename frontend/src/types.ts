@@ -58,6 +58,15 @@ export interface Connection {
   memoryEnabled: boolean
 }
 
+export interface Skill {
+  id: string
+  connectionId: string
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+  script: string
+}
+
 export interface GuardCapabilities {
   pipes: boolean
   redirects: boolean
