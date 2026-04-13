@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,11 +31,21 @@ type Reply struct {
 
 type MessageHandler func(ctx context.Context, chatID string, text string, files []FileAttachment) (Reply, error)
 
+const batchDebounce = 1500 * time.Millisecond
+
+type pendingBatch struct {
+	messages []*tgMessage
+	timer    *time.Timer
+}
+
 type Telegram struct {
 	token   string
 	allowed map[int64]bool
 	handler MessageHandler
 	client  *http.Client
+
+	batchMu sync.Mutex
+	batches map[int64]*pendingBatch
 }
 
 func NewTelegram(token string, allowedIDs []int64, handler MessageHandler) *Telegram {
@@ -47,6 +58,7 @@ func NewTelegram(token string, allowedIDs []int64, handler MessageHandler) *Tele
 		allowed: m,
 		handler: handler,
 		client:  &http.Client{Timeout: 60 * time.Second},
+		batches: make(map[int64]*pendingBatch),
 	}
 }
 
@@ -83,10 +95,10 @@ func (t *Telegram) Execute(ctx context.Context) error {
 				if u.Message.Text == "" && u.Message.Caption == "" && u.Message.Document == nil && u.Message.Audio == nil && u.Message.Voice == nil && len(u.Message.Photo) == 0 {
 					continue
 				}
-				if len(t.allowed) > 0 && !t.allowed[u.Message.From.ID] {
-					continue
-				}
-				go t.handle(ctx, u.Message)
+			if len(t.allowed) > 0 && !t.allowed[u.Message.From.ID] {
+				continue
+			}
+			t.enqueue(ctx, u.Message)
 			default:
 				continue
 			}
@@ -193,6 +205,152 @@ func (t *Telegram) handleCallback(ctx context.Context, cq *tgCallbackQuery) {
 	}
 }
 
+func (t *Telegram) enqueue(ctx context.Context, msg *tgMessage) {
+	chatID := msg.Chat.ID
+	t.batchMu.Lock()
+	b, ok := t.batches[chatID]
+	if !ok {
+		b = &pendingBatch{}
+		t.batches[chatID] = b
+	}
+	b.messages = append(b.messages, msg)
+	if b.timer != nil {
+		b.timer.Stop()
+	}
+	b.timer = time.AfterFunc(batchDebounce, func() {
+		t.batchMu.Lock()
+		batch := t.batches[chatID]
+		delete(t.batches, chatID)
+		t.batchMu.Unlock()
+		if batch != nil && len(batch.messages) > 0 {
+			t.handleBatch(ctx, chatID, batch.messages)
+		}
+	})
+	t.batchMu.Unlock()
+}
+
+func (t *Telegram) handleBatch(ctx context.Context, chatID int64, msgs []*tgMessage) {
+	if len(msgs) == 1 {
+		t.handle(ctx, msgs[0])
+		return
+	}
+
+	merged := &tgMessage{Chat: msgs[0].Chat, From: msgs[0].From}
+	var parts []string
+	for _, m := range msgs {
+		txt := m.Text
+		if txt == "" {
+			txt = m.Caption
+		}
+
+		if meta := forwardMeta(m); meta != "" {
+			label := "[forwarded"
+			if txt != "" {
+				label += " message"
+			} else {
+				label += mediaLabel(m)
+			}
+			label += " " + meta + "]"
+			if txt != "" {
+				txt = label + "\n" + txt
+			} else {
+				parts = append(parts, label)
+			}
+		}
+
+		if txt != "" {
+			parts = append(parts, txt)
+		}
+		if m.Voice != nil && merged.Voice == nil {
+			merged.Voice = m.Voice
+			merged.ForwardDate = m.ForwardDate
+			merged.ForwardOrigin = m.ForwardOrigin
+		}
+		if m.Audio != nil && merged.Audio == nil {
+			merged.Audio = m.Audio
+		}
+		if m.Document != nil && merged.Document == nil {
+			merged.Document = m.Document
+		}
+		if len(m.Photo) > 0 && len(merged.Photo) == 0 {
+			merged.Photo = m.Photo
+		}
+	}
+	merged.Text = strings.Join(parts, "\n")
+	t.handle(ctx, merged)
+}
+
+func forwardMeta(m *tgMessage) string {
+	if m.ForwardOrigin == nil && m.ForwardDate == 0 {
+		return ""
+	}
+	var sender string
+	if o := m.ForwardOrigin; o != nil {
+		switch o.Type {
+		case "user":
+			if o.SenderUser != nil {
+				sender = tgUserName(o.SenderUser)
+			}
+		case "hidden_user":
+			sender = o.SenderUserName
+		case "chat":
+			if o.SenderChat != nil {
+				sender = o.SenderChat.Title
+			}
+		case "channel":
+			if o.Chat != nil {
+				sender = o.Chat.Title
+			}
+			if o.AuthorSignature != "" {
+				sender += " / " + o.AuthorSignature
+			}
+		}
+	}
+
+	ts := m.ForwardDate
+	if m.ForwardOrigin != nil && m.ForwardOrigin.Date > 0 {
+		ts = m.ForwardOrigin.Date
+	}
+
+	var buf strings.Builder
+	if sender != "" {
+		buf.WriteString("from " + sender)
+	}
+	if ts > 0 {
+		if buf.Len() > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(time.Unix(ts, 0).UTC().Format("2006-01-02 15:04 UTC"))
+	}
+	return buf.String()
+}
+
+func tgUserName(u *tgUser) string {
+	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if name == "" && u.Username != "" {
+		return "@" + u.Username
+	}
+	if u.Username != "" {
+		return name + " (@" + u.Username + ")"
+	}
+	return name
+}
+
+func mediaLabel(m *tgMessage) string {
+	switch {
+	case m.Voice != nil:
+		return " voice"
+	case m.Audio != nil:
+		return " audio"
+	case m.Document != nil:
+		return " file"
+	case len(m.Photo) > 0:
+		return " photo"
+	default:
+		return ""
+	}
+}
+
 func (t *Telegram) handle(ctx context.Context, msg *tgMessage) {
 	done := make(chan struct{})
 	go t.typingLoop(ctx, msg.Chat.ID, done)
@@ -201,6 +359,20 @@ func (t *Telegram) handle(ctx context.Context, msg *tgMessage) {
 	text := msg.Text
 	if text == "" {
 		text = msg.Caption
+	}
+	if meta := forwardMeta(msg); meta != "" {
+		label := "[forwarded"
+		if text != "" {
+			label += " message"
+		} else {
+			label += mediaLabel(msg)
+		}
+		label += " " + meta + "]"
+		if text != "" {
+			text = label + "\n" + text
+		} else {
+			text = label
+		}
 	}
 
 	const maxBytes = 10 * 1024 * 1024
@@ -366,20 +538,42 @@ type tgFrom struct {
 	ID int64 `json:"id"`
 }
 
+type tgMessageOrigin struct {
+	Type            string  `json:"type"`
+	Date            int64   `json:"date"`
+	SenderUser      *tgUser `json:"sender_user"`
+	SenderUserName  string  `json:"sender_user_name"`
+	SenderChat      *tgChat `json:"sender_chat"`
+	Chat            *tgChat `json:"chat"`
+	AuthorSignature string  `json:"author_signature"`
+}
+
+type tgUser struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+}
+
+type tgChat struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
 type tgMessage struct {
-	Chat struct {
-		ID int64 `json:"id"`
-	} `json:"chat"`
-	From struct {
-		ID int64 `json:"id"`
-	} `json:"from"`
-	ForwardDate int64       `json:"forward_date"`
-	Text        string      `json:"text"`
-	Caption     string      `json:"caption"`
-	Document    *tgDocument `json:"document"`
-	Audio       *tgAudio    `json:"audio"`
-	Voice       *tgVoice    `json:"voice"`
-	Photo       []tgPhoto   `json:"photo"`
+	Date int64  `json:"date"`
+	Chat tgChat `json:"chat"`
+	From tgUser `json:"from"`
+
+	ForwardDate   int64               `json:"forward_date"`
+	ForwardOrigin *tgMessageOrigin    `json:"forward_origin"`
+
+	Text     string      `json:"text"`
+	Caption  string      `json:"caption"`
+	Document *tgDocument `json:"document"`
+	Audio    *tgAudio    `json:"audio"`
+	Voice    *tgVoice    `json:"voice"`
+	Photo    []tgPhoto   `json:"photo"`
 }
 
 type tgDocument struct {
