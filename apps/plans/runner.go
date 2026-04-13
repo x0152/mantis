@@ -130,6 +130,19 @@ func (r *Runner) CancelRun(ctx context.Context, runID string) (types.PlanRun, er
 	return run, nil
 }
 
+func (r *Runner) ActiveRuns(ctx context.Context) ([]types.PlanRun, error) {
+	runs, err := r.runStore.List(ctx, types.ListQuery{
+		Filter: map[string]string{"status": "running"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if runs == nil {
+		runs = []types.PlanRun{}
+	}
+	return runs, nil
+}
+
 func (r *Runner) RecoverStaleRuns(ctx context.Context) {
 	runs, err := r.runStore.List(ctx, types.ListQuery{
 		Filter: map[string]string{"status": "running"},
@@ -333,12 +346,18 @@ func (r *Runner) executeNode(ctx context.Context, sessionID, prompt string, clea
 	if msg.Status == "error" {
 		return nodeResult{messageID: msg.ID}, fmt.Errorf("step error: %s", msg.Content)
 	}
+	if strings.Contains(msg.Content, "[ERROR]:") {
+		return nodeResult{messageID: msg.ID}, fmt.Errorf("step reported error: %s", msg.Content)
+	}
 	return nodeResult{content: msg.Content, messageID: msg.ID}, nil
 }
 
 func renderPrompt(raw string, input map[string]any) string {
-	if len(input) == 0 || !strings.Contains(raw, "{{") {
+	if !strings.Contains(raw, "{{") {
 		return raw
+	}
+	if input == nil {
+		input = map[string]any{}
 	}
 	tmpl, err := template.New("prompt").Option("missingkey=zero").Parse(raw)
 	if err != nil {

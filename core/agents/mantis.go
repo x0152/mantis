@@ -96,7 +96,13 @@ plan_update — update plan settings by id. All fields except id are optional �
 
 plan_delete — delete a plan by id. To modify plan steps, delete the plan and create a new one.
 
+plan_active — list currently running plan executions. Returns run IDs, plan IDs, and start times.
+
+plan_stop — cancel a running plan execution by run ID. Use plan_active first to find the run ID.
+  Parameter runId.
+
 IMPORTANT: Scheduled tasks, cron jobs, reminders, and plans are all "plans". For any recurring/scheduled task, use plan_create with a schedule. For complex workflows, use plan_create with multiple steps. Use plan_list / plan_update / plan_delete to manage existing plans. Use plan_update to change schedule, enable/disable, or rename. Only use plan_run when the user explicitly asks to run a plan immediately.
+NEVER create a plan unless the user explicitly asks to create one. If the user asks to DO something (e.g. "take a screenshot", "check disk"), do it directly — do NOT wrap it in a plan.
 
 All artifacts are temporary (~30 min TTL, in-memory).
 
@@ -243,6 +249,15 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 		messages = append(messages, protocols.LLMMessage{Role: "user", Content: in.Content})
 	}
 
+	if in.Source == "plan" {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Role == "user" {
+				messages[i].Content += "\n\n[Execute ONLY this step. Do NOT call extra tools. STOP when done. If failed, reply [ERROR]: reason.]"
+				break
+			}
+		}
+	}
+
 	ch, err := a.agent.Execute(ctx, agent.AgentInput{
 		LoopInput: agent.LoopInput{
 			ActionInput: agent.ActionInput{
@@ -296,7 +311,15 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 		"send_file — send an artifact (file/image) to the user.\n  Parameter artifactId.\n\nartifact_read_text — preview a text artifact",
 		1)
 	if source == "plan" {
-		prompt = "You are a step executor in a pipeline. Do ONLY what the current message asks. Do NOT add extra steps or actions.\n\n" + prompt
+		prompt = "[PIPELINE MODE] You are executing ONE step of a multi-step pipeline.\n" +
+			"STRICT RULES:\n" +
+			"1. Execute ONLY the single task described in the user message. STOP after completing it.\n" +
+			"2. NEVER call tools beyond what the instruction explicitly requires.\n" +
+			"3. If the instruction says \"take a screenshot\" — take the screenshot and STOP. Do NOT download, send, or do anything else.\n" +
+			"4. If the instruction says \"download\" — download and STOP. Do NOT send or process further.\n" +
+			"5. If the instruction says \"send\" — send and STOP.\n" +
+			"6. The pipeline will call you again for the next step. You must NOT anticipate it.\n" +
+			"7. If you cannot complete the step, respond with [ERROR]: reason.\n\n" + prompt
 	}
 	sb.WriteString(prompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
@@ -400,6 +423,8 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 			a.planCreateTool(),
 			a.planUpdateTool(),
 			a.planDeleteTool(),
+			a.planActiveTool(),
+			a.planStopTool(),
 		)
 	}
 	return tools

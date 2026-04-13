@@ -1011,6 +1011,85 @@ func (a *MantisAgent) planDeleteTool() types.Tool {
 	}
 }
 
+func (a *MantisAgent) planActiveTool() types.Tool {
+	return types.Tool{
+		Name:        "plan_active",
+		Description: "List currently running plan executions.",
+		Icon:        "play",
+		Label:       func(_ string) string { return "Active runs" },
+		Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
+		Execute: func(ctx context.Context, _ string) (string, error) {
+			if a.planRunner == nil {
+				return "", fmt.Errorf("plan runner is not configured")
+			}
+			runs, err := a.planRunner.ActiveRuns(ctx)
+			if err != nil {
+				return "", err
+			}
+			type runSummary struct {
+				RunID     string `json:"runId"`
+				PlanID    string `json:"planId"`
+				Trigger   string `json:"trigger"`
+				StartedAt string `json:"startedAt"`
+			}
+			summaries := make([]runSummary, len(runs))
+			for i, r := range runs {
+				summaries[i] = runSummary{
+					RunID: r.ID, PlanID: r.PlanID, Trigger: r.Trigger,
+					StartedAt: r.StartedAt.Format("2006-01-02 15:04:05 UTC"),
+				}
+			}
+			out, _ := json.Marshal(map[string]any{"running": summaries, "count": len(summaries)})
+			return string(out), nil
+		},
+	}
+}
+
+func (a *MantisAgent) planStopTool() types.Tool {
+	return types.Tool{
+		Name:        "plan_stop",
+		Description: "Stop (cancel) a running plan execution by run ID. Use plan_active to find the run ID first.",
+		Icon:        "git-branch",
+		Label: func(args string) string {
+			var input struct {
+				RunID string `json:"runId"`
+			}
+			_ = json.Unmarshal([]byte(args), &input)
+			if input.RunID != "" {
+				return "Stop run " + input.RunID[:min(8, len(input.RunID))]
+			}
+			return "Stop plan run"
+		},
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"runId": map[string]any{"type": "string", "description": "Run ID to cancel"},
+			},
+			"required": []string{"runId"},
+		},
+		Execute: func(ctx context.Context, args string) (string, error) {
+			if a.planRunner == nil {
+				return "", fmt.Errorf("plan runner is not configured")
+			}
+			var input struct {
+				RunID string `json:"runId"`
+			}
+			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			if strings.TrimSpace(input.RunID) == "" {
+				return "", fmt.Errorf("runId is required")
+			}
+			run, err := a.planRunner.CancelRun(ctx, input.RunID)
+			if err != nil {
+				return "", err
+			}
+			out, _ := json.Marshal(map[string]any{"ok": true, "runId": run.ID, "status": run.Status})
+			return string(out), nil
+		},
+	}
+}
+
 // --- Artifact tools ---
 
 func artifactsListTool(artifacts *shared.ArtifactStore, requestID string) types.Tool {

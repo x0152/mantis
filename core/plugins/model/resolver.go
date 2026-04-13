@@ -58,8 +58,15 @@ func (r *Resolver) Execute(ctx context.Context, in Input) (Output, error) {
 		}
 	}
 
+	defaultSlots := []string{}
 	if in.DefaultPreset != "" {
-		presetID, err := r.resolveDefaultPresetID(ctx, in.DefaultPreset)
+		defaultSlots = append(defaultSlots, in.DefaultPreset)
+	}
+	if in.DefaultPreset != "chat" {
+		defaultSlots = append(defaultSlots, "chat")
+	}
+	for _, slot := range defaultSlots {
+		presetID, err := r.resolveDefaultPresetID(ctx, slot)
 		if err == nil && presetID != "" {
 			if presetOut := r.resolvePresetToModel(ctx, presetID); presetOut.ModelID != "" {
 				presetOut.Source = "settings"

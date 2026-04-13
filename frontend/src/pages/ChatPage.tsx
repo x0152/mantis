@@ -37,38 +37,27 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   const pollLatest = useCallback(async () => {
     if (!sessionId) return
     try {
-      if (isPlanSession) {
-        const all = await api.chat.listMessages({ sessionId, limit: 50, offset: 0 })
-        setMessages(prev => {
-          if (JSON.stringify(prev) === JSON.stringify(all)) return prev
-          return all
-        })
-        const last = all[all.length - 1]
-        if (last) {
-          setActiveStep(prev => {
-            if (!prev || !last.steps) return prev
-            return last.steps.find((s: Step) => s.id === prev.id) ?? prev
-          })
-        }
-      } else {
-        const latest = await api.chat.listMessages({ sessionId, limit: 1, offset: 0 })
-        const m = latest[0]
-        if (!m) return
-        setMessages(prev => {
-          const idx = prev.findIndex(x => x.id === m.id)
-          if (idx === -1) return [...prev, m]
-          if (JSON.stringify(prev[idx]) === JSON.stringify(m)) return prev
-          const next = prev.slice()
-          next[idx] = m
-          return next
-        })
+      const latest = await api.chat.listMessages({ sessionId, limit: 4, offset: 0 })
+      if (latest.length === 0) return
+      setMessages(prev => {
+        const byId = new Map<string, ChatMessage>()
+        for (const m of prev) byId.set(m.id, m)
+        for (const m of latest) byId.set(m.id, m)
+        const next = Array.from(byId.values()).sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+        if (prev.length === next.length && prev.every((m, i) => JSON.stringify(m) === JSON.stringify(next[i]))) return prev
+        return next
+      })
+      const last = latest[latest.length - 1]
+      if (last) {
         setActiveStep(prev => {
-          if (!prev || !m.steps) return prev
-          return m.steps.find((s: Step) => s.id === prev.id) ?? prev
+          if (!prev || !last.steps) return prev
+          return last.steps.find((s: Step) => s.id === prev.id) ?? prev
         })
       }
     } catch {}
-  }, [sessionId, isPlanSession])
+  }, [sessionId])
 
   useEffect(() => {
     if (!sessionId) return
