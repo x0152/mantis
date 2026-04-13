@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, Plug, ScrollText, Link2, Radio, ShieldAlert, Layers, Wrench, GitBranch } from 'lucide-react'
+import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
@@ -7,19 +7,16 @@ import ChannelsPage from './pages/ChannelsPage'
 import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
-import PresetsPage from './pages/PresetsPage'
 import SkillsPage from './pages/SkillsPage'
 import PlansPage from './pages/PlansPage'
 import SetupWizard from './pages/SetupWizard'
 import ChatSidebar from './components/ChatSidebar'
 import { ModeToggle } from './components/mode-toggle'
 import { api } from './api'
+import { parseRoute, navigate, type PageId, type Route } from './router'
 import type { ChatSession } from './types'
 
-type Page = 'chat' | 'channels' | 'connections' | 'skills' | 'plans' | 'logs' | 'llm' | 'presets' | 'guard-profiles'
-
-type NavItem = { id: Page; label: string; icon: typeof Settings }
-
+type NavItem = { id: PageId; label: string; icon: typeof Sparkles }
 type NavSection = { title: string; items: NavItem[] }
 
 const nav: NavSection[] = [
@@ -31,13 +28,12 @@ const nav: NavSection[] = [
     ],
   },
   {
-    title: 'Connections',
+    title: 'Configuration',
     items: [
-      { id: 'llm', label: 'LLMs & Models', icon: Link2 },
-      { id: 'presets', label: 'Presets', icon: Layers },
-      { id: 'channels', label: 'Channels', icon: Radio },
+      { id: 'llm', label: 'AI Engine', icon: Sparkles },
       { id: 'connections', label: 'Servers', icon: Plug },
       { id: 'skills', label: 'Skills', icon: Wrench },
+      { id: 'channels', label: 'Channels', icon: Radio },
     ],
   },
   {
@@ -49,10 +45,16 @@ const nav: NavSection[] = [
 ]
 
 export default function App() {
-  const [page, setPage] = useState<Page>('chat')
+  const [route, setRoute] = useState<Route>(parseRoute)
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const sync = () => setRoute(parseRoute())
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
 
   useEffect(() => {
     api.llmConnections.list()
@@ -61,21 +63,30 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (route.page === 'chat' && 'sessionId' in route && route.sessionId) {
+      setActiveSessionId(route.sessionId)
+    }
+  }, [route])
+
+  useEffect(() => {
     if (needsSetup === false && !activeSessionId) {
-      api.chat.getSession().then(s => setActiveSessionId(s.id)).catch(() => {})
+      api.chat.getSession().then(s => {
+        setActiveSessionId(s.id)
+        if (route.page === 'chat') navigate({ page: 'chat', sessionId: s.id })
+      }).catch(() => {})
     }
   }, [needsSetup])
 
   const handleSelectSession = useCallback((session: ChatSession) => {
     setActiveSessionId(session.id)
-    setPage('chat')
+    navigate({ page: 'chat', sessionId: session.id })
   }, [])
 
   const handleNewChat = useCallback(async () => {
     try {
       const session = await api.chat.createSession()
       setActiveSessionId(session.id)
-      setPage('chat')
+      navigate({ page: 'chat', sessionId: session.id })
       setSidebarRefreshKey(k => k + 1)
     } catch {}
   }, [])
@@ -84,15 +95,19 @@ export default function App() {
     setSidebarRefreshKey(k => k + 1)
   }, [])
 
+  const goTo = useCallback((page: PageId) => {
+    navigate({ page } as Route)
+  }, [])
+
   if (needsSetup === null) return null
   if (needsSetup) return <SetupWizard onDone={() => setNeedsSetup(false)} />
 
   const renderNav = (items: NavItem[]) => items.map(item => (
     <button
       key={item.id}
-      onClick={() => setPage(item.id)}
+      onClick={() => goTo(item.id)}
       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium min-w-0 ${
-        page === item.id
+        route.page === item.id
           ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
       }`}
@@ -101,6 +116,8 @@ export default function App() {
       <span className="truncate" title={item.label}>{item.label}</span>
     </button>
   ))
+
+  const planId = route.page === 'plans' && 'planId' in route ? route.planId : undefined
 
   return (
     <div className="flex h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
@@ -142,15 +159,14 @@ export default function App() {
         </div>
       </aside>
       <main className="flex-1 overflow-auto bg-white dark:bg-zinc-950 transition-colors">
-        {page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
-        {page === 'channels' && <ChannelsPage />}
-        {page === 'llm' && <LlmPage />}
-        {page === 'presets' && <PresetsPage />}
-        {page === 'connections' && <ConnectionsPage />}
-        {page === 'skills' && <SkillsPage />}
-        {page === 'plans' && <PlansPage />}
-        {page === 'logs' && <LogsPage />}
-        {page === 'guard-profiles' && <GuardProfilesPage />}
+        {route.page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
+        {route.page === 'channels' && <ChannelsPage />}
+        {route.page === 'llm' && <LlmPage />}
+        {route.page === 'connections' && <ConnectionsPage />}
+        {route.page === 'skills' && <SkillsPage />}
+        {route.page === 'plans' && <PlansPage deepPlanId={planId} key={planId ?? '_'} />}
+        {route.page === 'logs' && <LogsPage />}
+        {route.page === 'guard-profiles' && <GuardProfilesPage />}
       </main>
       <Toaster />
     </div>

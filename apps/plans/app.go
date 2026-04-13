@@ -16,10 +16,12 @@ import (
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
+	"mantis/shared"
 )
 
 type App struct {
-	runner *Runner
+	runner   *Runner
+	workflow *messageworkflow.Workflow
 
 	planStore protocols.Store[string, types.Plan]
 
@@ -41,18 +43,20 @@ func NewApp(
 	agent *agents.MantisAgent,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	buf *shared.Buffer,
 ) *App {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 
 	modelResolver := modelplugin.NewResolver(nil, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, nil, modelResolver, artifactMgr, memoryExtractor)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor)
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 
 	return &App{
-		runner:    NewRunner(planStore, runStore, messageStore, sessionPolicy, workflow),
+		workflow:  workflow,
+		runner:    NewRunner(planStore, runStore, messageStore, sessionPolicy, workflow, buf),
 		planStore: planStore,
 		entries:   make(map[string]robcron.EntryID),
 		parser:    parser,
@@ -62,6 +66,10 @@ func NewApp(
 
 func (a *App) Runner() *Runner {
 	return a.runner
+}
+
+func (a *App) SetAttachmentDir(dir string) {
+	a.workflow.SetAttachmentDir(dir)
 }
 
 func (a *App) Start(ctx context.Context) {

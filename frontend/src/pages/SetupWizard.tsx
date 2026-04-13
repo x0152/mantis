@@ -95,6 +95,29 @@ const SEED_SKILLS: Record<string, SeedSkill[]> = {
 
 const SEED_PLANS: Array<Omit<Plan, 'id'>> = [
   {
+    name: 'Screenshot',
+    description: 'Take a screenshot of a web page and send it to the chat.',
+    schedule: '',
+    enabled: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full URL of the page to screenshot (e.g. https://example.com)' },
+      },
+    },
+    graph: {
+      nodes: [
+        { id: 'n1', type: 'action', label: 'Screenshot', prompt: 'Use the screenshot skill on the browser connection to take a screenshot of "{{.url}}".', position: { x: 250, y: 0 } },
+        { id: 'n2', type: 'action', label: 'Download', prompt: 'Download the screenshot file from the browser server. The file was saved to /tmp/screenshot.png — use ssh_download_browser with remotePath "/tmp/screenshot.png".', position: { x: 250, y: 150 } },
+        { id: 'n3', type: 'action', label: 'Send', prompt: 'Send the downloaded screenshot artifact to the chat using artifact_send_to_chat. Use the artifact ID from the previous step.', position: { x: 250, y: 300 } },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', label: '' },
+        { id: 'e2', source: 'n2', target: 'n3', label: '' },
+      ],
+    },
+  },
+  {
     name: 'Morning Server Report',
     description: 'Check server health and send a notification with the status.',
     schedule: '',
@@ -167,15 +190,25 @@ const SEED_PLANS: Array<Omit<Plan, 'id'>> = [
 export default function SetupWizard({ onDone }: { onDone: () => void }) {
   const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_LLM_BASE_URL ?? '')
   const [apiKey, setApiKey] = useState(import.meta.env.VITE_LLM_API_KEY ?? '')
-  const [modelName, setModelName] = useState(import.meta.env.VITE_LLM_MODEL ?? '')
+  const envModels = (import.meta.env.VITE_LLM_MODEL ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
+  const [modelRows, setModelRows] = useState<{ name: string; role: 'chat' | 'summary' | 'vision' | '' }[]>(() => {
+    if (envModels.length === 0) return [{ name: '', role: 'chat' }]
+    return envModels.map((name: string, i: number) => ({
+      name,
+      role: i === 0 ? 'chat' as const : i === envModels.length - 1 && envModels.length > 1 ? 'summary' as const : '' as const,
+    }))
+  })
   const [tgToken, setTgToken] = useState(import.meta.env.VITE_TG_BOT_TOKEN ?? '')
   const [tgUserIds, setTgUserIds] = useState(import.meta.env.VITE_TG_USER_IDS ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const chatRow = modelRows.find(r => r.role === 'chat')
+  const hasChatModel = chatRow && chatRow.name.trim()
+
   const submit = async () => {
-    if (!baseUrl.trim() || !modelName.trim()) {
-      setError('Base URL and model name are required')
+    if (!baseUrl.trim() || !hasChatModel) {
+      setError('Base URL and at least one model marked as "chat" are required')
       return
     }
     setLoading(true)
@@ -184,19 +217,24 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
       await api.llmConnections.create({ id: 'default', provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
         .catch(() => api.llmConnections.update('default', { provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }))
 
-      const names = modelName.split(',').map((s: string) => s.trim()).filter(Boolean)
-      if (names.length === 0) {
-        throw new Error('Enter at least one valid model name')
-      }
       const existing = await api.models.list()
-      const models: { id: string }[] = []
-      for (const name of names) {
+      const findOrCreate = async (name: string) => {
         const found = existing.find(m => m.connectionId === 'default' && m.name === name)
-        models.push(found ?? await api.models.create('default', name, ''))
+        return found ?? await api.models.create('default', name, '')
       }
 
-      const primaryModelId = models[0].id
-      const summaryModelId = models.length > 1 ? models[models.length - 1].id : ''
+      const validRows = modelRows.filter(r => r.name.trim())
+      const created: Record<string, { id: string }> = {}
+      for (const row of validRows) {
+        created[row.name.trim()] = await findOrCreate(row.name.trim())
+      }
+
+      const chatModelRow = validRows.find(r => r.role === 'chat')!
+      const summaryModelRow = validRows.find(r => r.role === 'summary')
+      const visionModelRow = validRows.find(r => r.role === 'vision')
+      const primaryModelId = created[chatModelRow.name.trim()].id
+      const summaryModelId = summaryModelRow ? created[summaryModelRow.name.trim()].id : ''
+      const imageModelId = visionModelRow ? created[visionModelRow.name.trim()].id : ''
 
       const existingPresets = await api.presets.list()
       const existingDefault = existingPresets.find(p => p.name === 'Default')
@@ -205,7 +243,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             name: 'Default',
             chatModelId: primaryModelId,
             summaryModelId,
-            imageModelId: '',
+            imageModelId,
             fallbackModelId: '',
             temperature: null,
             systemPrompt: '',
@@ -214,7 +252,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             name: 'Default',
             chatModelId: primaryModelId,
             summaryModelId,
-            imageModelId: '',
+            imageModelId,
             fallbackModelId: '',
             temperature: null,
             systemPrompt: '',
@@ -287,8 +325,49 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
                 <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
               </FormField>
               <div>
-                <Label>Models <span className="text-zinc-500 dark:text-zinc-600">(comma-separated; first = chat, last = summary)</span></Label>
-                <Input value={modelName} onChange={e => setModelName(e.target.value)} placeholder="gpt-4o-mini, gpt-4o" />
+                <Label>Models</Label>
+                <div className="space-y-2 mt-1.5">
+                  {modelRows.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={row.name}
+                        onChange={e => setModelRows(prev => prev.map((r, j) => j === i ? { ...r, name: e.target.value } : r))}
+                        placeholder="model name"
+                        className="flex-1"
+                      />
+                      <select
+                        value={row.role}
+                        onChange={e => {
+                          const newRole = e.target.value as 'chat' | 'summary' | 'vision' | ''
+                          setModelRows(prev => prev.map((r, j) => {
+                            if (j === i) return { ...r, role: newRole }
+                            if (newRole && r.role === newRole) return { ...r, role: '' }
+                            return r
+                          }))
+                        }}
+                        className="w-28 shrink-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-2 text-xs text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500/50"
+                      >
+                        <option value="">—</option>
+                        <option value="chat">chat</option>
+                        <option value="summary">summary</option>
+                        <option value="vision">vision</option>
+                      </select>
+                      {modelRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setModelRows(prev => prev.filter((_, j) => j !== i))}
+                          className="text-zinc-400 hover:text-red-400 text-sm px-1"
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setModelRows(prev => [...prev, { name: '', role: '' }])}
+                    className="text-[12px] text-teal-600 dark:text-teal-400 hover:underline"
+                  >+ Add model</button>
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1.5">Mark one as <span className="font-medium">chat</span> (required). Optionally: <span className="font-medium">summary</span> for titles & memory, <span className="font-medium">vision</span> for image understanding.</p>
               </div>
             </div>
           </div>

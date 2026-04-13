@@ -94,6 +94,9 @@ func (s *ArtifactStore) Put(name string, data []byte, mime string) (ArtifactMeta
 	if format == "" {
 		format = formatFromMIME(mime)
 	}
+	if mime == "" && format != "" {
+		mime = mimeFromFormat(format)
+	}
 	now := time.Now().UTC()
 	meta := Artifact{
 		ID:        uuid.New().String(),
@@ -327,6 +330,41 @@ func formatFromName(name string) string {
 		return ""
 	}
 	return strings.ToLower(strings.TrimPrefix(ext, "."))
+}
+
+func mimeFromFormat(format string) string {
+	switch strings.ToLower(format) {
+	case "png":
+		return "image/png"
+	case "jpg", "jpeg":
+		return "image/jpeg"
+	case "webp":
+		return "image/webp"
+	case "gif":
+		return "image/gif"
+	case "svg":
+		return "image/svg+xml"
+	case "pdf":
+		return "application/pdf"
+	case "txt":
+		return "text/plain"
+	case "json":
+		return "application/json"
+	case "md":
+		return "text/markdown"
+	case "mp3":
+		return "audio/mpeg"
+	case "m4a":
+		return "audio/mp4"
+	case "ogg":
+		return "audio/ogg"
+	case "wav":
+		return "audio/wav"
+	case "mp4":
+		return "video/mp4"
+	default:
+		return ""
+	}
 }
 
 func formatFromMIME(mime string) string {

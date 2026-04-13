@@ -167,7 +167,7 @@ export default function LogsPage() {
   const connName = (id: string) => connections.find(c => c.id === id)?.name ?? id.slice(0, 8)
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Session Logs</h1>

@@ -162,6 +162,8 @@ export interface Channel {
 export interface ChatSession {
   id: string
   title: string
+  source?: string
+  active?: boolean
   createdAt: string
 }
 
@@ -184,6 +186,13 @@ export interface Step {
   finishedAt?: string
 }
 
+export interface Attachment {
+  id: string
+  fileName: string
+  mimeType: string
+  size: number
+}
+
 export interface ChatMessage {
   id: string
   sessionId: string
@@ -197,6 +206,7 @@ export interface ChatMessage {
   presetName?: string
   modelRole?: string
   steps?: Step[]
+  attachments?: Attachment[]
   createdAt: string
 }
 

@@ -75,7 +75,7 @@ func (uc *ListMessages) list(ctx context.Context, limit, offset int, sessionID, 
 	}
 	if source != "" {
 		query.Filter = map[string]string{"source": source}
-	} else {
+	} else if sessionID == "" || !isPlanSession(sessionID) {
 		query.FilterNot = map[string]string{"source": "plan"}
 	}
 	if sessionID != "" {
@@ -89,4 +89,8 @@ func (uc *ListMessages) list(ctx context.Context, limit, offset int, sessionID, 
 		items = []types.ChatMessage{}
 	}
 	return items, err
+}
+
+func isPlanSession(id string) bool {
+	return len(id) > 5 && id[:5] == "plan:"
 }

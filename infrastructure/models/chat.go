@@ -11,6 +11,7 @@ type ChatSessionRow struct {
 	bun.BaseModel `bun:"table:chat_sessions"`
 	ID            string    `bun:"id,pk"`
 	Title         string    `bun:"title"`
+	Source        string    `bun:"source"`
 	CreatedAt     time.Time `bun:"created_at"`
 }
 
@@ -28,5 +29,6 @@ type ChatMessageRow struct {
 	PresetName    string          `bun:"preset_name"`
 	ModelRole     string          `bun:"model_role"`
 	Steps         json.RawMessage `bun:"steps,type:jsonb"`
+	Attachments   json.RawMessage `bun:"attachments,type:jsonb"`
 	CreatedAt     time.Time       `bun:"created_at"`
 }

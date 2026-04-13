@@ -126,6 +126,7 @@ func planFromCreateInput(input *CreatePlanInput) types.Plan {
 		Description: input.Body.Description,
 		Schedule:    input.Body.Schedule,
 		Enabled:     input.Body.Enabled,
+		Parameters:  input.Body.Parameters,
 		Graph:       input.Body.Graph,
 	}
 }
@@ -137,6 +138,7 @@ func planFromUpdateInput(input *UpdatePlanInput) types.Plan {
 		Description: input.Body.Description,
 		Schedule:    input.Body.Schedule,
 		Enabled:     input.Body.Enabled,
+		Parameters:  input.Body.Parameters,
 		Graph:       input.Body.Graph,
 	}
 }

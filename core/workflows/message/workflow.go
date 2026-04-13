@@ -60,6 +60,10 @@ func New(
 	}
 }
 
+func (w *Workflow) SetAttachmentDir(dir string) {
+	w.pipeline.SetAttachmentDir(dir)
+}
+
 func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 	sessionID := strings.TrimSpace(in.SessionID)
 	if sessionID == "" {

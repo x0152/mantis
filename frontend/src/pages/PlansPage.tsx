@@ -19,24 +19,39 @@ const emptyPlan: Plan = {
   graph: { nodes: [], edges: [] },
 }
 
-export default function PlansPage() {
+export default function PlansPage({ deepPlanId }: { deepPlanId?: string }) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      setPlans(await api.plans.list())
+      const list = await api.plans.list()
+      setPlans(list)
+      return list
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load')
+      return []
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!deepPlanId) return
+    const found = plans.find(p => p.id === deepPlanId)
+    if (found) {
+      setActivePlan(found)
+    } else if (!loading) {
+      load().then(list => {
+        const p = list.find((x: Plan) => x.id === deepPlanId)
+        if (p) setActivePlan(p)
+      })
+    }
+  }, [deepPlanId])
 
   const toggleEnabled = async (plan: Plan, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -78,7 +93,7 @@ export default function PlansPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Plans</h1>

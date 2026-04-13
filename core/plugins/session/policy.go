@@ -28,6 +28,9 @@ type Input struct {
 
 	// For ModeLatestOrCreate only.
 	ExcludePrefixes []string
+
+	Source string
+	Title  string
 }
 
 type Output struct {
@@ -61,7 +64,7 @@ func (p *Policy) Execute(ctx context.Context, in Input) (Output, error) {
 		if strings.TrimSpace(in.SessionID) == "" {
 			return Output{}, fmt.Errorf("session_id is required for mode %q", ModeEnsure)
 		}
-		return p.ensure(ctx, in.SessionID)
+		return p.ensure(ctx, in.SessionID, in.Source, in.Title)
 	default:
 		return Output{}, fmt.Errorf("unknown session mode: %q", in.Mode)
 	}
@@ -90,7 +93,7 @@ func (p *Policy) latestOrCreate(ctx context.Context, excludePrefixes []string) (
 	return Output{Session: s, Created: err == nil}, err
 }
 
-func (p *Policy) ensure(ctx context.Context, sessionID string) (Output, error) {
+func (p *Policy) ensure(ctx context.Context, sessionID, source, title string) (Output, error) {
 	existing, err := p.store.Get(ctx, []string{sessionID})
 	if err != nil {
 		return Output{}, err
@@ -99,16 +102,23 @@ func (p *Policy) ensure(ctx context.Context, sessionID string) (Output, error) {
 		return Output{Session: s}, nil
 	}
 
-	s, err := p.create(ctx, sessionID)
+	s, err := p.create(ctx, sessionID, source, title)
 	return Output{Session: s, Created: err == nil}, err
 }
 
-func (p *Policy) create(ctx context.Context, id string) (types.ChatSession, error) {
+func (p *Policy) create(ctx context.Context, id string, extras ...string) (types.ChatSession, error) {
 	if strings.TrimSpace(id) == "" {
 		id = p.newIDFn()
 	}
+	var source, title string
+	if len(extras) > 0 {
+		source = extras[0]
+	}
+	if len(extras) > 1 {
+		title = extras[1]
+	}
 	now := p.nowFn()
-	created, err := p.store.Create(ctx, []types.ChatSession{{ID: id, CreatedAt: now}})
+	created, err := p.store.Create(ctx, []types.ChatSession{{ID: id, Source: source, Title: title, CreatedAt: now}})
 	if err != nil {
 		return types.ChatSession{}, err
 	}

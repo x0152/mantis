@@ -5,14 +5,16 @@ import (
 
 	"mantis/core/protocols"
 	"mantis/core/types"
+	"mantis/shared"
 )
 
 type ListSessions struct {
-	store protocols.Store[string, types.ChatSession]
+	store  protocols.Store[string, types.ChatSession]
+	buffer *shared.Buffer
 }
 
-func NewListSessions(store protocols.Store[string, types.ChatSession]) *ListSessions {
-	return &ListSessions{store: store}
+func NewListSessions(store protocols.Store[string, types.ChatSession], buffer *shared.Buffer) *ListSessions {
+	return &ListSessions{store: store, buffer: buffer}
 }
 
 func (uc *ListSessions) Execute(ctx context.Context, limit, offset int) ([]types.ChatSession, error) {
@@ -24,23 +26,28 @@ func (uc *ListSessions) Execute(ctx context.Context, limit, offset int) ([]types
 	}
 
 	items, err := uc.store.List(ctx, types.ListQuery{
-		Page:      types.Page{Limit: limit, Offset: offset},
-		Sort:      []types.Sort{{Field: "created_at", Dir: types.SortDirDesc}},
-		FilterNot: map[string]string{"id": "plan:%"},
+		Page: types.Page{Limit: limit, Offset: offset},
+		Sort: []types.Sort{{Field: "created_at", Dir: types.SortDirDesc}},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var result []types.ChatSession
-	for _, s := range items {
-		if len(s.ID) > 5 && s.ID[:5] == "plan:" {
-			continue
+	if items == nil {
+		items = []types.ChatSession{}
+	}
+
+	if uc.buffer != nil {
+		active := make(map[string]struct{})
+		for _, id := range uc.buffer.ActiveSessionIDs() {
+			active[id] = struct{}{}
 		}
-		result = append(result, s)
+		for i := range items {
+			if _, ok := active[items[i].ID]; ok {
+				items[i].Active = true
+			}
+		}
 	}
-	if result == nil {
-		result = []types.ChatSession{}
-	}
-	return result, nil
+
+	return items, nil
 }

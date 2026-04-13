@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -150,7 +152,9 @@ func main() {
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 	memoryExtractor := memory.NewExtractor(openaiAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
 
-	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor)
+	attachmentDir := env("ATTACHMENT_DIR", "/data/attachments")
+
+	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor, buf)
 	mantisAgent.SetPlanRunner(plansApp.Runner())
 
 	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, planStore, planRunStore, plansApp.Runner(), guardProfileStore, channelStore)
@@ -158,10 +162,40 @@ func main() {
 	logsApp := logs.NewApp(logStore)
 	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)
 
+	chatApp.SetAttachmentDir(attachmentDir)
+	plansApp.SetAttachmentDir(attachmentDir)
+
 	go telegramApp.Start(context.Background())
 	go plansApp.Start(context.Background())
 
 	r := chi.NewMux()
+
+	r.Get("/api/artifacts/{sessionId}/{artifactId}", func(w http.ResponseWriter, r *http.Request) {
+		sessionID := chi.URLParam(r, "sessionId")
+		artifactID := chi.URLParam(r, "artifactId")
+
+		store := artifactMgr.ForSession(sessionID)
+		if a, ok := store.Get(artifactID); ok {
+			serveBinary(w, a.Bytes, a.MIME, a.Name)
+			return
+		}
+
+		dataPath := filepath.Join(attachmentDir, artifactID)
+		data, err := os.ReadFile(dataPath)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		var meta struct {
+			MIME string `json:"mime"`
+			Name string `json:"name"`
+		}
+		if raw, err := os.ReadFile(dataPath + ".json"); err == nil {
+			_ = json.Unmarshal(raw, &meta)
+		}
+		serveBinary(w, data, meta.MIME, meta.Name)
+	})
+
 	api := humachi.New(r, huma.DefaultConfig("Mantis API", "1.0.0"))
 	metadataApp.Register(api)
 	chatApp.Register(api)
@@ -177,4 +211,16 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func serveBinary(w http.ResponseWriter, data []byte, mime, name string) {
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "private, max-age=1800")
+	if name != "" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", name))
+	}
+	w.Write(data)
 }

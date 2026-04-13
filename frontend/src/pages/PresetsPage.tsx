@@ -173,7 +173,7 @@ export default function PresetsPage() {
   ]
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Presets</h1>

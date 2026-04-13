@@ -21,6 +21,7 @@ import (
 
 type App struct {
 	endpoints *api.Endpoints
+	workflow  *messageworkflow.Workflow
 }
 
 func NewApp(
@@ -38,10 +39,11 @@ func NewApp(
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
 	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor)
 	return &App{
+		workflow: workflow,
 		endpoints: api.NewEndpoints(api.UseCases{
 			GetCurrentSession: usecases.NewGetCurrentSession(sessionStore),
 			ResetContext:      usecases.NewResetContext(sessionStore),
-			ListSessions:      usecases.NewListSessions(sessionStore),
+			ListSessions:      usecases.NewListSessions(sessionStore, buf),
 			CreateSession:     usecases.NewCreateSession(sessionStore),
 			UpdateSession:     usecases.NewUpdateSession(sessionStore),
 			DeleteSession:     usecases.NewDeleteSession(sessionStore, messageStore),
@@ -50,6 +52,10 @@ func NewApp(
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
 		}),
 	}
+}
+
+func (a *App) SetAttachmentDir(dir string) {
+	a.workflow.SetAttachmentDir(dir)
 }
 
 func (a *App) Register(api huma.API) {

@@ -16,6 +16,7 @@ import (
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
+	"mantis/shared"
 )
 
 const maxTransitions = 50
@@ -26,6 +27,7 @@ type Runner struct {
 	messageStore  protocols.Store[string, types.ChatMessage]
 	sessionPolicy *sessionplugin.Policy
 	workflow      *messageworkflow.Workflow
+	buffer        *shared.Buffer
 
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc
@@ -38,6 +40,7 @@ func NewRunner(
 	messageStore protocols.Store[string, types.ChatMessage],
 	sessionPolicy *sessionplugin.Policy,
 	workflow *messageworkflow.Workflow,
+	buffer *shared.Buffer,
 ) *Runner {
 	return &Runner{
 		planStore:     planStore,
@@ -45,6 +48,7 @@ func NewRunner(
 		messageStore:  messageStore,
 		sessionPolicy: sessionPolicy,
 		workflow:      workflow,
+		buffer:        buffer,
 		cancels:       make(map[string]context.CancelFunc),
 		done:          make(map[string]chan struct{}),
 	}
@@ -165,9 +169,16 @@ func (r *Runner) execute(ctx context.Context, plan types.Plan, run types.PlanRun
 
 	sessionID := fmt.Sprintf("plan:%s:%s", plan.ID, run.ID)
 
+	if r.buffer != nil {
+		r.buffer.MarkSessionActive(sessionID)
+		defer r.buffer.MarkSessionInactive(sessionID)
+	}
+
 	if _, err := r.sessionPolicy.Execute(ctx, sessionplugin.Input{
 		Mode:      sessionplugin.ModeEnsure,
 		SessionID: sessionID,
+		Source:    "plan",
+		Title:     fmt.Sprintf("Plan: %s", plan.Name),
 	}); err != nil {
 		log.Printf("plans: ensure session: %v", err)
 		r.finishRun(&run, "failed")

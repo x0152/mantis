@@ -57,9 +57,6 @@ artifacts_list — list temporary in-memory artifacts.
 artifact_read_text — preview a text artifact (avoids pulling large files into context).
   Parameter artifactId.
 
-artifact_send_to_chat — queue an artifact for delivery to the user.
-  Parameter artifactId.
-
 artifact_transcribe — speech-to-text on an audio artifact.
   Parameter artifactId.
 
@@ -71,6 +68,9 @@ send_notification — send a notification message to the user via Telegram.
   Use this to deliver alerts, reports, or any important information directly to the user.
 
 plan_list — list all plans (both scheduled tasks and complex workflows). Returns id, name, schedule, enabled status, parameters.
+
+plan_get — get full details of a plan by id: all steps (nodes with prompts), edges, and parameters. Use to inspect what a plan does before running it.
+  Parameter id: plan ID.
 
 plan_run — trigger execution of a plan by id. The plan runs asynchronously.
   Parameters: id (plan ID), input (optional object with parameter values if the plan defines parameters).
@@ -290,7 +290,15 @@ func (a *MantisAgent) loadUserMemories() []string {
 
 func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifacts *shared.ArtifactStore, source, replyChannel, replyTo string) string {
 	var sb strings.Builder
-	sb.WriteString(mantisBasePrompt)
+	prompt := mantisBasePrompt
+	prompt = strings.Replace(prompt,
+		"artifact_read_text — preview a text artifact",
+		"send_file — send an artifact (file/image) to the user.\n  Parameter artifactId.\n\nartifact_read_text — preview a text artifact",
+		1)
+	if source == "plan" {
+		prompt = "You are a step executor in a pipeline. Do ONLY what the current message asks. Do NOT add extra steps or actions.\n\n" + prompt
+	}
+	sb.WriteString(prompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
 
 	if userMem := a.loadUserMemories(); len(userMem) > 0 {
@@ -374,15 +382,20 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 	tools = append(tools,
 		artifactsListTool(artifacts, requestID),
 		artifactReadTextTool(artifacts),
-		artifactSendToChatTool(artifacts, requestID),
 		artifactTranscribeTool(artifacts, a.asr),
 		a.artifactReadImageTool(artifacts),
 		a.sendNotificationTool(),
 		sumTool(),
 	)
+	if source == "plan" {
+		tools = append(tools, a.sendFileTelegramTool(artifacts))
+	} else {
+		tools = append(tools, sendFileChatTool(artifacts, requestID))
+	}
 	if source != "plan" {
 		tools = append(tools,
 			a.planListTool(),
+			a.planGetTool(),
 			a.planRunTool(),
 			a.planCreateTool(),
 			a.planUpdateTool(),
@@ -462,6 +475,3 @@ func (a *MantisAgent) loadDefaultPresetID(slot string) string {
 		return ""
 	}
 }
-
-
-

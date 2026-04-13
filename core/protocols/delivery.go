@@ -7,10 +7,11 @@ import (
 )
 
 type FileAttachment struct {
-	FileName string
-	MimeType string
-	Data     []byte
-	Caption  string
+	ArtifactID string
+	FileName   string
+	MimeType   string
+	Data       []byte
+	Caption    string
 }
 
 type DeliveryRequest struct {

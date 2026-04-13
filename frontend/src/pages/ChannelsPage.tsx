@@ -45,12 +45,6 @@ export default function ChannelsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const openCreate = () => {
-    setEditing(null)
-    setForm({ name: '', token: '', presetId: '', allowedUserIds: '' })
-    setModalOpen(true)
-  }
-
   const openEdit = (c: Channel) => {
     setEditing(c)
     setForm({
@@ -99,15 +93,18 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Channels</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">Chat channel is default; Telegram channels can be added</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus size={14} /> Add Telegram Channel
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" disabled className="opacity-50 cursor-not-allowed">
+            <Plus size={14} /> Add Channel
+          </Button>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-600">Coming soon</span>
+        </div>
       </div>
 
       {loading ? (

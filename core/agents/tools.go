@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -154,7 +155,7 @@ func skillParametersSchema(raw json.RawMessage) map[string]any {
 }
 
 func renderSkillScript(source string, args map[string]any) (string, error) {
-	tmpl, err := template.New("skill").Option("missingkey=error").Parse(source)
+	tmpl, err := template.New("skill").Option("missingkey=zero").Parse(source)
 	if err != nil {
 		return "", err
 	}
@@ -517,23 +518,99 @@ func (a *MantisAgent) planListTool() types.Tool {
 				items = []types.Plan{}
 			}
 			type planSummary struct {
-				ID          string          `json:"id"`
-				Name        string          `json:"name"`
-				Description string          `json:"description"`
-				Schedule    string          `json:"schedule"`
-				Enabled     bool            `json:"enabled"`
-				Nodes       int             `json:"nodes"`
-				Parameters  json.RawMessage `json:"parameters,omitempty"`
+				ID          string `json:"id"`
+				Name        string `json:"name"`
+				Description string `json:"description,omitempty"`
+				Schedule    string `json:"schedule,omitempty"`
+				Enabled     bool   `json:"enabled"`
+				Nodes       int    `json:"nodes"`
+				HasParams   bool   `json:"hasParams,omitempty"`
 			}
 			summaries := make([]planSummary, len(items))
 			for i, p := range items {
+				hasParams := len(p.Parameters) > 0 && string(p.Parameters) != "{}" && string(p.Parameters) != "null"
 				summaries[i] = planSummary{
 					ID: p.ID, Name: p.Name, Description: p.Description,
 					Schedule: p.Schedule, Enabled: p.Enabled, Nodes: len(p.Graph.Nodes),
-					Parameters: p.Parameters,
+					HasParams: hasParams,
 				}
 			}
 			out, _ := json.Marshal(map[string]any{"plans": summaries})
+			return string(out), nil
+		},
+	}
+}
+
+func (a *MantisAgent) planGetTool() types.Tool {
+	return types.Tool{
+		Name:        "plan_get",
+		Description: "Get full details of a plan by ID, including all steps (nodes), edges, and parameters. Use this to inspect what a plan does before running it.",
+		Icon:        "git-branch",
+		Label: func(args string) string {
+			var input struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal([]byte(args), &input)
+			if input.ID != "" {
+				return "Inspect plan " + input.ID[:min(8, len(input.ID))]
+			}
+			return "Inspect plan"
+		},
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{"type": "string", "description": "Plan ID"},
+			},
+			"required": []string{"id"},
+		},
+		Execute: func(ctx context.Context, args string) (string, error) {
+			if a.planStore == nil {
+				return "", fmt.Errorf("plans are not configured")
+			}
+			var input struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			plans, err := a.planStore.Get(ctx, []string{input.ID})
+			if err != nil {
+				return "", err
+			}
+			p, ok := plans[input.ID]
+			if !ok {
+				return "", fmt.Errorf("plan not found: %s", input.ID)
+			}
+			type nodeDetail struct {
+				ID           string `json:"id"`
+				Type         string `json:"type"`
+				Label        string `json:"label"`
+				Prompt       string `json:"prompt"`
+				ClearContext bool   `json:"clearContext,omitempty"`
+			}
+			type edgeDetail struct {
+				Source string `json:"source"`
+				Target string `json:"target"`
+				Label  string `json:"label,omitempty"`
+			}
+			nodes := make([]nodeDetail, len(p.Graph.Nodes))
+			for i, n := range p.Graph.Nodes {
+				nodes[i] = nodeDetail{ID: n.ID, Type: string(n.Type), Label: n.Label, Prompt: n.Prompt, ClearContext: n.ClearContext}
+			}
+			edges := make([]edgeDetail, len(p.Graph.Edges))
+			for i, e := range p.Graph.Edges {
+				edges[i] = edgeDetail{Source: e.Source, Target: e.Target, Label: e.Label}
+			}
+			out, _ := json.Marshal(map[string]any{
+				"id":          p.ID,
+				"name":        p.Name,
+				"description": p.Description,
+				"schedule":    p.Schedule,
+				"enabled":     p.Enabled,
+				"parameters":  p.Parameters,
+				"nodes":       nodes,
+				"edges":       edges,
+			})
 			return string(out), nil
 		},
 	}
@@ -598,12 +675,12 @@ func (a *MantisAgent) planRunTool() types.Tool {
 }
 
 type planStep struct {
-	ID       string `json:"id,omitempty"`
-	Type     string `json:"type"`
-	Label    string `json:"label,omitempty"`
-	Prompt   string `json:"prompt,omitempty"`
-	Yes      string `json:"yes,omitempty"`
-	No       string `json:"no,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Type   string `json:"type"`
+	Label  string `json:"label,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
+	Yes    string `json:"yes,omitempty"`
+	No     string `json:"no,omitempty"`
 }
 
 const maxAgentPlanSteps = 15
@@ -1013,10 +1090,10 @@ func artifactReadTextTool(artifacts *shared.ArtifactStore) types.Tool {
 	}
 }
 
-func artifactSendToChatTool(artifacts *shared.ArtifactStore, requestID string) types.Tool {
+func sendFileChatTool(artifacts *shared.ArtifactStore, requestID string) types.Tool {
 	return types.Tool{
-		Name:        "artifact_send_to_chat",
-		Description: "Mark an artifact for delivery to the requester (if the channel supports sending files).",
+		Name:        "send_file",
+		Description: "Send an artifact (file/image) to the user.",
 		Icon:        "download",
 		Label: func(args string) string {
 			var input struct {
@@ -1075,6 +1152,118 @@ func artifactSendToChatTool(artifacts *shared.ArtifactStore, requestID string) t
 			return string(b), nil
 		},
 	}
+}
+
+func (a *MantisAgent) sendFileTelegramTool(artifacts *shared.ArtifactStore) types.Tool {
+	return types.Tool{
+		Name:        "send_file",
+		Description: "Send an artifact (file/image) to the user.",
+		Icon:        "download",
+		Label: func(args string) string {
+			var input struct {
+				FileName string `json:"fileName"`
+			}
+			json.Unmarshal([]byte(args), &input)
+			if input.FileName != "" {
+				return "Send: " + input.FileName
+			}
+			return "Send file"
+		},
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"artifactId": map[string]any{"type": "string", "description": "Artifact ID to send"},
+				"fileName":   map[string]any{"type": "string", "description": "Optional file name (defaults to artifact name)"},
+				"caption":    map[string]any{"type": "string", "description": "Optional caption"},
+			},
+			"required": []string{"artifactId"},
+		},
+		Execute: func(ctx context.Context, args string) (string, error) {
+			var input struct {
+				ArtifactID string `json:"artifactId"`
+				FileName   string `json:"fileName"`
+				Caption    string `json:"caption"`
+			}
+			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			art, ok := artifacts.Get(input.ArtifactID)
+			if !ok {
+				return "", fmt.Errorf("artifact %q not found", input.ArtifactID)
+			}
+			fileName := input.FileName
+			if fileName == "" {
+				fileName = art.Name
+			}
+
+			channels, err := a.channelStore.List(ctx, types.ListQuery{})
+			if err != nil {
+				return "", fmt.Errorf("failed to load channels: %w", err)
+			}
+			var token string
+			var chatID int64
+			for _, ch := range channels {
+				if ch.Type != "telegram" || strings.TrimSpace(ch.Token) == "" {
+					continue
+				}
+				if token == "" {
+					token = strings.TrimSpace(ch.Token)
+				}
+				if len(ch.AllowedUserIDs) > 0 {
+					chatID = ch.AllowedUserIDs[0]
+					token = strings.TrimSpace(ch.Token)
+					break
+				}
+			}
+			if token == "" {
+				return "", fmt.Errorf("no telegram channel configured")
+			}
+			if chatID == 0 {
+				return "", fmt.Errorf("no telegram recipient found")
+			}
+
+			if err := sendTelegramDocument(ctx, token, chatID, fileName, art.Bytes, input.Caption); err != nil {
+				return "", err
+			}
+			out, _ := json.Marshal(map[string]any{"ok": true, "channel": "telegram", "chatId": chatID, "fileName": fileName})
+			return string(out), nil
+		},
+	}
+}
+
+func sendTelegramDocument(ctx context.Context, token string, chatID int64, fileName string, data []byte, caption string) error {
+	u := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", token)
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("chat_id", fmt.Sprintf("%d", chatID))
+	if caption != "" {
+		_ = w.WriteField("caption", caption)
+	}
+	part, err := w.CreateFormFile("document", fileName)
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(data); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", u, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram API error %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 func artifactTranscribeTool(artifacts *shared.ArtifactStore, asr protocols.ASR) types.Tool {

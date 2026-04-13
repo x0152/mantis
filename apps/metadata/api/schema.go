@@ -168,12 +168,12 @@ type CreateConnectionInput struct {
 	Body struct {
 		Type          string          `json:"type" required:"true" enum:"ssh"`
 		Name          string          `json:"name" required:"true" minLength:"1"`
-		Description   string          `json:"description"`
-		ModelID       string          `json:"modelId"`
-		PresetID      string          `json:"presetId"`
+		Description   string          `json:"description" required:"false"`
+		ModelID       string          `json:"modelId" required:"false"`
+		PresetID      string          `json:"presetId" required:"false"`
 		Config        json.RawMessage `json:"config" required:"true"`
-		ProfileIDs    []string        `json:"profileIds"`
-		MemoryEnabled *bool           `json:"memoryEnabled"`
+		ProfileIDs    []string        `json:"profileIds" required:"false"`
+		MemoryEnabled *bool           `json:"memoryEnabled" required:"false"`
 	}
 }
 
@@ -182,12 +182,12 @@ type UpdateConnectionInput struct {
 	Body struct {
 		Type          string          `json:"type" required:"true" enum:"ssh"`
 		Name          string          `json:"name" required:"true" minLength:"1"`
-		Description   string          `json:"description"`
-		ModelID       string          `json:"modelId"`
-		PresetID      string          `json:"presetId"`
+		Description   string          `json:"description" required:"false"`
+		ModelID       string          `json:"modelId" required:"false"`
+		PresetID      string          `json:"presetId" required:"false"`
 		Config        json.RawMessage `json:"config" required:"true"`
-		ProfileIDs    []string        `json:"profileIds"`
-		MemoryEnabled *bool           `json:"memoryEnabled"`
+		ProfileIDs    []string        `json:"profileIds" required:"false"`
+		MemoryEnabled *bool           `json:"memoryEnabled" required:"false"`
 	}
 }
 
@@ -221,6 +221,7 @@ type CreatePlanInput struct {
 		Description string          `json:"description"`
 		Schedule    string          `json:"schedule"`
 		Enabled     bool            `json:"enabled"`
+		Parameters  json.RawMessage `json:"parameters"`
 		Graph       types.PlanGraph `json:"graph"`
 	}
 }
@@ -232,6 +233,7 @@ type UpdatePlanInput struct {
 		Description string          `json:"description"`
 		Schedule    string          `json:"schedule"`
 		Enabled     bool            `json:"enabled"`
+		Parameters  json.RawMessage `json:"parameters"`
 		Graph       types.PlanGraph `json:"graph"`
 	}
 }
@@ -309,21 +311,21 @@ type ChannelIDInput struct {
 type CreateChannelInput struct {
 	Body struct {
 		Type           string  `json:"type" required:"true" enum:"telegram"`
-		Name           string  `json:"name"`
+		Name           string  `json:"name" required:"false"`
 		Token          string  `json:"token" required:"true" minLength:"1"`
-		ModelID        string  `json:"modelId"`
-		PresetID       string  `json:"presetId"`
-		AllowedUserIDs []int64 `json:"allowedUserIds"`
+		ModelID        string  `json:"modelId" required:"false"`
+		PresetID       string  `json:"presetId" required:"false"`
+		AllowedUserIDs []int64 `json:"allowedUserIds" required:"false"`
 	}
 }
 
 type UpdateChannelInput struct {
 	ID   string `path:"id"`
 	Body struct {
-		Name           string  `json:"name"`
-		Token          string  `json:"token"`
-		ModelID        string  `json:"modelId"`
-		PresetID       string  `json:"presetId"`
-		AllowedUserIDs []int64 `json:"allowedUserIds"`
+		Name           string  `json:"name" required:"false"`
+		Token          string  `json:"token" required:"false"`
+		ModelID        string  `json:"modelId" required:"false"`
+		PresetID       string  `json:"presetId" required:"false"`
+		AllowedUserIDs []int64 `json:"allowedUserIds" required:"false"`
 	}
 }

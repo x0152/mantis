@@ -8,17 +8,22 @@ import (
 )
 
 type BufferEntry struct {
-	Content string
-	Steps   []types.Step
+	SessionID string
+	Content   string
+	Steps     []types.Step
 }
 
 type Buffer struct {
-	mu   sync.RWMutex
-	data map[string]*BufferEntry
+	mu             sync.RWMutex
+	data           map[string]*BufferEntry
+	activeSessions map[string]struct{}
 }
 
 func NewBuffer() *Buffer {
-	return &Buffer{data: make(map[string]*BufferEntry)}
+	return &Buffer{
+		data:           make(map[string]*BufferEntry),
+		activeSessions: make(map[string]struct{}),
+	}
 }
 
 func (b *Buffer) entry(id string) *BufferEntry {
@@ -28,6 +33,12 @@ func (b *Buffer) entry(id string) *BufferEntry {
 		b.data[id] = e
 	}
 	return e
+}
+
+func (b *Buffer) SetSessionID(id, sessionID string) {
+	b.mu.Lock()
+	b.entry(id).SessionID = sessionID
+	b.mu.Unlock()
 }
 
 func (b *Buffer) SetContent(id, content string) {
@@ -70,6 +81,37 @@ func (b *Buffer) Delete(id string) {
 	b.mu.Lock()
 	delete(b.data, id)
 	b.mu.Unlock()
+}
+
+func (b *Buffer) MarkSessionActive(sessionID string) {
+	b.mu.Lock()
+	b.activeSessions[sessionID] = struct{}{}
+	b.mu.Unlock()
+}
+
+func (b *Buffer) MarkSessionInactive(sessionID string) {
+	b.mu.Lock()
+	delete(b.activeSessions, sessionID)
+	b.mu.Unlock()
+}
+
+func (b *Buffer) ActiveSessionIDs() []string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	seen := map[string]struct{}{}
+	for _, e := range b.data {
+		if e.SessionID != "" {
+			seen[e.SessionID] = struct{}{}
+		}
+	}
+	for id := range b.activeSessions {
+		seen[id] = struct{}{}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func StepsToJSON(steps []types.Step) json.RawMessage {
