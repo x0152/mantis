@@ -10,7 +10,7 @@ import (
 func PlanRunToRow(r types.PlanRun) models.PlanRunRow {
 	steps, _ := json.Marshal(r.Steps)
 	input, _ := json.Marshal(r.Input)
-	if len(input) == 0 {
+	if len(input) == 0 || string(input) == "null" {
 		input = json.RawMessage(`{}`)
 	}
 	return models.PlanRunRow{

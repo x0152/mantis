@@ -813,36 +813,49 @@ func (a *MantisAgent) planCreateTool() types.Tool {
 	}
 }
 
-func (a *MantisAgent) planToggleTool() types.Tool {
+func (a *MantisAgent) planUpdateTool() types.Tool {
 	return types.Tool{
-		Name:        "plan_toggle",
-		Description: "Enable or disable a plan (scheduled task). Use plan_list first to find the plan ID.",
+		Name:        "plan_update",
+		Description: "Update plan settings (schedule, enabled, name, description). Use plan_list first to find the plan ID. To change plan steps, delete and recreate the plan.",
 		Icon:        "git-branch",
 		Label: func(args string) string {
 			var input struct {
-				Enabled *bool `json:"enabled"`
+				Schedule *string `json:"schedule"`
+				Enabled  *bool   `json:"enabled"`
 			}
 			_ = json.Unmarshal([]byte(args), &input)
+			if input.Schedule != nil {
+				return "Update plan schedule"
+			}
 			if input.Enabled != nil && !*input.Enabled {
 				return "Disable plan"
 			}
-			return "Enable plan"
+			if input.Enabled != nil && *input.Enabled {
+				return "Enable plan"
+			}
+			return "Update plan"
 		},
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"id":      map[string]any{"type": "string", "description": "Plan ID"},
-				"enabled": map[string]any{"type": "boolean", "description": "true to enable, false to disable"},
+				"id":          map[string]any{"type": "string", "description": "Plan ID"},
+				"enabled":     map[string]any{"type": "boolean", "description": "true to enable, false to disable"},
+				"schedule":    map[string]any{"type": "string", "description": "Cron expression (e.g. '0 9 * * *') or empty string to remove schedule"},
+				"name":        map[string]any{"type": "string", "description": "New plan name"},
+				"description": map[string]any{"type": "string", "description": "New plan description"},
 			},
-			"required": []string{"id", "enabled"},
+			"required": []string{"id"},
 		},
 		Execute: func(ctx context.Context, args string) (string, error) {
 			if a.planStore == nil {
 				return "", fmt.Errorf("plan store is not configured")
 			}
 			var input struct {
-				ID      string `json:"id"`
-				Enabled bool   `json:"enabled"`
+				ID          string  `json:"id"`
+				Enabled     *bool   `json:"enabled"`
+				Schedule    *string `json:"schedule"`
+				Name        *string `json:"name"`
+				Description *string `json:"description"`
 			}
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
 				return "", err
@@ -858,16 +871,28 @@ func (a *MantisAgent) planToggleTool() types.Tool {
 			if !ok {
 				return "", fmt.Errorf("plan %q not found", input.ID)
 			}
-			plan.Enabled = input.Enabled
+			if input.Enabled != nil {
+				plan.Enabled = *input.Enabled
+			}
+			if input.Schedule != nil {
+				plan.Schedule = *input.Schedule
+			}
+			if input.Name != nil && strings.TrimSpace(*input.Name) != "" {
+				plan.Name = strings.TrimSpace(*input.Name)
+			}
+			if input.Description != nil {
+				plan.Description = *input.Description
+			}
 			updated, err := a.planStore.Update(ctx, []types.Plan{plan})
 			if err != nil {
 				return "", err
 			}
 			out, _ := json.Marshal(map[string]any{
-				"ok":      true,
-				"id":      updated[0].ID,
-				"name":    updated[0].Name,
-				"enabled": updated[0].Enabled,
+				"ok":       true,
+				"id":       updated[0].ID,
+				"name":     updated[0].Name,
+				"schedule": updated[0].Schedule,
+				"enabled":  updated[0].Enabled,
 			})
 			return string(out), nil
 		},

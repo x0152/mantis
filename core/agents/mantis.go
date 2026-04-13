@@ -90,12 +90,13 @@ plan_create — create a multi-step agentic workflow plan.
     Simple scheduled task (1 step): steps=[{"type":"action","prompt":"Check disk usage and send notification"}], schedule="0 9 * * *"
     Multi-step with branching: steps=[{"type":"action","prompt":"Run health check"}, {"type":"decision","prompt":"Any issues found?","yes":"next","no":"ok"}, {"type":"action","prompt":"Send alert about issues"}, {"type":"action","prompt":"Log all clear","id":"ok"}]
 
-plan_toggle — enable or disable a plan by id.
-  Parameters: id, enabled (true/false).
+plan_update — update plan settings by id. All fields except id are optional — only provided fields are changed.
+  Parameters: id (required), enabled (bool), schedule (string, cron expression or empty to remove schedule), name (string), description (string).
+  Examples: change schedule: {"id":"...","schedule":"0 */6 * * *"}, disable: {"id":"...","enabled":false}, remove schedule: {"id":"...","schedule":""}.
 
-plan_delete — delete a plan by id. To modify a plan, delete it and create a new one.
+plan_delete — delete a plan by id. To modify plan steps, delete the plan and create a new one.
 
-IMPORTANT: Scheduled tasks, cron jobs, reminders, and plans are all "plans". For any recurring/scheduled task, use plan_create with a schedule. For complex workflows, use plan_create with multiple steps. Use plan_list / plan_toggle / plan_delete to manage existing plans. Only use plan_run when the user explicitly asks to run a plan immediately.
+IMPORTANT: Scheduled tasks, cron jobs, reminders, and plans are all "plans". For any recurring/scheduled task, use plan_create with a schedule. For complex workflows, use plan_create with multiple steps. Use plan_list / plan_update / plan_delete to manage existing plans. Use plan_update to change schedule, enable/disable, or rename. Only use plan_run when the user explicitly asks to run a plan immediately.
 
 All artifacts are temporary (~30 min TTL, in-memory).
 
@@ -384,7 +385,7 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 			a.planListTool(),
 			a.planRunTool(),
 			a.planCreateTool(),
-			a.planToggleTool(),
+			a.planUpdateTool(),
 			a.planDeleteTool(),
 		)
 	}
