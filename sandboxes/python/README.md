@@ -1,46 +1,46 @@
 # Python Sandbox
 
-Хост для выполнения Python-кода. Python 3.12 + предустановленные библиотеки для анализа данных, вычислений, парсинга и визуализации.
+Host for running Python code. Python 3.12 plus preinstalled libraries for data analysis, computation, parsing, and visualization.
 
-## Системная информация
+## System info
 
-- ОС: Debian (python:3.12-slim)
-- Пользователь: `mantis`
-- Домашняя директория: `/home/mantis`
+- OS: Debian (python:3.12-slim)
+- User: `mantis`
+- Home directory: `/home/mantis`
 - Shell: `/bin/bash`
 - Python: 3.12
-- pip: предустановлен
+- pip: preinstalled
 
-## Предустановленные библиотеки
+## Preinstalled libraries
 
-| Пакет | Описание |
+| Package | Description |
 |---|---|
-| ipython | Интерактивная Python-консоль |
-| numpy | Числовые вычисления, массивы |
-| pandas | Таблицы, CSV, анализ данных |
-| matplotlib | Графики и визуализация |
-| seaborn | Статистические графики |
-| scipy | Научные вычисления |
-| sympy | Символьная математика |
-| scikit-learn | Машинное обучение |
-| Pillow | Обработка изображений |
-| requests, httpx | HTTP-запросы |
-| beautifulsoup4, lxml | Парсинг HTML/XML |
-| pyyaml | Работа с YAML |
-| tabulate | Форматирование таблиц |
-| openpyxl | Чтение/запись Excel-файлов |
-| python-dateutil | Работа с датами |
-| tqdm | Прогресс-бары |
-| rich | Красивый вывод в терминал |
+| ipython | Interactive Python console |
+| numpy | Numerical computing, arrays |
+| pandas | Dataframes, CSV, data analysis |
+| matplotlib | Plots and visualization |
+| seaborn | Statistical charts |
+| scipy | Scientific computing |
+| sympy | Symbolic mathematics |
+| scikit-learn | Machine learning |
+| Pillow | Image processing |
+| requests, httpx | HTTP clients |
+| beautifulsoup4, lxml | HTML/XML parsing |
+| pyyaml | YAML support |
+| tabulate | Table formatting |
+| openpyxl | Read/write Excel files |
+| python-dateutil | Date utilities |
+| tqdm | Progress bars |
+| rich | Pretty terminal output |
 
-## Выполнение кода
+## Running code
 
-### Однострочник
+### One-liner
 ```bash
 python3 -c "print(2 ** 100)"
 ```
 
-### IPython (интерактивный)
+### IPython (interactive)
 ```bash
 ipython -c "
 import numpy as np
@@ -49,7 +49,7 @@ print('mean:', a.mean(), 'std:', a.std())
 "
 ```
 
-### Скрипт из файла
+### Script from a file
 ```bash
 cat > /home/mantis/script.py << 'SCRIPT'
 import pandas as pd
@@ -62,9 +62,9 @@ SCRIPT
 python3 /home/mantis/script.py
 ```
 
-## Типичные задачи
+## Common tasks
 
-### Анализ CSV
+### CSV analysis
 ```bash
 python3 -c "
 import pandas as pd
@@ -74,7 +74,7 @@ print(df.head(10).to_string())
 "
 ```
 
-### Построить график и сохранить в файл
+### Plot and save to a file
 ```bash
 python3 << 'SCRIPT'
 import matplotlib
@@ -87,13 +87,13 @@ plt.figure(figsize=(10, 6))
 plt.plot(x, np.sin(x), label='sin(x)')
 plt.plot(x, np.cos(x), label='cos(x)')
 plt.legend()
-plt.title('Тригонометрия')
+plt.title('Trigonometry')
 plt.savefig('/home/mantis/plot.png', dpi=150)
 print('Saved to /home/mantis/plot.png')
 SCRIPT
 ```
 
-### HTTP-запрос и парсинг JSON
+### HTTP request and JSON parsing
 ```bash
 python3 -c "
 import httpx, json
@@ -103,7 +103,7 @@ print(f\"Stars: {data['stargazers_count']}, Forks: {data['forks_count']}\")
 "
 ```
 
-### Парсинг HTML
+### HTML parsing
 ```bash
 python3 -c "
 import httpx
@@ -115,19 +115,19 @@ print(soup.get_text()[:500])
 "
 ```
 
-### Вычисления с sympy
+### Computation with sympy
 ```bash
 python3 -c "
 from sympy import *
 x = Symbol('x')
 expr = x**3 - 6*x**2 + 11*x - 6
-print('Корни:', solve(expr, x))
-print('Производная:', diff(expr, x))
-print('Интеграл:', integrate(expr, x))
+print('Roots:', solve(expr, x))
+print('Derivative:', diff(expr, x))
+print('Integral:', integrate(expr, x))
 "
 ```
 
-### Работа с изображениями (Pillow)
+### Working with images (Pillow)
 ```bash
 python3 -c "
 from PIL import Image
@@ -138,7 +138,7 @@ img.save('thumb.png')
 "
 ```
 
-### Машинное обучение (scikit-learn)
+### Machine learning (scikit-learn)
 ```bash
 python3 << 'SCRIPT'
 from sklearn.datasets import load_iris
@@ -154,24 +154,24 @@ print(f'Accuracy: {accuracy_score(y_test, clf.predict(X_test)):.2%}')
 SCRIPT
 ```
 
-## Установка дополнительных пакетов
+## Installing additional packages
 
 ```bash
 pip install <package-name>
 ```
 
-Примеры:
+Examples:
 ```bash
 pip install openai        # OpenAI API
-pip install tiktoken      # токенизация
-pip install fastapi uvicorn  # веб-сервер
+pip install tiktoken      # tokenization
+pip install fastapi uvicorn  # web server
 pip install sqlalchemy    # ORM
-pip install networkx      # графы
+pip install networkx      # graphs
 ```
 
-## Ограничения
+## Limitations
 
-- Нет GPU — только CPU-вычисления. Для тяжёлого ML учитывай время работы.
-- Данные не персистентны — файлы удаляются при перезапуске контейнера.
-- Для визуализации используется `Agg` backend (без GUI). Графики сохраняются в файлы (PNG, PDF, SVG).
-- Для отправки результата пользователю используй ssh_download + artifact_send_to_chat.
+- No GPU — CPU only. Account for runtime on heavy ML tasks.
+- Data is not persistent — files are deleted when the container restarts.
+- Visualization uses the `Agg` backend (no GUI). Save plots to files (PNG, PDF, SVG).
+- To send a result to the user, use `ssh_download` + `artifact_send_to_chat`.

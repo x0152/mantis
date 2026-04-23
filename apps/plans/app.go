@@ -50,13 +50,13 @@ func NewApp(
 	}
 
 	modelResolver := modelplugin.NewResolver(nil, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor, nil)
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 
 	return &App{
 		workflow:  workflow,
-		runner:    NewRunner(planStore, runStore, messageStore, sessionPolicy, workflow, buf),
+		runner:    NewRunner(planStore, runStore, messageStore, sessionPolicy, workflow, buf, agent.Limits()),
 		planStore: planStore,
 		entries:   make(map[string]robcron.EntryID),
 		parser:    parser,

@@ -1,90 +1,90 @@
 # Base Sandbox
 
-Базовый Linux-хост общего назначения на Alpine Linux.
+General-purpose Linux host based on Alpine Linux.
 
-## Системная информация
+## System info
 
-- ОС: Alpine Linux (linuxserver/openssh-server)
-- Пользователь: `mantis`
-- Домашняя директория: `/config` (linuxserver convention)
+- OS: Alpine Linux (linuxserver/openssh-server)
+- User: `mantis`
+- Home directory: `/config` (linuxserver convention)
 - Shell: `/bin/bash`
 
-## Предустановленные утилиты
+## Preinstalled utilities
 
-### Файловая система
+### Filesystem
 ```
-ls, cat, head, tail, find, grep, wc    — просмотр и поиск
-cp, mv, rm, mkdir, chmod, chown        — управление файлами
-tar, gzip, unzip                       — архивация
-du, df                                  — использование диска
-```
-
-### Сеть
-```
-curl, wget         — HTTP-запросы и загрузка файлов
-ping, traceroute   — диагностика сети
-ip, ifconfig       — сетевые интерфейсы
-netstat, ss        — открытые соединения и порты
+ls, cat, head, tail, find, grep, wc    — view and search
+cp, mv, rm, mkdir, chmod, chown        — file management
+tar, gzip, unzip                       — archiving
+du, df                                  — disk usage
 ```
 
-### Текст и данные
+### Network
 ```
-awk, sed           — обработка текста
-sort, uniq, cut    — фильтрация и трансформация
-jq                 — работа с JSON (если установлен)
-```
-
-### Процессы и система
-```
-ps, top, htop      — процессы
-uname -a           — информация о системе
-free -h            — память
-uptime             — аптайм и нагрузка
-env, printenv      — переменные окружения
+curl, wget         — HTTP requests and downloads
+ping, traceroute   — network diagnostics
+ip, ifconfig       — network interfaces
+netstat, ss        — open connections and ports
 ```
 
-## Как установить дополнительные пакеты
+### Text and data
+```
+awk, sed           — text processing
+sort, uniq, cut    — filtering and transformation
+jq                 — JSON processing (if installed)
+```
+
+### Processes and system
+```
+ps, top, htop      — processes
+uname -a           — system info
+free -h            — memory
+uptime             — uptime and load
+env, printenv      — environment variables
+```
+
+## Installing additional packages
 
 ```bash
 sudo apk update
 sudo apk add <package-name>
 ```
 
-Примеры:
+Examples:
 ```bash
-sudo apk add jq          # JSON-процессор
+sudo apk add jq          # JSON processor
 sudo apk add git         # Git
 sudo apk add python3     # Python 3
 sudo apk add nodejs npm  # Node.js
 ```
 
-## Типичные задачи
+## Common tasks
 
-### Загрузить файл из интернета
+### Download a file from the internet
 ```bash
 curl -L -o file.tar.gz https://example.com/file.tar.gz
 wget https://example.com/file.tar.gz
 ```
 
-### Проверить доступность хоста
+### Check host availability
 ```bash
 ping -c 3 example.com
 curl -I https://example.com
 ```
 
-### Работа с JSON (API-ответами)
+### Work with JSON (API responses)
 ```bash
 curl -s https://api.example.com/data | jq '.results[]'
 ```
 
-### Найти файлы
+### Find files
 ```bash
-find / -name "*.log" -mtime -1     # логи за последний день
-find /home -type f -size +10M      # файлы больше 10MB
+find / -name "*.log" -mtime -1     # logs from the last day
+find /home -type f -size +10M      # files larger than 10MB
 ```
 
-## Ограничения
+## Limitations
 
-- Это легковесный контейнер, тяжёлые пакеты (компиляторы, GUI) лучше ставить на специализированные хосты.
-- Данные не персистентны — при перезапуске контейнера всё сбрасывается.
-- Для работы с браузером используй `browser-sandbox`, для медиа — `ffmpeg-sandbox`.
+- This is a lightweight container; heavy packages (compilers, GUI) are better placed on specialized hosts.
+- Data is not persistent — everything is reset when the container restarts.
+- For browser work use `browser-sandbox`, for media use `ffmpeg-sandbox`.

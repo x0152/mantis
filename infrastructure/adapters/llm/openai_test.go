@@ -19,6 +19,59 @@ func collectStreamEvents(ch <-chan types.StreamEvent) []types.StreamEvent {
 	return out
 }
 
+func TestListModels_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[{"id":"gpt-4o-mini"},{"id":"gpt-4o"}]}`)
+	}))
+	defer server.Close()
+
+	o := NewOpenAI()
+	items, err := o.ListModels(context.Background(), server.URL+"/v1", "test-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(items))
+	}
+	if items[0].ID != "gpt-4o" || items[1].ID != "gpt-4o-mini" {
+		t.Fatalf("unexpected model order/content: %+v", items)
+	}
+}
+
+func TestListModels_ErrorStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad token", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	o := NewOpenAI()
+	_, err := o.ListModels(context.Background(), server.URL, "wrong")
+	if err == nil || !strings.Contains(err.Error(), "LLM models API error 401") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetInferenceLimit_Unlimited(t *testing.T) {
+	o := NewOpenAI()
+	limit, err := o.GetInferenceLimit(context.Background(), "http://example", "k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limit.Type != "unlimited" {
+		t.Fatalf("expected unlimited type, got %+v", limit)
+	}
+	if limit.Label == "" {
+		t.Fatalf("expected non-empty label, got %+v", limit)
+	}
+}
+
 func TestChatStream_ToolCallsWithCorrectFinishReason(t *testing.T) {
 	// Standard OpenAI behavior: finish_reason = "tool_calls"
 	sseData := `data: {"choices":[{"delta":{"content":"<think>reasoning</think>"},"finish_reason":null}]}
@@ -38,7 +91,7 @@ data: [DONE]
 	defer server.Close()
 
 	o := NewOpenAI()
-	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "")
+	ch, err := o.ChatStream(context.Background(), "openai", server.URL, "test-key", nil, "test-model", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +131,7 @@ data: [DONE]
 	defer server.Close()
 
 	o := NewOpenAI()
-	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "")
+	ch, err := o.ChatStream(context.Background(), "openai", server.URL, "test-key", nil, "test-model", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +164,7 @@ data: [DONE]
 	defer server.Close()
 
 	o := NewOpenAI()
-	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "")
+	ch, err := o.ChatStream(context.Background(), "openai", server.URL, "test-key", nil, "test-model", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +198,7 @@ data: [DONE]
 	defer server.Close()
 
 	o := NewOpenAI()
-	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "skip")
+	ch, err := o.ChatStream(context.Background(), "openai", server.URL, "test-key", nil, "test-model", nil, "skip")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +240,7 @@ data: [DONE]
 	defer server.Close()
 
 	o := NewOpenAI()
-	ch, err := o.ChatStream(context.Background(), server.URL, "test-key", nil, "test-model", nil, "")
+	ch, err := o.ChatStream(context.Background(), "openai", server.URL, "test-key", nil, "test-model", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

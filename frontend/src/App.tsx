@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch } from 'lucide-react'
+import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch, LogOut } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
+import { Button } from '@/components/ui/button'
 import LlmPage from './pages/LlmPage'
 import ConnectionsPage from './pages/ConnectionsPage'
 import ChannelsPage from './pages/ChannelsPage'
@@ -10,11 +11,12 @@ import GuardProfilesPage from './pages/GuardProfilesPage'
 import SkillsPage from './pages/SkillsPage'
 import PlansPage from './pages/PlansPage'
 import SetupWizard from './pages/SetupWizard'
+import LoginPage from './pages/LoginPage'
 import ChatSidebar from './components/ChatSidebar'
 import { ModeToggle } from './components/mode-toggle'
-import { api } from './api'
+import { api, setUnauthorizedHandler, UnauthorizedError } from './api'
 import { parseRoute, navigate, type PageId, type Route } from './router'
-import type { ChatSession } from './types'
+import type { ChatSession, User } from './types'
 
 type NavItem = { id: PageId; label: string; icon: typeof Sparkles }
 type NavSection = { title: string; items: NavItem[] }
@@ -46,6 +48,8 @@ const nav: NavSection[] = [
 
 export default function App() {
   const [route, setRoute] = useState<Route>(parseRoute)
+  const [user, setUser] = useState<User | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
@@ -57,10 +61,29 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null)
+      setNeedsSetup(null)
+    })
+    return () => setUnauthorizedHandler(null)
+  }, [])
+
+  useEffect(() => {
+    api.auth.me()
+      .then(u => setUser(u))
+      .catch(err => {
+        if (!(err instanceof UnauthorizedError)) console.error(err)
+        setUser(null)
+      })
+      .finally(() => setAuthChecked(true))
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
     api.llmConnections.list()
       .then(list => setNeedsSetup(list.length === 0))
       .catch(() => setNeedsSetup(false))
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (route.page === 'chat' && 'sessionId' in route && route.sessionId) {
@@ -99,6 +122,16 @@ export default function App() {
     navigate({ page } as Route)
   }, [])
 
+  const handleLogout = useCallback(async () => {
+    try {
+      await api.auth.logout()
+    } catch {}
+    setUser(null)
+    setNeedsSetup(null)
+  }, [])
+
+  if (!authChecked) return null
+  if (!user) return <LoginPage onLogin={setUser} />
   if (needsSetup === null) return null
   if (needsSetup) return <SetupWizard onDone={() => setNeedsSetup(false)} />
 
@@ -130,7 +163,19 @@ export default function App() {
             </div>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5 ml-4.5 transition-colors">Control Plane</p>
           </div>
-          <ModeToggle />
+          <div className="flex items-center gap-1">
+            <ModeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="h-8 w-8 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+              title={user ? `Sign out ${user.name}` : 'Sign out'}
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="sr-only">Sign out</span>
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden">

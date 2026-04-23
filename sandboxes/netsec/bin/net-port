@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    cat >&2 <<EOF
+Usage: net-port <host> [ports] [--service]
+
+ports:
+  top100   — top-100 ports (default, up to 45s)
+  top1000  — top-1000 ports (up to 3 minutes)
+  common   — 21,22,23,25,53,80,110,143,443,445,3306,3389,5432,6379,8080,8443
+  web      — 80,443,8000,8080,8081,8443,8888,3000,5000
+  all      — 1-65535 (slow, up to 10 minutes)
+  <list>   — custom list, e.g. "22,80,443"
+
+--service: also probe service versions on open ports (adds up to 90s)
+
+Examples:
+  net-port example.com
+  net-port 10.0.0.1 common --service
+  net-port 192.168.1.1 22,80,443
+EOF
+    exit 1
+fi
+
+HOST="$1"
+MODE="top100"
+SERVICE=0
+
+shift
+for arg in "$@"; do
+    case "$arg" in
+        --service) SERVICE=1 ;;
+        *) MODE="$arg" ;;
+    esac
+done
+
+case "$MODE" in
+    top100)
+        PORT_ARGS=(--top-ports 100)
+        SCAN_TIME=45
+        ;;
+    top1000)
+        PORT_ARGS=(--top-ports 1000)
+        SCAN_TIME=180
+        ;;
+    common)
+        PORT_ARGS=(-p 21,22,23,25,53,80,110,143,443,445,3306,3389,5432,6379,8080,8443)
+        SCAN_TIME=45
+        ;;
+    web)
+        PORT_ARGS=(-p 80,443,8000,8080,8081,8443,8888,3000,5000)
+        SCAN_TIME=45
+        ;;
+    all)
+        PORT_ARGS=(-p-)
+        SCAN_TIME=600
+        ;;
+    *)
+        PORT_ARGS=(-p "$MODE")
+        SCAN_TIME=45
+        ;;
+esac
+
+if [ "$SERVICE" -eq 1 ]; then
+    HOST_TIMEOUT=$((SCAN_TIME + 90))
+    TOTAL_TIMEOUT=$((HOST_TIMEOUT + 15))
+    EXTRA=(-sV --version-intensity 0 --version-light)
+else
+    HOST_TIMEOUT="$SCAN_TIME"
+    TOTAL_TIMEOUT=$((SCAN_TIME + 15))
+    EXTRA=()
+fi
+
+NMAP_ARGS=(-Pn -n -T4 --open --max-retries 2 --min-rate 300 --host-timeout "${HOST_TIMEOUT}s" "${EXTRA[@]}")
+
+exec timeout --foreground --kill-after 10 "$TOTAL_TIMEOUT" \
+    nmap "${NMAP_ARGS[@]}" "${PORT_ARGS[@]}" "$HOST"

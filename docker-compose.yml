@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mantis
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,7 +17,12 @@ services:
 
   migrate:
     build: .
-    entrypoint: ["/goose", "-dir", "/migrations", "postgres", "postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable", "up"]
+    entrypoint: ["goose", "-dir", "/app/migrations", "postgres", "postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable", "up"]
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,12 +35,25 @@ services:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/mantis?sslmode=disable
       PORT: "8080"
       ATTACHMENT_DIR: /data/attachments
-      CRON_DELIVERY_CHANNEL: "${CRON_DELIVERY_CHANNEL:-}"
+      AUTH_TOKEN: "${AUTH_TOKEN:-}"
+      AUTH_USER_NAME: "${AUTH_USER_NAME:-admin}"
+      AUTH_RATE_LIMIT_MAX: "${AUTH_RATE_LIMIT_MAX:-}"
+      AUTH_RATE_LIMIT_WINDOW: "${AUTH_RATE_LIMIT_WINDOW:-}"
       ASR_API_URL: "${ASR_API_URL:-}"
       OCR_API_URL: "${OCR_API_URL:-}"
       TTS_API_URL: "${TTS_API_URL:-}"
+      MANTIS_SUPERVISOR_MAX_ITERATIONS: "${MANTIS_SUPERVISOR_MAX_ITERATIONS:-}"
+      MANTIS_SUPERVISOR_TIMEOUT: "${MANTIS_SUPERVISOR_TIMEOUT:-}"
+      MANTIS_SERVER_MAX_ITERATIONS: "${MANTIS_SERVER_MAX_ITERATIONS:-}"
+      MANTIS_SERVER_TIMEOUT: "${MANTIS_SERVER_TIMEOUT:-}"
+      MANTIS_PLAN_STEP_TIMEOUT: "${MANTIS_PLAN_STEP_TIMEOUT:-}"
+      GOFLAGS: "-buildvcs=false"
     volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
       - attachments:/data/attachments
+    working_dir: /app
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -44,11 +64,17 @@ services:
       - "${MANTIS_FRONTEND_PORT:-27173}:5173"
     environment:
       API_URL: http://app:8080
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
       VITE_LLM_BASE_URL: "${VITE_LLM_BASE_URL:-}"
       VITE_LLM_API_KEY: "${VITE_LLM_API_KEY:-}"
       VITE_LLM_MODEL: "${VITE_LLM_MODEL:-}"
       VITE_TG_BOT_TOKEN: "${VITE_TG_BOT_TOKEN:-}"
       VITE_TG_USER_IDS: "${VITE_TG_USER_IDS:-}"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - ./.env:/.env:ro
     depends_on:
       - app
 
@@ -60,11 +86,13 @@ services:
       USER_NAME: mantis
       USER_PASSWORD: mantis
       PASSWORD_ACCESS: "true"
+
   browser-sandbox:
     build: sandboxes/browser
     environment:
       ASR_API_URL: "${ASR_API_URL:-}"
       OCR_API_URL: "${OCR_API_URL:-}"
+
   ffmpeg-sandbox:
     build: sandboxes/ffmpeg
 
@@ -74,6 +102,11 @@ services:
   db-sandbox:
     build: sandboxes/db
 
+  netsec-sandbox:
+    build: sandboxes/netsec
+
 volumes:
   pgdata:
   attachments:
+  go-mod-cache:
+  go-build-cache:

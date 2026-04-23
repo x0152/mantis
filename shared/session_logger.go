@@ -155,7 +155,7 @@ func (l *SessionLogger) Wrap(ctx context.Context, connectionID, agentName, promp
 	go func() {
 		defer close(out)
 		var entries []types.LogEntry
-		var textBuf strings.Builder
+		var textBuf, thinkBuf strings.Builder
 
 		save := func() {
 			session.Entries = entries
@@ -164,39 +164,49 @@ func (l *SessionLogger) Wrap(ctx context.Context, connectionID, agentName, promp
 			}
 		}
 
-		flushText := func() {
-			if textBuf.Len() > 0 {
-				entries = append(entries, types.LogEntry{
-					Type: "thought", Content: strings.TrimSpace(textBuf.String()), Timestamp: time.Now().UTC(),
-				})
-				textBuf.Reset()
+		flush := func(buf *strings.Builder) {
+			if buf.Len() == 0 {
+				return
 			}
+			content := strings.TrimSpace(buf.String())
+			buf.Reset()
+			if content == "" {
+				return
+			}
+			entries = append(entries, types.LogEntry{
+				Type: "thought", Content: content, Timestamp: time.Now().UTC(),
+			})
+		}
+
+		flushAll := func() {
+			flush(&thinkBuf)
+			flush(&textBuf)
 		}
 
 		for event := range src {
 			out <- event
 
 			switch event.Type {
-			case "text":
-				textBuf.WriteString(event.Delta)
 			case "thinking":
-				flushText()
-				entries = append(entries, types.LogEntry{Type: "thought", Content: strings.TrimSpace(event.Delta), Timestamp: time.Now().UTC()})
-				save()
+				flush(&textBuf)
+				thinkBuf.WriteString(event.Delta)
+			case "text":
+				flush(&thinkBuf)
+				textBuf.WriteString(event.Delta)
 			case "tool_start":
-				flushText()
+				flushAll()
 				entries = append(entries, types.LogEntry{Type: "command", Content: event.Delta, Timestamp: time.Now().UTC()})
 				save()
 			case "tool_end":
 				entries = append(entries, types.LogEntry{Type: "output", Content: event.Delta, Timestamp: time.Now().UTC()})
 				save()
 			case "error":
-				flushText()
+				flushAll()
 				entries = append(entries, types.LogEntry{Type: "error", Content: event.Delta, Timestamp: time.Now().UTC()})
 				save()
 			}
 		}
-		flushText()
+		flushAll()
 
 		finished := time.Now().UTC()
 		session.Status = "finished"

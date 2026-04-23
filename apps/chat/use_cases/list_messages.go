@@ -40,6 +40,8 @@ func (uc *ListMessages) Execute(ctx context.Context, limit, offset int, sessionI
 		if m.Status == "pending" && time.Since(m.CreatedAt) > pendingTimeout {
 			m.Status = "error"
 			m.Content = "[Error] generation interrupted"
+			now := time.Now().UTC()
+			m.FinishedAt = &now
 			stale = append(stale, m)
 		}
 		result = append(result, m)

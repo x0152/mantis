@@ -25,7 +25,7 @@ func ChatMessageToRow(m types.ChatMessage) models.ChatMessageRow {
 		Content: m.Content, Status: m.Status, Source: m.Source,
 		ModelID: m.ModelID, ModelName: m.ModelName,
 		PresetID: m.PresetID, PresetName: m.PresetName, ModelRole: m.ModelRole,
-		Steps: m.Steps, Attachments: att, CreatedAt: m.CreatedAt,
+		Steps: m.Steps, Attachments: att, CreatedAt: m.CreatedAt, FinishedAt: m.FinishedAt,
 	}
 }
 
@@ -39,6 +39,6 @@ func ChatMessageFromRow(r models.ChatMessageRow) types.ChatMessage {
 		Content: r.Content, Status: r.Status, Source: r.Source,
 		ModelID: r.ModelID, ModelName: r.ModelName,
 		PresetID: r.PresetID, PresetName: r.PresetName, ModelRole: r.ModelRole,
-		Steps: r.Steps, Attachments: att, CreatedAt: r.CreatedAt,
+		Steps: r.Steps, Attachments: att, CreatedAt: r.CreatedAt, FinishedAt: r.FinishedAt,
 	}
 }

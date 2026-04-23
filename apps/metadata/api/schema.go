@@ -18,6 +18,14 @@ type LlmConnectionsOutput struct {
 	Body []types.LlmConnection
 }
 
+type ProviderModelsOutput struct {
+	Body []types.ProviderModel
+}
+
+type InferenceLimitOutput struct {
+	Body types.InferenceLimit
+}
+
 type LlmConnectionIDInput struct {
 	ID string `path:"id"`
 }

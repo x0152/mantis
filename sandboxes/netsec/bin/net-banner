@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 2 ]; then
+    echo "Usage: net-banner <host> <port>" >&2
+    exit 1
+fi
+
+HOST="$1"
+PORT="$2"
+
+timeout --foreground --kill-after 3 15 bash -c \
+    "(printf 'GET / HTTP/1.0\r\nHost: %s\r\nUser-Agent: mantis-netsec\r\n\r\n' '$HOST'; sleep 2) | nc -w 8 '$HOST' '$PORT'" \
+    2>/dev/null | head -c 2048 || true
+echo

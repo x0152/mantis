@@ -36,9 +36,10 @@ type Output struct {
 }
 
 type Workflow struct {
-	pipeline     *pipeline.RequestHandlePipeline
-	messageStore protocols.Store[string, types.ChatMessage]
-	artifactMgr  *artifactplugin.Manager
+	pipeline      *pipeline.RequestHandlePipeline
+	messageStore  protocols.Store[string, types.ChatMessage]
+	artifactMgr   *artifactplugin.Manager
+	cancellations *pipeline.Cancellations
 }
 
 func New(
@@ -49,14 +50,16 @@ func New(
 	modelResolver *modelplugin.Resolver,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	cancellations *pipeline.Cancellations,
 ) *Workflow {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	return &Workflow{
-		pipeline:     pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor),
-		messageStore: messageStore,
-		artifactMgr:  artifactMgr,
+		pipeline:      pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor, agent.Limits()),
+		messageStore:  messageStore,
+		artifactMgr:   artifactMgr,
+		cancellations: cancellations,
 	}
 }
 
@@ -113,8 +116,10 @@ func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 		return Output{}, err
 	}
 
+	execCtx, release := w.cancellations.Begin(context.Background(), sessionID)
 	go func() {
-		_ = w.pipeline.Execute(context.Background(), pipeline.Input{
+		defer release()
+		_ = w.pipeline.Execute(execCtx, pipeline.Input{
 			Message:        assistantMsg,
 			SessionID:      sessionID,
 			Content:        content,

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    cat >&2 <<EOF
+Usage: net-dir <url> [wordlist]
+
+Wordlist options:
+  (default)    — /usr/share/wordlists/mantis/paths-top.txt (~50 paths, up to 30s)
+  dirb-common  — /usr/share/dirb/wordlists/common.txt (~4600 paths, up to 5 minutes)
+  <path>       — any file
+
+Examples:
+  net-dir https://example.com
+  net-dir https://example.com dirb-common
+  net-dir https://example.com /home/mantis/custom.txt
+EOF
+    exit 1
+fi
+
+URL="$1"
+WL="${2:-/usr/share/wordlists/mantis/paths-top.txt}"
+case "$WL" in
+    dirb-common) WL=/usr/share/dirb/wordlists/common.txt ;;
+esac
+
+if [ ! -f "$WL" ]; then
+    echo "wordlist not found: $WL" >&2
+    exit 1
+fi
+
+LINES=$(wc -l < "$WL")
+TIMEOUT=$((LINES / 50 + 30))
+[ "$TIMEOUT" -gt 300 ] && TIMEOUT=300
+
+URL="${URL%/}/FUZZ"
+
+exec timeout --foreground --kill-after 10 "$TIMEOUT" ffuf \
+    -u "$URL" \
+    -w "$WL:FUZZ" \
+    -t 40 -p 0.01 \
+    -mc 200,204,301,302,307,401,403 \
+    -fc 404 \
+    -timeout 8 \
+    -maxtime "$((TIMEOUT - 5))" \
+    -s \
+    -H "User-Agent: Mozilla/5.0 (mantis-netsec)" \
+    -of md -o /dev/stdout 2>/dev/null || true

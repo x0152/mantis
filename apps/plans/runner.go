@@ -28,6 +28,7 @@ type Runner struct {
 	sessionPolicy *sessionplugin.Policy
 	workflow      *messageworkflow.Workflow
 	buffer        *shared.Buffer
+	limits        shared.Limits
 
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc
@@ -41,6 +42,7 @@ func NewRunner(
 	sessionPolicy *sessionplugin.Policy,
 	workflow *messageworkflow.Workflow,
 	buffer *shared.Buffer,
+	limits shared.Limits,
 ) *Runner {
 	return &Runner{
 		planStore:     planStore,
@@ -49,6 +51,7 @@ func NewRunner(
 		sessionPolicy: sessionPolicy,
 		workflow:      workflow,
 		buffer:        buffer,
+		limits:        limits,
 		cancels:       make(map[string]context.CancelFunc),
 		done:          make(map[string]chan struct{}),
 	}
@@ -322,7 +325,7 @@ func (r *Runner) executeNode(ctx context.Context, sessionID, prompt string, clea
 		Source:         "plan",
 		ModelConfig:    modelplugin.Input{DefaultPreset: "chat"},
 		DisableHistory: clearContext,
-		Timeout:        10 * time.Minute,
+		Timeout:        r.limits.PlanStepTimeout,
 		Finally:        func() { close(done) },
 	})
 	if err != nil {
@@ -346,6 +349,9 @@ func (r *Runner) executeNode(ctx context.Context, sessionID, prompt string, clea
 	if msg.Status == "error" {
 		return nodeResult{messageID: msg.ID}, fmt.Errorf("step error: %s", msg.Content)
 	}
+	if msg.Status == "cancelled" && !strings.Contains(msg.Content, shared.StopReasonUser()) {
+		return nodeResult{messageID: msg.ID}, fmt.Errorf("step stopped: %s", msg.Content)
+	}
 	if strings.Contains(msg.Content, "[ERROR]:") {
 		return nodeResult{messageID: msg.ID}, fmt.Errorf("step reported error: %s", msg.Content)
 	}
@@ -356,8 +362,8 @@ func renderPrompt(raw string, input map[string]any) string {
 	if !strings.Contains(raw, "{{") {
 		return raw
 	}
-	if input == nil {
-		input = map[string]any{}
+	if len(input) == 0 {
+		return raw
 	}
 	tmpl, err := template.New("prompt").Option("missingkey=zero").Parse(raw)
 	if err != nil {

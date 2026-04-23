@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -18,15 +20,18 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 
+	authapp "mantis/apps/auth"
 	"mantis/apps/chat"
 	"mantis/apps/logs"
 	"mantis/apps/metadata"
 	plansapp "mantis/apps/plans"
 	"mantis/apps/telegram"
 	"mantis/core/agents"
+	"mantis/core/auth"
 	artifactplugin "mantis/core/plugins/artifact"
 	"mantis/core/plugins/guard"
 	"mantis/core/plugins/memory"
+	"mantis/core/plugins/pipeline"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	artifactadapter "mantis/infrastructure/adapters/artifact"
@@ -127,8 +132,23 @@ func main() {
 		mappers.ChannelToRow,
 		mappers.ChannelFromRow,
 	)
+	userStore := store.NewPostgres[string, types.User, models.UserRow](
+		db,
+		func(u types.User) string { return u.ID },
+		mappers.UserToRow,
+		mappers.UserFromRow,
+	)
 
 	openaiAdapter := llm.NewOpenAI()
+	gonkaAdapter := llm.NewGonka()
+	llmAdapter := llm.NewRouter("openai", map[string]protocols.LLM{
+		"openai": openaiAdapter,
+		"gonka":  gonkaAdapter,
+	})
+	llmCatalogs := map[string]protocols.LLMCatalog{
+		"openai": openaiAdapter,
+		"gonka":  gonkaAdapter,
+	}
 	sessionLogger := shared.NewSessionLogger(logStore)
 	commandGuard := guard.New(guardProfileStore)
 
@@ -146,21 +166,28 @@ func main() {
 	}
 
 	visionAdapter := llm.NewVision()
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, planStore, channelStore, settingsStore, openaiAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter)
+	limits := shared.LoadLimits()
+	log.Printf("limits: supervisor=%s/%d, server=%s/%d, plan_step=%s",
+		shared.FormatDuration(limits.SupervisorTimeout), limits.SupervisorMaxIterations,
+		shared.FormatDuration(limits.ServerTimeout), limits.ServerMaxIterations,
+		shared.FormatDuration(limits.PlanStepTimeout))
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, planStore, channelStore, settingsStore, llmAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter, limits)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
-	memoryExtractor := memory.NewExtractor(openaiAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
+	memoryExtractor := memory.NewExtractor(llmAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
 
 	attachmentDir := env("ATTACHMENT_DIR", "/data/attachments")
+
+	cancellations := pipeline.NewCancellations()
 
 	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor, buf)
 	mantisAgent.SetPlanRunner(plansApp.Runner())
 
-	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, planStore, planRunStore, plansApp.Runner(), guardProfileStore, channelStore)
-	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor)
+	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, planStore, planRunStore, plansApp.Runner(), guardProfileStore, channelStore, llmCatalogs)
+	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor, cancellations, plansApp.Runner())
 	logsApp := logs.NewApp(logStore)
-	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor)
+	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor, cancellations, plansApp.Runner())
 
 	chatApp.SetAttachmentDir(attachmentDir)
 	plansApp.SetAttachmentDir(attachmentDir)
@@ -168,7 +195,32 @@ func main() {
 	go telegramApp.Start(context.Background())
 	go plansApp.Start(context.Background())
 
+	authApp := authapp.NewApp(userStore)
+	if token := env("AUTH_TOKEN", ""); token != "" {
+		user, err := authApp.Bootstrap(context.Background(), env("AUTH_USER_NAME", "admin"), token)
+		if err != nil {
+			log.Fatalf("auth bootstrap failed: %v", err)
+		}
+		log.Printf("auth: ready, user %q (%s)", user.Name, user.ID)
+	} else {
+		log.Println("auth: AUTH_TOKEN not set, API will reject all requests until a user is created")
+	}
+
 	r := chi.NewMux()
+
+	loginLimiter := auth.NewLoginRateLimiter(
+		envInt("AUTH_RATE_LIMIT_MAX", 5),
+		envDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
+	)
+	r.Use(loginLimiter.Middleware("/api/auth/login"))
+	r.Use(auth.Middleware(userStore, isPublicPath))
+
+	api := humachi.New(r, huma.DefaultConfig("Mantis API", "1.0.0"))
+
+	authApp.Register(api)
+	metadataApp.Register(api)
+	chatApp.Register(api)
+	logsApp.Register(api)
 
 	r.Get("/api/artifacts/{sessionId}/{artifactId}", func(w http.ResponseWriter, r *http.Request) {
 		sessionID := chi.URLParam(r, "sessionId")
@@ -196,19 +248,41 @@ func main() {
 		serveBinary(w, data, meta.MIME, meta.Name)
 	})
 
-	api := humachi.New(r, huma.DefaultConfig("Mantis API", "1.0.0"))
-	metadataApp.Register(api)
-	chatApp.Register(api)
-	logsApp.Register(api)
-
 	log.Printf("listening on :%s", port)
 	log.Printf("docs: http://localhost:%s/docs", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
 }
 
+func isPublicPath(r *http.Request) bool {
+	p := r.URL.Path
+	switch p {
+	case "/api/auth/login", "/api/auth/logout", "/docs", "/openapi.json", "/openapi.yaml":
+		return true
+	}
+	return strings.HasPrefix(p, "/schemas/")
+}
+
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return fallback
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
 	}
 	return fallback
 }

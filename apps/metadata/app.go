@@ -30,6 +30,7 @@ func NewApp(
 	planRunner *plans.Runner,
 	guardProfileStore protocols.Store[string, types.GuardProfile],
 	channelStore protocols.Store[string, types.Channel],
+	llmCatalogs map[string]protocols.LLMCatalog,
 ) *App {
 	return &App{
 		endpoints: api.NewEndpoints(api.UseCases{
@@ -40,6 +41,8 @@ func NewApp(
 			ListLlmConns:       usecases.NewListLlmConnections(llmConnStore),
 			UpdateLlmConn:      usecases.NewUpdateLlmConnection(llmConnStore),
 			DeleteLlmConn:      usecases.NewDeleteLlmConnection(llmConnStore),
+			ListConnModels:     usecases.NewListConnectionModels(llmConnStore, llmCatalogs),
+			GetConnLimit:       usecases.NewGetConnectionInferenceLimit(llmConnStore, llmCatalogs),
 			CreateModel:        usecases.NewCreateModel(modelStore),
 			GetModel:           usecases.NewGetModel(modelStore),
 			ListModels:         usecases.NewListModels(modelStore),

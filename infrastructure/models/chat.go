@@ -31,4 +31,5 @@ type ChatMessageRow struct {
 	Steps         json.RawMessage `bun:"steps,type:jsonb"`
 	Attachments   json.RawMessage `bun:"attachments,type:jsonb"`
 	CreatedAt     time.Time       `bun:"created_at"`
+	FinishedAt    *time.Time      `bun:"finished_at"`
 }

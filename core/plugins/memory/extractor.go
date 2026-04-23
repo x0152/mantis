@@ -21,7 +21,7 @@ SAVE (only when the user explicitly states or confirms):
 - Identity: name, language, role, company, timezone, location
 - Preferences: tools, formats, styles, workflows
 - Projects and goals the user is working on
-- Anything the user explicitly asks to remember ("запиши", "запомни", "save this", etc.)
+- Anything the user explicitly asks to remember ("remember this", "save this", "note that", etc.)
 - Knowledge the user typed themselves: warnings, conclusions, decisions
 
 DO NOT SAVE — this is critical:
@@ -254,7 +254,7 @@ func (e *Extractor) callLLM(ctx context.Context, llmConn types.LlmConnection, mo
 		{Role: "user", Content: userInput},
 	}
 
-	stream, err := e.llm.ChatStream(ctx, llmConn.BaseURL, llmConn.APIKey, messages, model.Name, nil, "skip")
+	stream, err := e.llm.ChatStream(ctx, llmConn.Provider, llmConn.BaseURL, llmConn.APIKey, messages, model.Name, nil, "skip")
 	if err != nil {
 		return "", err
 	}

@@ -1,10 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2 } from 'lucide-react'
+import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square } from 'lucide-react'
 import { Markdown } from './Markdown'
 import { EntryLine, PromptBanner } from './LogEntries'
 import { api } from '../api'
 import { navigate } from '../router'
 import type { ChatMessage, Step, Attachment, LogEntry, SessionLog } from '../types'
+
+function useTicker(active: boolean, intervalMs = 1000) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(() => setTick(t => t + 1), intervalMs)
+    return () => clearInterval(id)
+  }, [active, intervalMs])
+}
+
+function fmtElapsed(ms: number): string {
+  if (ms < 0) ms = 0
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  const m = Math.floor(ms / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${m}m ${s}s`
+}
 
 export const STEP_ICONS: Record<string, typeof Terminal> = {
   terminal: Terminal,
@@ -25,7 +43,7 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[70%] rounded-xl rounded-br-sm text-sm bg-teal-600 text-white px-3.5 py-2.5">
+        <div className="max-w-[80%] rounded-xl rounded-br-sm text-[15px] bg-teal-600 text-white px-4 py-3">
           <div className="whitespace-pre-wrap">{msg.content}</div>
         </div>
       </div>
@@ -35,7 +53,7 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
   if (msg.status === 'error') {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[70%] rounded-xl rounded-bl-sm text-sm bg-red-500/10 text-red-400 border border-red-500/20 px-3.5 py-2.5">
+        <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-3">
           <Markdown content={msg.content} />
         </div>
       </div>
@@ -43,7 +61,28 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
   }
 
   const isPending = msg.status === 'pending'
+  const isCancelled = msg.status === 'cancelled'
+  const hasRunningStep = steps.some(s => s.status === 'running')
   const parts = buildInterleavedParts(msg.content, steps)
+  useTicker(isPending)
+
+  const contentLen = msg.content?.length ?? 0
+  const lastContentChangeRef = useRef<number>(Date.now())
+  const prevContentLenRef = useRef<number>(contentLen)
+  useEffect(() => {
+    if (contentLen !== prevContentLenRef.current) {
+      prevContentLenRef.current = contentLen
+      lastContentChangeRef.current = Date.now()
+    }
+  }, [contentLen])
+  const sinceContentChange = Date.now() - lastContentChangeRef.current
+  const isTyping = isPending && contentLen > 0 && sinceContentChange < 900
+  const showThinking = isPending && !hasRunningStep && !isTyping
+  const showTyping = isTyping && !hasRunningStep
+  const msgStart = new Date(msg.createdAt).getTime()
+  const msgEnd = msg.finishedAt ? new Date(msg.finishedAt).getTime() : Date.now()
+  const msgElapsed = msgEnd - msgStart
+  const showMsgDuration = msgElapsed >= 300 && (isPending || !!msg.finishedAt)
   const isImage = (a: Attachment) =>
     a.mimeType.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(a.fileName)
   const images = (msg.attachments ?? []).filter(isImage)
@@ -51,9 +90,9 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[70%] rounded-xl rounded-bl-sm text-sm bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        {(msg.modelName || msg.presetName || msg.modelRole === 'fallback') && (
-          <div className="px-3.5 pt-2 pb-0">
+      <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        {(msg.modelName || msg.presetName || msg.modelRole === 'fallback' || showMsgDuration) && (
+          <div className="px-4 pt-2.5 pb-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               {msg.presetName && (
                 <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
@@ -70,19 +109,24 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
                   fallback
                 </span>
               )}
+              {showMsgDuration && (
+                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600 tabular-nums">
+                  {isPending && !msg.finishedAt ? '· ' : '· '}{fmtElapsed(msgElapsed)}
+                </span>
+              )}
             </div>
           </div>
         )}
         {parts.map((part, i) => {
           if (part.type === 'step') {
             return (
-              <div key={part.step!.id} className={`px-3.5 ${i === 0 ? 'pt-2' : 'pt-1'} pb-1`}>
+              <div key={part.step!.id} className={`px-4 ${i === 0 ? 'pt-2.5' : 'pt-1.5'} pb-1`}>
                 <StepBadge step={part.step!} onClick={() => onStepClick(part.step!)} />
               </div>
             )
           }
           return (
-            <div key={`text-${i}`} className={`px-3.5 ${i === 0 ? 'py-2.5' : 'pt-1 pb-2.5'}`}>
+            <div key={`text-${i}`} className={`px-4 ${i === 0 ? 'py-3' : 'pt-1.5 pb-3'}`}>
               <Markdown content={part.text!} />
             </div>
           )
@@ -112,8 +156,19 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
             ))}
           </div>
         )}
-        {isPending && (
-          <div className="px-3.5 pb-2.5 pt-1"><PendingIndicator /></div>
+        {showThinking && (
+          <div className="px-4 pb-3 pt-1"><PendingIndicator mode="thinking" /></div>
+        )}
+        {showTyping && (
+          <div className="px-4 pb-3 pt-1"><PendingIndicator mode="typing" /></div>
+        )}
+        {isCancelled && (
+          <div className="px-4 pb-2 pt-1">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500">
+              <Square size={9} className="fill-current" />
+              stopped
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -190,7 +245,14 @@ export function StepBadge({ step, onClick }: { step: Step; onClick: () => void }
   const Icon = STEP_ICONS[step.icon] ?? Wrench
   const isRunning = step.status === 'running'
   const isError = step.status === 'error'
+  const isCancelled = step.status === 'cancelled'
   const argSummary = stepArgsSummary(step)
+
+  useTicker(isRunning)
+  const startMs = step.startedAt ? new Date(step.startedAt).getTime() : 0
+  const endMs = step.finishedAt ? new Date(step.finishedAt).getTime() : Date.now()
+  const elapsed = startMs > 0 ? endMs - startMs : 0
+  const showElapsed = elapsed >= 300 || isRunning
 
   const planId = !isRunning ? planIdFromStepArgs(step) : undefined
   const handleClick = () => {
@@ -203,25 +265,34 @@ export function StepBadge({ step, onClick }: { step: Step; onClick: () => void }
   return (
     <button
       onClick={handleClick}
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium cursor-pointer ${
+      className={`inline-flex items-start gap-1.5 px-2 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors max-w-full text-left step-enter ${
         isRunning
-          ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
+          ? 'text-teal-400 border border-teal-500/40 bg-teal-500/5 step-running'
           : isError
             ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300'
+            : isCancelled
+              ? 'bg-zinc-200/60 dark:bg-zinc-800/60 text-zinc-400 dark:text-zinc-500 border border-zinc-300/60 dark:border-zinc-700/60 line-through decoration-zinc-400/50'
+              : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300'
       }`}
     >
       {isRunning
-        ? <Loader2 size={11} className="animate-spin" />
+        ? <Loader2 size={11} className="animate-spin shrink-0 mt-0.5" />
         : isError
-          ? <AlertCircle size={11} />
-          : <Icon size={11} />
+          ? <AlertCircle size={11} className="shrink-0 mt-0.5" />
+          : isCancelled
+            ? <Square size={10} className="fill-current opacity-70 shrink-0 mt-1" />
+            : <Icon size={11} className="shrink-0 mt-0.5" />
       }
-      <span className="max-w-[200px] truncate">{step.label}</span>
-      {argSummary && (
-        <span className="max-w-[150px] truncate text-[10px] opacity-60 font-normal">{argSummary}</span>
+      <span className="break-words whitespace-normal leading-snug min-w-0 flex-1">
+        {step.label}
+        {argSummary && (
+          <span className="ml-1.5 text-[10px] opacity-60 font-normal">{argSummary}</span>
+        )}
+      </span>
+      {showElapsed && (
+        <span className="text-[10px] font-mono opacity-70 tabular-nums shrink-0 mt-0.5">{fmtElapsed(elapsed)}</span>
       )}
-      {!isRunning && !isError && <CheckCircle2 size={10} className="text-emerald-500" />}
+      {!isRunning && !isError && !isCancelled && <CheckCircle2 size={10} className="text-emerald-500 shrink-0 mt-1" />}
     </button>
   )
 }
@@ -334,8 +405,7 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
 
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl">
+      <div className="w-[420px] max-w-[48vw] min-w-[340px] h-full bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             {isRunning
@@ -344,7 +414,7 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
                 ? <AlertCircle size={14} className="text-red-400 shrink-0" />
                 : <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
             }
-            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">{step.label}</span>
+            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-normal break-words leading-snug">{step.label}</span>
           </div>
           <button onClick={onClose} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shrink-0 ml-2">
             <X size={16} />
@@ -521,11 +591,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function PendingIndicator() {
+export function PendingIndicator({ mode = 'thinking' }: { mode?: 'thinking' | 'typing' }) {
+  const label = mode === 'typing' ? 'Typing' : 'Thinking'
   return (
-    <div className="flex items-center gap-2 py-1">
-      <Loader2 size={12} className="animate-spin text-teal-500" />
-      <span className="text-xs text-zinc-400 dark:text-zinc-600">Thinking…</span>
+    <div className="flex items-center gap-1 py-1">
+      <span className="text-[13px] font-medium shimmer-text">{label}</span>
+      {mode === 'typing' && (
+        <span className="typing-caret text-zinc-500 dark:text-zinc-400" aria-hidden />
+      )}
     </div>
   )
 }

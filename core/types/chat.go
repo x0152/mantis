@@ -35,4 +35,5 @@ type ChatMessage struct {
 	Steps       json.RawMessage `json:"steps,omitempty"`
 	Attachments []Attachment    `json:"attachments,omitempty"`
 	CreatedAt   time.Time       `json:"createdAt"`
+	FinishedAt  *time.Time      `json:"finishedAt,omitempty"`
 }

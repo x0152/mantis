@@ -6,7 +6,7 @@ export function Markdown({ content }: { content: string }) {
   if (!content) return null
 
   return (
-    <div className="markdown text-sm leading-relaxed">
+    <div className="markdown text-[15px] leading-relaxed">
       <ReactMarkdown
         skipHtml
         remarkPlugins={[remarkGfm, remarkBreaks]}

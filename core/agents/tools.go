@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -22,6 +23,18 @@ import (
 	"mantis/shared"
 )
 
+func truncateForLabel(s string, maxRunes int) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || maxRunes <= 0 {
+		return ""
+	}
+	r := []rune(trimmed)
+	if len(r) <= maxRunes {
+		return trimmed
+	}
+	return string(r[:maxRunes]) + "..."
+}
+
 func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 	connName := c.Name
 	rawConfig := c.Config
@@ -37,11 +50,9 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 			}
 			json.Unmarshal([]byte(args), &input)
 			label := connName + ": "
-			if len(input.Task) > 40 {
-				return label + input.Task[:40] + "..."
-			}
-			if input.Task != "" {
-				return label + input.Task
+			task := truncateForLabel(input.Task, 140)
+			if task != "" {
+				return label + task
 			}
 			return label + "task"
 		},
@@ -70,7 +81,16 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 			shared.SetModelMeta(ctx, model.ID, model.Name, selection.PresetID, selection.PresetName, selection.ModelRole)
 			var sshCfg SSHConfig
 			_ = json.Unmarshal(rawConfig, &sshCfg)
-			ch, err := a.sshAgent.Execute(ctx, SSHInput{
+
+			limits := a.sshAgent.Limits()
+			sshCtx := ctx
+			if limits.ServerTimeout > 0 {
+				var cancel context.CancelFunc
+				sshCtx, cancel = context.WithTimeout(ctx, limits.ServerTimeout)
+				defer cancel()
+			}
+
+			ch, err := a.sshAgent.Execute(sshCtx, SSHInput{
 				Model:      model,
 				SSHConfig:  sshCfg,
 				Connection: connCopy,
@@ -79,9 +99,34 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 			if err != nil {
 				return "", fmt.Errorf("agent %s: %w", connName, err)
 			}
-			return shared.CollectText(ch)
+			text, runErr := shared.CollectText(ch)
+			if runErr != nil {
+				return annotateServerLimit(text, runErr, sshCtx, limits), nil
+			}
+			return text, nil
 		},
 	}
+}
+
+func annotateServerLimit(partial string, runErr error, ctx context.Context, limits shared.Limits) string {
+	marker := ""
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		marker = shared.StopReasonServerTimeout(limits.ServerTimeout)
+	case errors.Is(ctx.Err(), context.Canceled):
+		marker = shared.StopReasonUser()
+	case runErr != nil && strings.Contains(runErr.Error(), "max iterations reached"):
+		marker = shared.StopReasonServerIterations(limits.ServerMaxIterations)
+	default:
+		if partial != "" {
+			return partial + "\nerror: " + runErr.Error()
+		}
+		return "error: " + runErr.Error()
+	}
+	if partial == "" {
+		return marker
+	}
+	return partial + "\n\n" + marker
 }
 
 func (a *MantisAgent) skillTool(c types.Connection, s types.Skill) types.Tool {
@@ -104,9 +149,7 @@ func (a *MantisAgent) skillTool(c types.Connection, s types.Skill) types.Tool {
 			if payload == "" || payload == "{}" {
 				return "Skill: " + s.Name
 			}
-			if len(payload) > 40 {
-				payload = payload[:40] + "..."
-			}
+			payload = truncateForLabel(payload, 140)
 			return "Skill: " + s.Name + " " + payload
 		},
 		Parameters: params,
@@ -399,11 +442,9 @@ func (a *MantisAgent) sendNotificationTool() types.Tool {
 				Text string `json:"text"`
 			}
 			_ = json.Unmarshal([]byte(args), &input)
-			if len(input.Text) > 40 {
-				return "Notify: " + input.Text[:40] + "..."
-			}
-			if input.Text != "" {
-				return "Notify: " + input.Text
+			text := truncateForLabel(input.Text, 140)
+			if text != "" {
+				return "Notify: " + text
 			}
 			return "Send notification"
 		},

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-dns <domain> [resolver]" >&2
+    exit 1
+fi
+
+DOMAIN="$1"
+RESOLVER="${2:-}"
+DIG_ARGS=(+noall +answer +time=4 +tries=2)
+if [ -n "$RESOLVER" ]; then
+    DIG_ARGS+=("@$RESOLVER")
+fi
+
+for RTYPE in A AAAA CNAME MX NS TXT SOA CAA SRV; do
+    OUT=$(timeout --foreground --kill-after 2 10 dig "${DIG_ARGS[@]}" "$DOMAIN" "$RTYPE" 2>/dev/null || true)
+    if [ -n "$OUT" ]; then
+        echo "=== $RTYPE ==="
+        echo "$OUT"
+        echo
+    fi
+done
+
+IPS=$(timeout --foreground --kill-after 2 10 dig "${DIG_ARGS[@]}" "$DOMAIN" A 2>/dev/null | awk '{print $NF}' | grep -E '^[0-9.]+$' || true)
+if [ -n "$IPS" ]; then
+    echo "=== PTR (reverse) ==="
+    for IP in $IPS; do
+        PTR=$(timeout --foreground --kill-after 2 10 dig +short +time=4 +tries=2 -x "$IP" 2>/dev/null || true)
+        printf "  %-15s -> %s\n" "$IP" "${PTR:-<no ptr>}"
+    done
+fi

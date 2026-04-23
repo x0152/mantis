@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-hash-id <hash>" >&2
+    exit 1
+fi
+
+echo "=== hashid ==="
+echo -n "$1" | timeout --foreground --kill-after 3 15 hashid -m || true
+
+echo
+echo "Hint: 'Hashcat Mode' column is the -m argument for hashcat, 'John Format' is the --format= value for john."
+echo "To attempt cracking, run: net-hash-crack <hash> <format>"

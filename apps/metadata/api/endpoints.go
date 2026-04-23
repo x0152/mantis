@@ -21,6 +21,8 @@ type UseCases struct {
 	ListLlmConns       *usecases.ListLlmConnections
 	UpdateLlmConn      *usecases.UpdateLlmConnection
 	DeleteLlmConn      *usecases.DeleteLlmConnection
+	ListConnModels     *usecases.ListConnectionModels
+	GetConnLimit       *usecases.GetConnectionInferenceLimit
 	CreateModel        *usecases.CreateModel
 	GetModel           *usecases.GetModel
 	ListModels         *usecases.ListModels
@@ -76,6 +78,8 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "get-llm-connection", Method: http.MethodGet, Path: "/api/llm-connections/{id}"}, e.getLlmConnection)
 	huma.Register(api, huma.Operation{OperationID: "update-llm-connection", Method: http.MethodPut, Path: "/api/llm-connections/{id}"}, e.updateLlmConnection)
 	huma.Register(api, huma.Operation{OperationID: "delete-llm-connection", Method: http.MethodDelete, Path: "/api/llm-connections/{id}", DefaultStatus: 204}, e.deleteLlmConnection)
+	huma.Register(api, huma.Operation{OperationID: "list-llm-connection-models", Method: http.MethodGet, Path: "/api/llm-connections/{id}/available-models"}, e.listLlmConnectionModels)
+	huma.Register(api, huma.Operation{OperationID: "get-llm-connection-inference-limit", Method: http.MethodGet, Path: "/api/llm-connections/{id}/inference-limit"}, e.getLlmConnectionInferenceLimit)
 
 	huma.Register(api, huma.Operation{OperationID: "create-model", Method: http.MethodPost, Path: "/api/models", DefaultStatus: 201}, e.createModel)
 	huma.Register(api, huma.Operation{OperationID: "list-models", Method: http.MethodGet, Path: "/api/models"}, e.listModels)
@@ -177,6 +181,22 @@ func (e *Endpoints) deleteLlmConnection(ctx context.Context, input *LlmConnectio
 		return nil, mapErr(err)
 	}
 	return nil, nil
+}
+
+func (e *Endpoints) listLlmConnectionModels(ctx context.Context, input *LlmConnectionIDInput) (*ProviderModelsOutput, error) {
+	items, err := e.uc.ListConnModels.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toProviderModelsOutput(items), nil
+}
+
+func (e *Endpoints) getLlmConnectionInferenceLimit(ctx context.Context, input *LlmConnectionIDInput) (*InferenceLimitOutput, error) {
+	limit, err := e.uc.GetConnLimit.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return toInferenceLimitOutput(limit), nil
 }
 
 func (e *Endpoints) createModel(ctx context.Context, input *CreateModelInput) (*ModelOutput, error) {

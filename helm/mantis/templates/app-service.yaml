@@ -1,0 +1,19 @@
+{{- if .Values.app.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: {{ include "mantis.namespace" . }}
+  labels:
+    app: mantis-app
+    {{- include "mantis.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.app.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: mantis-app
+{{- end }}

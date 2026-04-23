@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-tls <host[:port]>" >&2
+    exit 1
+fi
+
+TARGET="$1"
+case "$TARGET" in
+    *:*) HOST="${TARGET%:*}"; PORT="${TARGET##*:}" ;;
+    *)   HOST="$TARGET"; PORT=443 ;;
+esac
+
+s_client() {
+    local proto_flag="$1"
+    timeout --foreground --kill-after 3 15 bash -c \
+        "echo 'Q' | openssl s_client -connect '$HOST:$PORT' -servername '$HOST' $proto_flag 2>/dev/null" \
+        || true
+}
+
+echo "=== Certificate ($HOST:$PORT) ==="
+CERT_OUT=$(s_client "")
+if [ -z "$CERT_OUT" ]; then
+    echo "TLS handshake failed (connection refused or timeout)" >&2
+    exit 1
+fi
+echo "$CERT_OUT" | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>/dev/null \
+    || echo "(no certificate received)"
+
+echo
+echo "=== Negotiated (default) ==="
+echo "$CERT_OUT" | awk '/Protocol|Cipher/ { print }' | sort -u
+
+echo
+echo "=== Protocols supported ==="
+for proto in ssl3 tls1 tls1_1 tls1_2 tls1_3; do
+    OUT=$(s_client "-$proto")
+    if echo "$OUT" | grep -q "Cipher" && ! echo "$OUT" | grep -qE "Cipher is \(NONE\)|Cipher    : 0000"; then
+        echo "  $proto : SUPPORTED"
+    else
+        echo "  $proto : not supported"
+    fi
+done
+
+echo
+echo "(for deep audit run: testssl --fast $HOST:$PORT)"

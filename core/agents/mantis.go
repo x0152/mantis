@@ -154,6 +154,7 @@ type MantisAgent struct {
 	asr             protocols.ASR
 	ocr             protocols.OCR
 	vision          protocols.VisionLLM
+	limits          shared.Limits
 }
 
 func NewMantisAgent(
@@ -172,6 +173,7 @@ func NewMantisAgent(
 	asr protocols.ASR,
 	ocr protocols.OCR,
 	vision protocols.VisionLLM,
+	limits shared.Limits,
 ) *MantisAgent {
 	return &MantisAgent{
 		messageStore:    messageStore,
@@ -184,12 +186,15 @@ func NewMantisAgent(
 		channelStore:    channelStore,
 		settingsStore:   settingsStore,
 		agent:           agent.New(llm),
-		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger),
+		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger, limits),
 		asr:             asr,
 		ocr:             ocr,
 		vision:          vision,
+		limits:          limits,
 	}
 }
+
+func (a *MantisAgent) Limits() shared.Limits { return a.limits }
 
 func (a *MantisAgent) SetPlanRunner(r protocols.PlanRunner) {
 	a.planRunner = r
@@ -261,6 +266,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	ch, err := a.agent.Execute(ctx, agent.AgentInput{
 		LoopInput: agent.LoopInput{
 			ActionInput: agent.ActionInput{
+				Provider:     conn.Provider,
 				BaseURL:      conn.BaseURL,
 				APIKey:       conn.APIKey,
 				Model:        model.Name,
@@ -268,7 +274,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 				Tools:        tools,
 				ThinkingMode: model.ThinkingMode,
 			},
-			MaxIterations: 30,
+			MaxIterations: a.limits.SupervisorMaxIterations,
 			MessageID:     in.RequestID,
 		},
 	})

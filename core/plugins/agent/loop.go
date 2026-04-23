@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -49,7 +50,8 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 
 		for iter := 0; iter < maxIter; iter++ {
 			actionCh, err := l.action.Execute(ctx, ActionInput{
-				BaseURL: in.BaseURL, APIKey: in.APIKey,
+				Provider: in.Provider,
+				BaseURL:  in.BaseURL, APIKey: in.APIKey,
 				Model: in.Model, Messages: messages, Tools: in.Tools,
 				ThinkingMode: in.ThinkingMode,
 			})
@@ -168,7 +170,7 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 			}
 		}
 
-		ch <- types.StreamEvent{Type: "error", Delta: "max iterations reached", IsFinal: true}
+		ch <- types.StreamEvent{Type: "error", Delta: fmt.Sprintf("max iterations reached: %d", maxIter), IsFinal: true}
 	}()
 
 	return ch, nil

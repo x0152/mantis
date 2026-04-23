@@ -58,3 +58,15 @@ type SendMessageResponse struct {
 type SendMessageOutput struct {
 	Body SendMessageResponse
 }
+
+type StopSessionInput struct {
+	ID string `path:"id"`
+}
+
+type StopSessionResponse struct {
+	Stopped bool `json:"stopped"`
+}
+
+type StopSessionOutput struct {
+	Body StopSessionResponse
+}

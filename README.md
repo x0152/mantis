@@ -75,54 +75,76 @@ Multi-agent system where an LLM orchestrates a pool of isolated agents, each run
 ## Quick start
 
 ```bash
-docker compose up --build
+cp .env.example .env   # fill in AUTH_TOKEN and VITE_LLM_*
+./dev.sh
 ```
 
-Starts Postgres, runs migrations, API on `:27480`, frontend on `:27173`, and 5 SSH sandboxes (internal network only, not exposed to host ports).
+Open http://localhost:27173, sign in with your `AUTH_TOKEN`. Done.
 
-Go to http://localhost:27173 — first time it'll ask for your LLM provider URL and API key. Sets up the model, sandbox connections, and optionally a Telegram bot. After that just start chatting.
+## Required env
 
-## Dev setup
+Drop these into `.env` before anything else:
 
 ```bash
-# postgres + sandboxes
-docker compose up postgres sandbox browser-sandbox ffmpeg-sandbox python-sandbox db-sandbox -d
-
-# migrations
-go install github.com/pressly/goose/v3/cmd/goose@latest
-goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/mantis?sslmode=disable" up
-
-# backend (hot reload)
-go install github.com/air-verse/air@latest
-air
-
-# frontend
-cd frontend && pnpm install && pnpm dev
+AUTH_TOKEN=long-random-string                 # your sign-in token
+VITE_LLM_BASE_URL=https://api.openai.com/v1   # or local Ollama / LM Studio
+VITE_LLM_API_KEY=sk-...                       # "dummy" for local
+VITE_LLM_MODEL=gpt-4o-mini                    # comma-separated for multiple
 ```
 
-Backend on http://localhost:8080, frontend on http://localhost:5173 (proxies `/api` to backend).
+On first start the backend creates a single admin user tied to `AUTH_TOKEN` (change `AUTH_USER_NAME` if you want something other than `admin`). The login endpoint is rate-limited — defaults to 5 failed attempts per 15 minutes per IP; tune with `AUTH_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW`.
 
-## Environment variables
+Optional: `VITE_TG_BOT_TOKEN` + `VITE_TG_USER_IDS` (Telegram), `ASR_API_URL` / `OCR_API_URL` / `TTS_API_URL` (speech/OCR services), `MANTIS_BACKEND_PORT` / `MANTIS_FRONTEND_PORT` / `MANTIS_PORT` (host ports). Full list in `.env.example`.
 
-See `.env.example` for defaults. Key variables:
+## Generation limits
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Postgres connection string |
-| `PORT` | Backend port (default `8080`) |
-| `ASR_API_URL` | Speech-to-text service URL (optional) |
-| `OCR_API_URL` | OCR service URL (optional) |
-| `TTS_API_URL` | Text-to-speech service URL (optional) |
+Caps on how long generation can run and how many tool calls it can make. When a limit kicks in, the assistant message is marked `cancelled` and its content gets a human-readable marker naming the env var to tweak (e.g. `[stopped: supervisor timeout 5m0s exceeded — raise MANTIS_SUPERVISOR_TIMEOUT in .env to increase]`). Partial text and completed tool steps are preserved; unfinished steps get marked `cancelled`. A user-triggered Stop gives `[stopped by user]`.
 
-First-run wizard variables (used by `docker-compose.yml` for auto-setup):
+| Variable | Default | What it caps |
+|---|---|---|
+| `MANTIS_SUPERVISOR_TIMEOUT` | `5m` | Wall time for one user-message generation by the main agent |
+| `MANTIS_SUPERVISOR_MAX_ITERATIONS` | `30` | LLM tool-call rounds the main agent may do per message |
+| `MANTIS_SERVER_TIMEOUT` | `5m` | Wall time for one SSH sub-agent call (per `ssh_*` tool invocation) |
+| `MANTIS_SERVER_MAX_ITERATIONS` | `30` | LLM tool-call rounds inside one SSH sub-agent call |
+| `MANTIS_PLAN_STEP_TIMEOUT` | `10m` | Wall time for a single plan node execution |
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_LLM_BASE_URL` | LLM provider base URL |
-| `VITE_LLM_API_KEY` | LLM provider API key |
-| `VITE_LLM_MODEL` | Default model name |
-| `VITE_TG_BOT_TOKEN` | Telegram bot token (optional) |
-| `VITE_TG_USER_IDS` | Allowed Telegram user IDs (optional) |
+Values accept any Go duration (`30s`, `5m`, `1h`). On startup the app logs the active values, e.g. `limits: supervisor=5m0s/30, server=5m0s/30, plan_step=10m0s`. Server-level hits (timeout / iterations) surface as the tool result to the supervisor, so it can read the limit message and adapt instead of failing the whole reply.
+
+## Dev
+
+```bash
+./dev.sh
+```
+
+Hot reload everywhere — `air` for Go, Vite HMR for the frontend. Frontend on `:27173`, backend on `:27480`, Postgres on `:5432`.
+
+## Prod
+
+```bash
+./prod.sh
+```
+
+Multi-stage builds, frontend served by nginx, single port `:${MANTIS_PORT:-8080}` exposed, `restart: unless-stopped`.
+
+## Kubernetes
+
+Build and push images once, then:
+
+```bash
+helm install mantis ./helm/mantis -n mantis --create-namespace \
+  --set ingress.host=mantis.example.com \
+  --set app.image.repository=<registry>/mantis       --set app.image.tag=$TAG \
+  --set frontend.image.repository=<registry>/mantis-frontend --set frontend.image.tag=$TAG
+```
+
+Upgrades:
+
+```bash
+helm upgrade mantis ./helm/mantis -n mantis --reuse-values \
+  --set app.image.tag=$NEW --set frontend.image.tag=$NEW
+```
+
+Chart deploys backend, frontend, Postgres, 6 sandboxes, ingress (`/api` → backend, `/` → frontend), and a `goose` migration job. Build commands and tuning knobs in [`helm/mantis/README.md`](helm/mantis/README.md).
 
 ## ASR, OCR & TTS (optional)
 

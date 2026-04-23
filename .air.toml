@@ -2,12 +2,26 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o ./tmp/mantis ./cmd"
-bin = "./tmp/mantis"
-delay = 1000
-exclude_dir = ["tmp", "frontend", "node_modules", "migrations"]
-exclude_regex = ["_test\\.go$"]
-include_ext = ["go"]
+  cmd = "go build -o ./tmp/mantis ./cmd"
+  bin = "./tmp/mantis"
+  full_bin = "PORT=8080 ./tmp/mantis"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "frontend", "node_modules", "dist", "sandboxes", "docs", ".git", "migrations"]
+  delay = 500
+  kill_delay = "2s"
+  stop_on_error = true
+  send_interrupt = true
+  poll = true
+  poll_interval = 500
+
+[log]
+  time = true
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
 
 [misc]
-clean_on_exit = true
+  clean_on_exit = true

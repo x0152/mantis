@@ -7,12 +7,55 @@ import { Card } from '@/components/ui/card'
 import { FormField } from '@/components/FormField'
 import type { Skill, Plan } from '../types'
 
+function normalizeBaseUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  try {
+    const u = new URL(trimmed)
+    return `${u.protocol}//${u.host}${u.pathname}`.replace(/\/+$/, '').toLowerCase()
+  } catch {
+    return trimmed.replace(/\/+$/, '').toLowerCase()
+  }
+}
+
+function slugify(input: string): string {
+  const s = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '')
+  return s || 'llm-primary'
+}
+
+function suggestEndpointId(baseUrl: string, provider: string): string {
+  if (provider === 'gonka') return 'gonka-primary'
+  try {
+    const u = new URL(baseUrl.trim())
+    const hostSlug = slugify(`${u.hostname}${u.port ? `-${u.port}` : ''}`)
+    if (hostSlug.includes('openai')) return 'openai-primary'
+    if (hostSlug.includes('localhost') || hostSlug.startsWith('127-')) return 'local-llm'
+    return `llm-${hostSlug}`.slice(0, 48)
+  } catch {
+    return 'llm-primary'
+  }
+}
+
+function makeUniqueID(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base}-${i}`.slice(0, 48)
+    if (!existing.has(candidate)) return candidate
+  }
+  return `${base}-${Date.now()}`.slice(0, 48)
+}
+
 const SANDBOXES = [
   { name: 'base', host: 'sandbox', port: 2222, profileId: 'base', description: 'General-purpose Linux sandbox — shell, files, networking utilities' },
   { name: 'browser', host: 'browser-sandbox', port: 22, profileId: 'browser', description: 'Headless Chromium + Playwright — web navigation, screenshots, PDF, parsing' },
   { name: 'ffmpeg', host: 'ffmpeg-sandbox', port: 22, profileId: 'media', description: 'FFmpeg + MediaInfo + ImageMagick — video, audio, image processing' },
   { name: 'python', host: 'python-sandbox', port: 22, profileId: 'python', description: 'Python 3 sandbox — scripts, data analysis, pip packages' },
   { name: 'db', host: 'db-sandbox', port: 22, profileId: 'database', description: 'PostgreSQL client — psql, pg_dump, pg_restore' },
+  { name: 'netsec', host: 'netsec-sandbox', port: 22, profileId: 'netsec', description: 'Network/pentest toolkit — nmap, dig, nikto, ffuf, hashcat + net-* wrappers with hard timeouts' },
 ]
 
 type SeedSkill = Omit<Skill, 'id' | 'connectionId'>
@@ -188,6 +231,7 @@ const SEED_PLANS: Array<Omit<Plan, 'id'>> = [
 ]
 
 export default function SetupWizard({ onDone }: { onDone: () => void }) {
+  const [provider, setProvider] = useState<'openai' | 'gonka'>('openai')
   const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_LLM_BASE_URL ?? '')
   const [apiKey, setApiKey] = useState(import.meta.env.VITE_LLM_API_KEY ?? '')
   const envModels = (import.meta.env.VITE_LLM_MODEL ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -211,16 +255,30 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
       setError('Base URL and at least one model marked as "chat" are required')
       return
     }
+    if (provider === 'gonka' && !apiKey.trim()) {
+      setError('Private key is required for Gonka provider')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      await api.llmConnections.create({ id: 'default', provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
-        .catch(() => api.llmConnections.update('default', { provider: 'openai', baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }))
+      const cleanBase = baseUrl.trim()
+      const existingEndpoints = await api.llmConnections.list()
+      const existingEndpointByURL = existingEndpoints.find(e => normalizeBaseUrl(e.baseUrl) === normalizeBaseUrl(cleanBase))
+      const endpointID = existingEndpointByURL
+        ? existingEndpointByURL.id
+        : makeUniqueID(suggestEndpointId(cleanBase, provider), new Set(existingEndpoints.map(e => e.id)))
+
+      if (existingEndpointByURL) {
+        await api.llmConnections.update(endpointID, { provider, baseUrl: cleanBase, apiKey: apiKey.trim() })
+      } else {
+        await api.llmConnections.create({ id: endpointID, provider, baseUrl: cleanBase, apiKey: apiKey.trim() })
+      }
 
       const existing = await api.models.list()
       const findOrCreate = async (name: string) => {
-        const found = existing.find(m => m.connectionId === 'default' && m.name === name)
-        return found ?? await api.models.create('default', name, '')
+        const found = existing.find(m => m.connectionId === endpointID && m.name === name)
+        return found ?? await api.models.create(endpointID, name, '')
       }
 
       const validRows = modelRows.filter(r => r.name.trim())
@@ -236,11 +294,12 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
       const summaryModelId = summaryModelRow ? created[summaryModelRow.name.trim()].id : ''
       const imageModelId = visionModelRow ? created[visionModelRow.name.trim()].id : ''
 
+      const profileName = `Main profile (${endpointID})`
       const existingPresets = await api.presets.list()
-      const existingDefault = existingPresets.find(p => p.name === 'Default')
-      const preset = existingDefault
-        ? await api.presets.update(existingDefault.id, {
-            name: 'Default',
+      const existingPreset = existingPresets.find(p => p.name === profileName) ?? existingPresets.find(p => p.name === 'Default')
+      const preset = existingPreset
+        ? await api.presets.update(existingPreset.id, {
+            name: profileName,
             chatModelId: primaryModelId,
             summaryModelId,
             imageModelId,
@@ -249,7 +308,7 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             systemPrompt: '',
           })
         : await api.presets.create({
-            name: 'Default',
+            name: profileName,
             chatModelId: primaryModelId,
             summaryModelId,
             imageModelId,
@@ -318,11 +377,36 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
           <div>
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">LLM Connection</h2>
             <div className="space-y-3">
-              <FormField label="Base URL">
-                <Input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" />
+              <FormField label="Provider">
+                <select
+                  value={provider}
+                  onChange={e => setProvider(e.target.value as 'openai' | 'gonka')}
+                  className="flex w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-teal-500/50"
+                >
+                  <option value="openai">openai</option>
+                  <option value="gonka">gonka</option>
+                </select>
               </FormField>
-              <FormField label="API Key">
-                <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
+              <FormField
+                label={provider === 'gonka' ? 'Node URL' : 'Base URL'}
+                hint={provider === 'gonka' ? 'Gonka Source URL (NODE_URL)' : undefined}
+              >
+                <Input
+                  value={baseUrl}
+                  onChange={e => setBaseUrl(e.target.value)}
+                  placeholder={provider === 'gonka' ? 'https://api.gonka.testnet.example.com' : 'https://api.openai.com/v1'}
+                />
+              </FormField>
+              <FormField
+                label={provider === 'gonka' ? 'Private key' : 'API Key'}
+                hint={provider === 'gonka' ? 'GONKA_PRIVATE_KEY wallet key' : undefined}
+              >
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder={provider === 'gonka' ? '0x...' : 'sk-...'}
+                />
               </FormField>
               <div>
                 <Label>Models</Label>

@@ -2,22 +2,23 @@ package usecases
 
 import (
 	"context"
-	"time"
 	"unicode/utf8"
 
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
+	"mantis/shared"
 )
 
 type SendMessage struct {
 	workflow     *messageworkflow.Workflow
 	sessionStore protocols.Store[string, types.ChatSession]
+	limits       shared.Limits
 }
 
-func NewSendMessage(workflow *messageworkflow.Workflow, sessionStore protocols.Store[string, types.ChatSession]) *SendMessage {
-	return &SendMessage{workflow: workflow, sessionStore: sessionStore}
+func NewSendMessage(workflow *messageworkflow.Workflow, sessionStore protocols.Store[string, types.ChatSession], limits shared.Limits) *SendMessage {
+	return &SendMessage{workflow: workflow, sessionStore: sessionStore, limits: limits}
 }
 
 func (uc *SendMessage) Execute(ctx context.Context, sessionID, content string) (types.ChatMessage, types.ChatMessage, error) {
@@ -26,7 +27,7 @@ func (uc *SendMessage) Execute(ctx context.Context, sessionID, content string) (
 		Content:     content,
 		Source:      "web",
 		ModelConfig: modelplugin.Input{ChannelID: "chat", DefaultPreset: "chat"},
-		Timeout:     5 * time.Minute,
+		Timeout:     uc.limits.SupervisorTimeout,
 	})
 	if err != nil {
 		return types.ChatMessage{}, types.ChatMessage{}, err

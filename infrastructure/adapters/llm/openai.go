@@ -91,7 +91,55 @@ type streamChunk struct {
 	} `json:"choices"`
 }
 
-func (o *OpenAI) ChatStream(ctx context.Context, baseURL, apiKey string, messages []protocols.LLMMessage, model string, tools []types.Tool, thinkingMode string) (<-chan types.StreamEvent, error) {
+type modelsResp struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
+func (o *OpenAI) ListModels(ctx context.Context, baseURL, apiKey string) ([]types.ProviderModel, error) {
+	base := strings.TrimRight(baseURL, "/")
+	req, err := http.NewRequestWithContext(ctx, "GET", base+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if strings.TrimSpace(apiKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("LLM models API error %d: %s", resp.StatusCode, string(b))
+	}
+	var payload modelsResp
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	items := make([]types.ProviderModel, 0, len(payload.Data))
+	for _, m := range payload.Data {
+		if m.ID == "" {
+			continue
+		}
+		items = append(items, types.ProviderModel{ID: m.ID})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items, nil
+}
+
+func (o *OpenAI) GetInferenceLimit(_ context.Context, _ string, _ string) (types.InferenceLimit, error) {
+	return types.InferenceLimit{
+		Type:  "unlimited",
+		Label: "No inference limit reported",
+	}, nil
+}
+
+func (o *OpenAI) ChatStream(ctx context.Context, _ string, baseURL, apiKey string, messages []protocols.LLMMessage, model string, tools []types.Tool, thinkingMode string) (<-chan types.StreamEvent, error) {
 	msgs := buildMessages(messages)
 	reqTools := buildTools(tools)
 

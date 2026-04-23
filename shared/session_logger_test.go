@@ -184,7 +184,7 @@ func TestSessionLogger_OnlyThinkingNoTools(t *testing.T) {
 	// Simulates the full pipeline as it now works in SSH agent:
 	// ApplyThinkingStream(skip) -> SessionLogger.Wrap
 	src := feedEvents([]types.StreamEvent{
-		{Type: "text", Delta: "<think>Пользователь просит выполнить uname -a</think>"},
+		{Type: "text", Delta: "<think>User is asking to run uname -a</think>"},
 	})
 
 	filtered := ApplyThinkingStream(src, "skip")

@@ -8,6 +8,7 @@ import (
 )
 
 type ActionInput struct {
+	Provider     string
 	BaseURL      string
 	APIKey       string
 	Model        string
@@ -25,5 +26,5 @@ func NewAgentAction(llm protocols.LLM) *AgentAction {
 }
 
 func (a *AgentAction) Execute(ctx context.Context, in ActionInput) (<-chan types.StreamEvent, error) {
-	return a.llm.ChatStream(ctx, in.BaseURL, in.APIKey, in.Messages, in.Model, in.Tools, in.ThinkingMode)
+	return a.llm.ChatStream(ctx, in.Provider, in.BaseURL, in.APIKey, in.Messages, in.Model, in.Tools, in.ThinkingMode)
 }

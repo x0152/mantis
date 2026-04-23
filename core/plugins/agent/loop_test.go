@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"mantis/core/protocols"
@@ -13,7 +14,7 @@ type scriptedLLM struct {
 	calls   int
 }
 
-func (s *scriptedLLM) ChatStream(_ context.Context, _ string, _ string, _ []protocols.LLMMessage, _ string, _ []types.Tool, _ string) (<-chan types.StreamEvent, error) {
+func (s *scriptedLLM) ChatStream(_ context.Context, _ string, _ string, _ string, _ []protocols.LLMMessage, _ string, _ []types.Tool, _ string) (<-chan types.StreamEvent, error) {
 	ch := make(chan types.StreamEvent, 8)
 	idx := s.calls
 	s.calls++
@@ -123,7 +124,7 @@ func TestAgentLoop_MaxIterationsReached(t *testing.T) {
 	events := collect(ch)
 	found := false
 	for _, ev := range events {
-		if ev.Type == "error" && ev.Delta == "max iterations reached" {
+		if ev.Type == "error" && strings.Contains(ev.Delta, "max iterations reached") {
 			found = true
 		}
 	}

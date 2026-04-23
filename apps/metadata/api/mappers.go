@@ -26,6 +26,14 @@ func toLlmConnectionsOutput(items []types.LlmConnection) *LlmConnectionsOutput {
 	return &LlmConnectionsOutput{Body: items}
 }
 
+func toProviderModelsOutput(items []types.ProviderModel) *ProviderModelsOutput {
+	return &ProviderModelsOutput{Body: items}
+}
+
+func toInferenceLimitOutput(limit types.InferenceLimit) *InferenceLimitOutput {
+	return &InferenceLimitOutput{Body: limit}
+}
+
 func toModelOutput(m types.Model) *ModelOutput {
 	return &ModelOutput{Body: m}
 }

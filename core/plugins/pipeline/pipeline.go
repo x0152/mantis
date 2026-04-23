@@ -57,6 +57,7 @@ type RequestHandlePipeline struct {
 	modelResolver   *modelplugin.Resolver
 	memoryExtractor MemoryExtractor
 	attachmentDir   string
+	limits          shared.Limits
 }
 
 func New(
@@ -66,6 +67,7 @@ func New(
 	modelStore protocols.Store[string, types.Model],
 	modelResolver *modelplugin.Resolver,
 	memoryExtractor MemoryExtractor,
+	limits shared.Limits,
 ) *RequestHandlePipeline {
 	return &RequestHandlePipeline{
 		agent:           agent,
@@ -74,6 +76,7 @@ func New(
 		modelStore:      modelStore,
 		modelResolver:   modelResolver,
 		memoryExtractor: memoryExtractor,
+		limits:          limits,
 	}
 }
 
@@ -137,7 +140,12 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 		content, steps, runErr = p.collectStream(in.Message.ID, stream)
 	}
 
-	msg := p.finalizeMessage(in.Message, content, steps, runErr, in.ErrorPrefix)
+	stopMarker, stopped := p.classifyStop(ctx, runErr)
+	if stopped {
+		steps = markCancelledSteps(steps)
+	}
+
+	msg := p.finalizeMessage(in.Message, content, steps, runErr, in.ErrorPrefix, stopMarker, stopped)
 
 	outgoing := p.collectOutgoing(in.Message.ID, in.Artifacts)
 
@@ -168,11 +176,25 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 }
 
 func (p *RequestHandlePipeline) fail(ctx context.Context, in Input, err error) Result {
-	msg := p.finalizeMessage(in.Message, "", nil, err, in.ErrorPrefix)
+	stopMarker, stopped := p.classifyStop(ctx, err)
+	msg := p.finalizeMessage(in.Message, "", nil, err, in.ErrorPrefix, stopMarker, stopped)
 	p.saveMessage(msg)
 	sendErr := p.send(ctx, in.ResponseTo, msg.Content, nil, nil)
 	p.cleanBuffer(in.Message.ID)
 	return Result{Message: msg, Err: err, SendErr: sendErr}
+}
+
+func (p *RequestHandlePipeline) classifyStop(ctx context.Context, runErr error) (string, bool) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return shared.StopReasonSupervisorTimeout(p.limits.SupervisorTimeout), true
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return shared.StopReasonUser(), true
+	}
+	if runErr != nil && strings.Contains(runErr.Error(), "max iterations reached") {
+		return shared.StopReasonSupervisorIterations(p.limits.SupervisorMaxIterations), true
+	}
+	return "", false
 }
 
 func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan types.StreamEvent) (string, []types.Step, error) {
@@ -232,12 +254,26 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 	return sb.String(), steps, err
 }
 
-func (p *RequestHandlePipeline) finalizeMessage(msg types.ChatMessage, content string, steps []types.Step, err error, errorPrefix string) types.ChatMessage {
+func (p *RequestHandlePipeline) finalizeMessage(msg types.ChatMessage, content string, steps []types.Step, err error, errorPrefix string, stopMarker string, stopped bool) types.ChatMessage {
 	msg.Content = content
 	if len(steps) > 0 {
 		if data, e := json.Marshal(steps); e == nil {
 			msg.Steps = data
 		}
+	}
+	now := time.Now().UTC()
+	msg.FinishedAt = &now
+	if stopped {
+		if stopMarker == "" {
+			stopMarker = shared.StopReasonUser()
+		}
+		if msg.Content != "" {
+			msg.Content += "\n\n" + stopMarker
+		} else {
+			msg.Content = stopMarker
+		}
+		msg.Status = "cancelled"
+		return msg
 	}
 	if err == nil {
 		msg.Status = ""
@@ -255,6 +291,23 @@ func (p *RequestHandlePipeline) finalizeMessage(msg types.ChatMessage, content s
 	}
 	msg.Status = "error"
 	return msg
+}
+
+func markCancelledSteps(steps []types.Step) []types.Step {
+	for i := range steps {
+		s := &steps[i]
+		if s.Status == "completed" {
+			continue
+		}
+		if s.Status == "running" || strings.Contains(strings.ToLower(s.Result), "context canceled") {
+			s.Status = "cancelled"
+			s.Result = ""
+			if s.FinishedAt == "" {
+				s.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+			}
+		}
+	}
+	return steps
 }
 
 func (p *RequestHandlePipeline) saveMessage(msg types.ChatMessage) {

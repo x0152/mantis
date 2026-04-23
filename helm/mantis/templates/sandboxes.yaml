@@ -1,0 +1,72 @@
+{{- range $name, $cfg := .Values.sandboxes }}
+{{- if and (ne $name "global") $cfg.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-{{ $name }}
+  namespace: {{ include "mantis.namespace" $ }}
+  labels:
+    app: sandbox-{{ $name }}
+    component: sandbox
+    {{- include "mantis.labels" $ | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sandbox-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app: sandbox-{{ $name }}
+        component: sandbox
+    spec:
+      {{- include "mantis.imagePullSecrets" $ | nindent 6 }}
+      containers:
+        - name: sandbox
+          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          imagePullPolicy: {{ $.Values.sandboxes.global.imagePullPolicy }}
+          ports:
+            - name: ssh
+              containerPort: {{ $cfg.sshPort }}
+              protocol: TCP
+          env:
+            - name: USER_NAME
+              value: {{ $.Values.sandboxes.global.user | quote }}
+            - name: USER_PASSWORD
+              value: {{ $.Values.sandboxes.global.password | quote }}
+            {{- range $k, $v := $cfg.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if $cfg.inheritAsrOcr }}
+            - name: ASR_API_URL
+              value: {{ $.Values.app.env.ASR_API_URL | default "" | quote }}
+            - name: OCR_API_URL
+              value: {{ $.Values.app.env.OCR_API_URL | default "" | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml (default $.Values.sandboxes.global.resources $cfg.resources) | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ if eq $name "base" }}sandbox{{ else }}{{ $name }}-sandbox{{ end }}
+  namespace: {{ include "mantis.namespace" $ }}
+  labels:
+    app: sandbox-{{ $name }}
+    component: sandbox
+    {{- include "mantis.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: ssh
+      port: {{ $cfg.sshPort }}
+      targetPort: ssh
+      protocol: TCP
+  selector:
+    app: sandbox-{{ $name }}
+{{- end }}
+{{- end }}

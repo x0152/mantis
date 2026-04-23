@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-http <url>" >&2
+    exit 1
+fi
+
+URL="$1"
+
+exec timeout --foreground --kill-after 5 30 curl -sS -k -L --max-redirs 5 \
+    --max-time 25 --connect-timeout 10 \
+    -A "Mozilla/5.0 (mantis-netsec)" \
+    -D - -o /dev/null \
+    -w $'\n---\nfinal_url: %{url_effective}\nhttp_code: %{http_code}\ntime_total: %{time_total}s\nsize: %{size_download}\nredirects: %{num_redirects}\nssl_verify: %{ssl_verify_result}\n' \
+    "$URL"

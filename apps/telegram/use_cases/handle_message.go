@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 
+	chatusecases "mantis/apps/chat/use_cases"
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/protocols"
 	"mantis/core/types"
@@ -31,6 +32,8 @@ type HandleMessage struct {
 	buffer         *shared.Buffer
 	asr            protocols.ASR
 	tts            protocols.TTS
+	stopUC         *chatusecases.StopGeneration
+	limits         shared.Limits
 }
 
 func NewHandleMessage(
@@ -42,6 +45,8 @@ func NewHandleMessage(
 	buffer *shared.Buffer,
 	asr protocols.ASR,
 	tts protocols.TTS,
+	stopUC *chatusecases.StopGeneration,
+	limits shared.Limits,
 ) *HandleMessage {
 	return &HandleMessage{
 		sessionUC:      sessionUC,
@@ -52,6 +57,8 @@ func NewHandleMessage(
 		buffer:         buffer,
 		asr:            asr,
 		tts:            tts,
+		stopUC:         stopUC,
+		limits:         limits,
 	}
 }
 
@@ -71,12 +78,14 @@ func (uc *HandleMessage) Execute(ctx context.Context, in MessageInput) (adapter.
 		switch cmd {
 		case "start":
 			_, _ = uc.sessionUC.Execute(ctx, SessionModeGetOrCreate)
-			return adapter.Reply{Text: "Mantis\n\nSend a message to get started.\nCommands are available via the Menu button.\n\n/model - switch model\n/reset - reset context\n/voice - read last message aloud"}, nil
+			return adapter.Reply{Text: "Mantis\n\nSend a message to get started.\nCommands are available via the Menu button.\n\n/model - switch model\n/reset - reset context\n/stop - stop current generation\n/voice - read last message aloud"}, nil
 		case "reset":
 			if _, err := uc.sessionUC.Execute(ctx, SessionModeReset); err != nil {
 				return adapter.Reply{}, err
 			}
 			return adapter.Reply{Text: "Context reset. Send a new message to start fresh."}, nil
+		case "stop":
+			return uc.handleStopCommand(ctx)
 		case "model":
 			return uc.modelCommandUC.Execute(ctx, in.ChannelID, args)
 		case "voice":
@@ -117,6 +126,7 @@ func (uc *HandleMessage) Execute(ctx context.Context, in MessageInput) (adapter.
 		Source:      "telegram",
 		ResponseTo:  sender,
 		ModelConfig: modelplugin.Input{ChannelID: in.ChannelID},
+		Timeout:     uc.limits.SupervisorTimeout,
 		Finally:     func() { close(done) },
 	})
 	if err != nil {
@@ -171,6 +181,24 @@ func (uc *HandleMessage) transcribeAudio(ctx context.Context, sender *adapter.Te
 		}
 	}
 	return kept, text
+}
+
+func (uc *HandleMessage) handleStopCommand(ctx context.Context) (adapter.Reply, error) {
+	if uc.stopUC == nil {
+		return adapter.Reply{Text: "Nothing to stop."}, nil
+	}
+	sessionID, err := uc.sessionUC.Execute(ctx, SessionModeGetOrCreate)
+	if err != nil {
+		return adapter.Reply{}, err
+	}
+	stopped, err := uc.stopUC.Execute(ctx, sessionID)
+	if err != nil {
+		return adapter.Reply{Text: fmt.Sprintf("Stop failed: %v", err)}, nil
+	}
+	if stopped {
+		return adapter.Reply{Text: "Stopped."}, nil
+	}
+	return adapter.Reply{Text: "Nothing to stop."}, nil
 }
 
 func (uc *HandleMessage) handleVoiceCommand(ctx context.Context, in MessageInput) (adapter.Reply, error) {

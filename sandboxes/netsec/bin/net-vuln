@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-vuln <url>" >&2
+    exit 1
+fi
+
+exec timeout --foreground --kill-after 15 300 \
+    nikto -h "$1" -maxtime 270 -Tuning 123bde -nointeractive -ask no -timeout 10 -Display V

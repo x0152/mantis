@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-headers <url>" >&2
+    exit 1
+fi
+
+URL="$1"
+
+RAW=$(timeout --foreground --kill-after 5 30 curl -sS -k -L --max-redirs 5 \
+    --max-time 25 --connect-timeout 10 \
+    -A "Mozilla/5.0 (mantis-netsec)" \
+    -D - -o /dev/null "$URL" 2>&1 || true)
+
+if [ -z "$RAW" ]; then
+    echo "no response" >&2
+    exit 1
+fi
+
+echo "$RAW"
+echo "---"
+echo "Security headers audit:"
+
+check() {
+    local name="$1"
+    local level="$2"
+    if echo "$RAW" | grep -qi "^$name:"; then
+        local val
+        val=$(echo "$RAW" | grep -i "^$name:" | tail -1 | sed 's/\r$//')
+        echo "  [OK]     $val"
+    else
+        echo "  [MISSING $level] $name"
+    fi
+}
+
+check "Strict-Transport-Security" "high"
+check "Content-Security-Policy"    "high"
+check "X-Frame-Options"            "medium"
+check "X-Content-Type-Options"     "medium"
+check "Referrer-Policy"            "low"
+check "Permissions-Policy"         "low"
+check "Cross-Origin-Opener-Policy" "low"
+check "Cross-Origin-Resource-Policy" "low"
+
+if echo "$RAW" | grep -qi "^Server:"; then
+    echo
+    echo "  [INFO] Server header disclosed:"
+    echo "$RAW" | grep -i "^Server:" | tail -1 | sed 's/^/    /;s/\r$//'
+fi
+if echo "$RAW" | grep -qi "^X-Powered-By:"; then
+    echo "  [INFO] X-Powered-By disclosed:"
+    echo "$RAW" | grep -i "^X-Powered-By:" | tail -1 | sed 's/^/    /;s/\r$//'
+fi

@@ -1,72 +1,72 @@
 # Browser Sandbox
 
-Хост для работы с вебом, изображениями и аудио. Основной инструмент — **Jina** (поиск + чтение страниц). Для сложной автоматизации — Playwright + headless Chromium. Для распознавания — OCR и ASR API.
+Host for working with the web, images, and audio. The main tool is **Jina** (search + page reading). For complex automation — Playwright + headless Chromium. For recognition — OCR and ASR APIs.
 
-## Системная информация
+## System info
 
-- ОС: Ubuntu 24.04 (Noble) — образ Microsoft Playwright
-- Пользователь: `mantis`
-- Домашняя директория: `/home/mantis`
+- OS: Ubuntu 24.04 (Noble) — Microsoft Playwright image
+- User: `mantis`
+- Home directory: `/home/mantis`
 - Shell: `/bin/bash`
-- Node.js: предустановлен
-- Браузер: Chromium (headless, управляется через Playwright)
+- Node.js: preinstalled
+- Browser: Chromium (headless, driven via Playwright)
 
-## Предустановленное ПО
+## Preinstalled software
 
-| Инструмент | Версия | Описание |
+| Tool | Version | Description |
 |---|---|---|
-| **web-search** | — | **Поиск в интернете через DuckDuckGo** (бесплатно, без ключа) |
-| **jina-read** | — | **Чтение веб-страниц как Markdown** (бесплатно, без ключа) |
-| Playwright | 1.50.0 | Браузерная автоматизация (формы, клики, навигация) |
-| Chromium | bundled | Headless-браузер |
-| Node.js | 20.x | JavaScript-рантайм |
-| npm / npx | bundled | Пакетный менеджер |
-| curl, wget | system | HTTP-утилиты |
+| **web-search** | — | **Web search via DuckDuckGo** (free, no key required) |
+| **jina-read** | — | **Read web pages as Markdown** (free, no key required) |
+| Playwright | 1.50.0 | Browser automation (forms, clicks, navigation) |
+| Chromium | bundled | Headless browser |
+| Node.js | 20.x | JavaScript runtime |
+| npm / npx | bundled | Package manager |
+| curl, wget | system | HTTP utilities |
 
-## Переменные окружения
+## Environment variables
 
-| Переменная | Описание |
+| Variable | Description |
 |---|---|
-| `OCR_API_URL` | URL сервиса OCR (распознавание текста на изображениях) |
-| `ASR_API_URL` | URL сервиса ASR (распознавание речи из аудио) |
+| `OCR_API_URL` | URL of the OCR service (recognize text in images) |
+| `ASR_API_URL` | URL of the ASR service (speech-to-text from audio) |
 
-## Поиск в интернете
+## Web search
 
-Для поиска информации используй команду `web-search` (DuckDuckGo, бесплатно, без API-ключа):
+To search for information use `web-search` (DuckDuckGo, free, no API key):
 ```bash
-web-search <запрос>
+web-search <query>
 ```
 
-Пример:
+Example:
 ```bash
-web-search 'как настроить nginx reverse proxy'
+web-search 'how to set up nginx reverse proxy'
 ```
 
-Результаты возвращаются в формате Markdown: заголовок, ссылка, сниппет.
+Results are returned as Markdown: title, link, snippet.
 
-## Чтение веб-страниц
+## Reading web pages
 
-Для извлечения содержимого веб-страницы в чистом Markdown используй `jina-read`:
+To extract page content as clean Markdown use `jina-read`:
 ```bash
 jina-read <url>
 ```
 
-Пример:
+Example:
 ```bash
 jina-read https://docs.python.org/3/tutorial/index.html
 ```
 
-Jina Reader рендерит JavaScript, поэтому работает с SPA-сайтами (React, Vue и т.д.).
+Jina Reader renders JavaScript, so it works with SPA sites (React, Vue, etc.).
 
-### Когда что использовать
+### When to use what
 
-- `web-search` → `jina-read` — **основной флоу**: сначала найди, потом прочитай нужную страницу
-- `jina-read` — быстро прочитать текст со страницы, получить статью, документацию
-- Playwright — сложная автоматизация: заполнение форм, клики, навигация, скриншоты, перехват запросов
+- `web-search` → `jina-read` — **the main flow**: first find, then read the relevant page.
+- `jina-read` — quickly read text from a page, grab an article or documentation.
+- Playwright — complex automation: filling forms, clicking, navigation, screenshots, request interception.
 
-## OCR — распознавание текста на изображениях
+## OCR — text recognition in images
 
-Если задана переменная `OCR_API_URL`, можно распознать текст на изображении через curl:
+If `OCR_API_URL` is set, you can recognize text in an image via curl:
 
 ```bash
 curl -sS "${OCR_API_URL}/ocr" \
@@ -74,7 +74,7 @@ curl -sS "${OCR_API_URL}/ocr" \
   | jq -r '.text'
 ```
 
-С указанием URL изображения (скачать + OCR):
+With an image URL (download + OCR):
 ```bash
 curl -sS -L -o /tmp/photo.jpg "https://example.com/photo.jpg"
 curl -sS "${OCR_API_URL}/ocr" \
@@ -82,16 +82,16 @@ curl -sS "${OCR_API_URL}/ocr" \
   | jq -r '.text'
 ```
 
-Поддерживаемые форматы: PNG, JPEG, WebP, BMP, TIFF.
+Supported formats: PNG, JPEG, WebP, BMP, TIFF.
 
-API возвращает JSON:
+The API returns JSON:
 ```json
-{"text": "Распознанный текст..."}
+{"text": "Recognized text..."}
 ```
 
-## ASR — распознавание речи из аудио
+## ASR — speech-to-text from audio
 
-Если задана переменная `ASR_API_URL`, можно транскрибировать аудиофайл:
+If `ASR_API_URL` is set, you can transcribe an audio file:
 
 ```bash
 curl -sS "${ASR_API_URL}/transcribe" \
@@ -99,7 +99,7 @@ curl -sS "${ASR_API_URL}/transcribe" \
   | jq -r '.text'
 ```
 
-С URL аудиофайла (скачать + ASR):
+With an audio URL (download + ASR):
 ```bash
 curl -sS -L -o /tmp/voice.ogg "https://example.com/voice.ogg"
 curl -sS "${ASR_API_URL}/transcribe" \
@@ -107,45 +107,45 @@ curl -sS "${ASR_API_URL}/transcribe" \
   | jq -r '.text'
 ```
 
-Поддерживаемые форматы: OGG, MP3, WAV, M4A, FLAC.
+Supported formats: OGG, MP3, WAV, M4A, FLAC.
 
-API возвращает JSON:
+The API returns JSON:
 ```json
-{"text": "Распознанный текст из аудио..."}
+{"text": "Recognized text from audio..."}
 ```
 
-## Скриншот страницы
+## Page screenshot
 
-Для снятия скриншота используй команду `pw-screenshot`:
+To take a screenshot use `pw-screenshot`:
 ```bash
 pw-screenshot <url> <output.png>
 ```
 
-Пример:
+Example:
 ```bash
 pw-screenshot https://example.com screenshot.png
 ```
 
-Команда ждёт полной загрузки страницы (`networkidle` — отсутствие сетевых запросов 500мс) перед снятием скриншота.
+The command waits for the page to fully load (`networkidle` — no network requests for 500ms) before taking the screenshot.
 
-### Дополнительные параметры
+### Extra options
 
-С указанием размера вьюпорта:
+With a specific viewport size:
 ```bash
 pw-screenshot --viewport=1920x1080 https://example.com full.png
 ```
 
-Полностраничный скриншот (включая прокрутку):
+Full-page screenshot (including scroll):
 ```bash
 pw-screenshot --full-page https://example.com fullpage.png
 ```
 
-### Сохранить страницу как PDF
+### Save page as PDF
 ```bash
 npx playwright pdf https://example.com page.pdf
 ```
 
-### Открыть страницу и получить заголовок
+### Open a page and get its title
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -159,9 +159,9 @@ const { chromium } = require('playwright');
 "
 ```
 
-## Playwright: работа со страницами (Node.js скрипты)
+## Playwright: working with pages (Node.js scripts)
 
-### Извлечь текст со страницы
+### Extract text from a page
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -176,7 +176,7 @@ const { chromium } = require('playwright');
 "
 ```
 
-### Извлечь все ссылки со страницы
+### Extract all links from a page
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -184,14 +184,14 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto('https://example.com');
-  const links = await page.$$eval('a[href]', els => els.map(a => ({ text: a.textContent.trim(), href: a.href })));
+  const links = await page.\$\$eval('a[href]', els => els.map(a => ({ text: a.textContent.trim(), href: a.href })));
   console.log(JSON.stringify(links, null, 2));
   await browser.close();
 })();
 "
 ```
 
-### Заполнить форму и нажать кнопку
+### Fill a form and click a button
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -209,7 +209,7 @@ const { chromium } = require('playwright');
 "
 ```
 
-### Дождаться элемента и получить его содержимое
+### Wait for an element and read its content
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -225,7 +225,7 @@ const { chromium } = require('playwright');
 "
 ```
 
-### Перехватить сетевые запросы (мониторинг API)
+### Intercept network requests (API monitoring)
 ```bash
 node -e "
 const { chromium } = require('playwright');
@@ -244,9 +244,9 @@ const { chromium } = require('playwright');
 "
 ```
 
-## Создание переиспользуемых скриптов
+## Reusable scripts
 
-Вместо длинных one-liner'ов можно сохранять скрипты в файлы:
+Instead of long one-liners you can store scripts in files:
 
 ```bash
 cat > /home/mantis/scrape.js << 'SCRIPT'
@@ -269,16 +269,16 @@ SCRIPT
 node /home/mantis/scrape.js https://example.com
 ```
 
-## Установка дополнительных npm-пакетов
+## Installing additional npm packages
 
 ```bash
-npm install -g cheerio    # HTML-парсер
-npm install -g puppeteer  # альтернатива Playwright
+npm install -g cheerio    # HTML parser
+npm install -g puppeteer  # alternative to Playwright
 ```
 
-## Ограничения
+## Limitations
 
-- Только headless-режим (нет графического дисплея).
-- Доступен только Chromium. Firefox и WebKit можно установить: `npx playwright install firefox`.
-- Для тяжёлых задач (рендеринг видео, большие PDF) учитывай ограничения памяти контейнера.
-- Данные не персистентны — скриншоты и файлы удаляются при перезапуске контейнера.
+- Headless mode only (no graphical display).
+- Only Chromium is available. Firefox and WebKit can be installed: `npx playwright install firefox`.
+- For heavy tasks (video rendering, large PDFs) mind the container's memory limits.
+- Data is not persistent — screenshots and files are deleted when the container restarts.

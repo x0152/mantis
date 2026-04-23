@@ -1,0 +1,8 @@
+{{- if .Values.global.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "mantis.namespace" . }}
+  labels:
+    {{- include "mantis.labels" . | nindent 4 }}
+{{- end }}

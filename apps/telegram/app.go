@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	chatusecases "mantis/apps/chat/use_cases"
 	usecases "mantis/apps/telegram/use_cases"
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
@@ -37,16 +38,19 @@ func NewApp(
 	asr protocols.ASR,
 	tts protocols.TTS,
 	memoryExtractor pipeline.MemoryExtractor,
+	cancellations *pipeline.Cancellations,
+	planRunner protocols.PlanRunner,
 ) *App {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor, cancellations)
 
 	sessionUC := usecases.NewSession(sessionplugin.NewPolicy(sessionStore))
 	modelCommandUC := usecases.NewHandleModelCommand(presetStore, channelStore)
-	handleMessageUC := usecases.NewHandleMessage(sessionUC, modelCommandUC, channelStore, messageStore, workflow, buffer, asr, tts)
+	stopUC := chatusecases.NewStopGeneration(cancellations, planRunner)
+	handleMessageUC := usecases.NewHandleMessage(sessionUC, modelCommandUC, channelStore, messageStore, workflow, buffer, asr, tts, stopUC, agent.Limits())
 
 	app := &App{
 		ucSession:       sessionUC,

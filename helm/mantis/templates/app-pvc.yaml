@@ -1,0 +1,18 @@
+{{- if .Values.app.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mantis-attachments
+  namespace: {{ include "mantis.namespace" . }}
+  labels:
+    {{- include "mantis.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.app.attachments.storage }}
+  {{- if .Values.app.attachments.storageClassName }}
+  storageClassName: {{ .Values.app.attachments.storageClassName | quote }}
+  {{- end }}
+{{- end }}

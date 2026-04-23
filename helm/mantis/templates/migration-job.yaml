@@ -1,0 +1,64 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mantis-migrate-{{ .Values.app.image.tag | replace "." "-" | replace "_" "-" | trunc 40 }}
+  namespace: {{ include "mantis.namespace" . }}
+  labels:
+    app: mantis-migrate
+    {{- include "mantis.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: mantis-migrate
+    spec:
+      restartPolicy: Never
+      {{- include "mantis.imagePullSecrets" . | nindent 6 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h postgres -p {{ .Values.postgres.port }}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready."
+      containers:
+        - name: migrate
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          command: ["goose"]
+          args:
+            - "-dir"
+            - "/app/migrations"
+            - "postgres"
+            - "$(DATABASE_URL)"
+            - "up"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: mantis-secrets, key: postgres-user }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: mantis-secrets, key: postgres-password }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: mantis-secrets, key: postgres-db }
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)?sslmode=disable"
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+{{- end }}

@@ -35,9 +35,11 @@ func NewApp(
 	buf *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	cancellations *pipeline.Cancellations,
+	planRunner protocols.PlanRunner,
 ) *App {
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor)
+	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor, cancellations)
 	return &App{
 		workflow: workflow,
 		endpoints: api.NewEndpoints(api.UseCases{
@@ -48,8 +50,9 @@ func NewApp(
 			UpdateSession:     usecases.NewUpdateSession(sessionStore),
 			DeleteSession:     usecases.NewDeleteSession(sessionStore, messageStore),
 			ListMessages:      usecases.NewListMessages(messageStore, buf),
-			SendMessage:       usecases.NewSendMessage(workflow, sessionStore),
+			SendMessage:       usecases.NewSendMessage(workflow, sessionStore, mantisAgent.Limits()),
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
+			StopGeneration:    usecases.NewStopGeneration(cancellations, planRunner),
 		}),
 	}
 }

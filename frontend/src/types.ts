@@ -1,8 +1,24 @@
+export interface User {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export interface LlmConnection {
   id: string
   provider: string
   baseUrl: string
   apiKey: string
+}
+
+export interface ProviderModel {
+  id: string
+}
+
+export interface InferenceLimit {
+  type: string
+  percentage?: number
+  label: string
 }
 
 export interface Settings {
@@ -173,7 +189,7 @@ export interface Step {
   label: string
   icon: string
   args: string
-  status: 'running' | 'completed' | 'error'
+  status: 'running' | 'completed' | 'error' | 'cancelled'
   result?: string
   logId?: string
   modelId?: string
@@ -208,6 +224,7 @@ export interface ChatMessage {
   steps?: Step[]
   attachments?: Attachment[]
   createdAt: string
+  finishedAt?: string
 }
 
 export interface LogEntry {

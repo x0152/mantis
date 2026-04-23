@@ -1,0 +1,178 @@
+global:
+  namespace: mantis
+  imagePullSecrets: []
+
+# ===========================================
+# Ingress — routes /api to app, everything else to frontend
+# ===========================================
+ingress:
+  enabled: true
+  host: mantis.example.com
+  ingressClassName: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  tls: []
+  # - secretName: mantis-tls
+  #   hosts:
+  #     - mantis.example.com
+
+# ===========================================
+# Backend (Go)
+# ===========================================
+app:
+  enabled: true
+  replicaCount: 1
+  port: 8080
+  image:
+    repository: mantis
+    tag: latest
+    pullPolicy: IfNotPresent
+  env:
+    AUTH_TOKEN: ""
+    AUTH_USER_NAME: "admin"
+    AUTH_RATE_LIMIT_MAX: "5"
+    AUTH_RATE_LIMIT_WINDOW: "15m"
+    ASR_API_URL: ""
+    OCR_API_URL: ""
+    TTS_API_URL: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 200m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  attachments:
+    storage: 20Gi
+    storageClassName: ""
+
+# ===========================================
+# Frontend (nginx + built SPA)
+# ===========================================
+frontend:
+  enabled: true
+  replicaCount: 1
+  port: 80
+  image:
+    repository: mantis-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+# ===========================================
+# PostgreSQL (simple single-node deployment)
+# ===========================================
+postgres:
+  enabled: true
+  image: postgres:17-alpine
+  port: 5432
+  storage: 20Gi
+  storageClassName: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+
+# ===========================================
+# DB migration job (goose)
+# ===========================================
+migration:
+  enabled: true
+
+# ===========================================
+# Secrets (base64 in template, plain text here)
+# ===========================================
+secrets:
+  postgres:
+    user: postgres
+    password: postgres
+    db: mantis
+
+# ===========================================
+# Sandboxes — ephemeral SSH environments
+# Each sandbox exposes SSH; users point Connection entries
+# in the app at the ClusterIP service name and port.
+# ===========================================
+sandboxes:
+  global:
+    imagePullPolicy: IfNotPresent
+    # SSH user/password used by every sandbox (matches docker-compose default)
+    user: mantis
+    password: mantis
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+
+  base:
+    enabled: true
+    image:
+      repository: mantis-sandbox
+      tag: latest
+    # linuxserver/openssh-server listens on 2222 by default
+    sshPort: 2222
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      PASSWORD_ACCESS: "true"
+
+  browser:
+    enabled: true
+    image:
+      repository: mantis-browser-sandbox
+      tag: latest
+    sshPort: 22
+    env: {}
+    # ASR/OCR optional, inherited from app.env unless overridden
+    inheritAsrOcr: true
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+  ffmpeg:
+    enabled: true
+    image:
+      repository: mantis-ffmpeg-sandbox
+      tag: latest
+    sshPort: 22
+
+  python:
+    enabled: true
+    image:
+      repository: mantis-python-sandbox
+      tag: latest
+    sshPort: 22
+
+  db:
+    enabled: true
+    image:
+      repository: mantis-db-sandbox
+      tag: latest
+    sshPort: 22
+
+  netsec:
+    enabled: true
+    image:
+      repository: mantis-netsec-sandbox
+      tag: latest
+    sshPort: 22

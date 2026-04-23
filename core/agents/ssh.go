@@ -50,16 +50,20 @@ type SSHAgent struct {
 	agent         *agent.Agent
 	guard         *guard.Guard
 	sessionLogger *shared.SessionLogger
+	limits        shared.Limits
 }
 
-func NewSSHAgent(llmConnStore protocols.Store[string, types.LlmConnection], llm protocols.LLM, g *guard.Guard, sessionLogger *shared.SessionLogger) *SSHAgent {
+func NewSSHAgent(llmConnStore protocols.Store[string, types.LlmConnection], llm protocols.LLM, g *guard.Guard, sessionLogger *shared.SessionLogger, limits shared.Limits) *SSHAgent {
 	return &SSHAgent{
 		llmConnStore:  llmConnStore,
 		agent:         agent.New(llm),
 		guard:         g,
 		sessionLogger: sessionLogger,
+		limits:        limits,
 	}
 }
+
+func (a *SSHAgent) Limits() shared.Limits { return a.limits }
 
 func (a *SSHAgent) Execute(ctx context.Context, in SSHInput) (<-chan types.StreamEvent, error) {
 	conn, err := shared.ResolveConnection(ctx, a.llmConnStore, in.Model.ConnectionID)
@@ -83,6 +87,7 @@ func (a *SSHAgent) Execute(ctx context.Context, in SSHInput) (<-chan types.Strea
 	ch, err := a.agent.Execute(ctx, agent.AgentInput{
 		LoopInput: agent.LoopInput{
 			ActionInput: agent.ActionInput{
+				Provider:     conn.Provider,
 				BaseURL:      conn.BaseURL,
 				APIKey:       conn.APIKey,
 				Model:        in.Model.Name,
@@ -90,7 +95,7 @@ func (a *SSHAgent) Execute(ctx context.Context, in SSHInput) (<-chan types.Strea
 				Tools:        tools,
 				ThinkingMode: in.Model.ThinkingMode,
 			},
-			MaxIterations: 30,
+			MaxIterations: a.limits.ServerMaxIterations,
 		},
 	})
 	if err != nil {
@@ -187,9 +192,9 @@ func sshTools(cfg SSHConfig, g *guard.Guard, profileIDs []string) []types.Tool {
 				if err := json.Unmarshal([]byte(args), &input); err != nil {
 					return "", err
 				}
-			if v := g.Execute(ctx, profileIDs, input.Command); v != nil {
-				return fmt.Sprintf("[BLOCKED] %s", v.Message), nil
-			}
+				if v := g.Execute(ctx, profileIDs, input.Command); v != nil {
+					return fmt.Sprintf("[BLOCKED] %s", v.Message), nil
+				}
 				return execSSH(cfg, input.Command)
 			},
 		},

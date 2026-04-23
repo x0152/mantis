@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""
+net-hash-crack <hash> [format] [wordlist]
+
+Fast dictionary hash-cracking with a hard 120s timeout.
+
+format:
+  raw-md5 / raw-sha1 / raw-sha256 / raw-sha512
+  md5crypt ($1$...)  sha256crypt ($5$...)  sha512crypt ($6$...)
+  bcrypt   ($2a$/$2b$/$2y$...)
+  nt (NTLM)
+  (default: raw-md5)
+
+wordlist:
+  small — /usr/share/wordlists/mantis/passwords-top.txt (default, <5s)
+  john  — /usr/share/john/password.lst (~3500 entries, ~30s)
+  <path>— custom file
+"""
+import hashlib
+import os
+import sys
+import time
+
+USAGE = __doc__
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def main():
+    args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        print(USAGE)
+        sys.exit(0 if args else 1)
+
+    target = args[0].strip()
+    fmt = (args[1] if len(args) > 1 else "raw-md5").lower()
+    wl = args[2] if len(args) > 2 else "small"
+
+    if wl == "small":
+        wl = "/usr/share/wordlists/mantis/passwords-top.txt"
+    elif wl == "john":
+        wl = "/usr/share/john/password.lst"
+    if not os.path.isfile(wl):
+        die(f"wordlist not found: {wl}")
+
+    with open(wl, "rb") as f:
+        words = [w.strip() for w in f.read().splitlines() if w.strip()]
+    words = [w for w in words if not w.startswith(b"#")]
+    n = len(words)
+    deadline = time.monotonic() + 120
+
+    def match_raw(algo):
+        want = target.lower()
+        for w in words:
+            if time.monotonic() > deadline:
+                return None, True
+            h = hashlib.new(algo, w).hexdigest()
+            if h == want:
+                return w.decode("utf-8", "replace"), False
+        return None, False
+
+    def match_nthash():
+        try:
+            from passlib.hash import nthash
+        except ImportError:
+            die("passlib not available for NT")
+        want = target.lower()
+        for w in words:
+            if time.monotonic() > deadline:
+                return None, True
+            try:
+                h = nthash.hash(w.decode("utf-8", "replace"))
+            except Exception:
+                continue
+            if h.lower() == want:
+                return w.decode("utf-8", "replace"), False
+        return None, False
+
+    def match_crypt(scheme):
+        try:
+            from passlib.hash import md5_crypt, sha256_crypt, sha512_crypt, bcrypt
+        except ImportError:
+            die("passlib not available")
+        algo = {
+            "md5crypt": md5_crypt,
+            "sha256crypt": sha256_crypt,
+            "sha512crypt": sha512_crypt,
+            "bcrypt": bcrypt,
+        }[scheme]
+        for w in words:
+            if time.monotonic() > deadline:
+                return None, True
+            try:
+                if algo.verify(w.decode("utf-8", "replace"), target):
+                    return w.decode("utf-8", "replace"), False
+            except Exception:
+                continue
+        return None, False
+
+    print(f"Cracking {fmt} (wordlist: {wl}, {n} entries, timeout 120s)...")
+    start = time.monotonic()
+
+    if fmt in ("raw-md5", "md5"):
+        found, timed_out = match_raw("md5")
+    elif fmt in ("raw-sha1", "sha1"):
+        found, timed_out = match_raw("sha1")
+    elif fmt in ("raw-sha256", "sha256"):
+        found, timed_out = match_raw("sha256")
+    elif fmt in ("raw-sha512", "sha512"):
+        found, timed_out = match_raw("sha512")
+    elif fmt in ("nt", "ntlm", "nthash"):
+        found, timed_out = match_nthash()
+    elif fmt in ("md5crypt", "sha256crypt", "sha512crypt", "bcrypt"):
+        found, timed_out = match_crypt(fmt)
+    else:
+        die(
+            "Unknown format: "
+            + fmt
+            + " (supported: raw-md5 raw-sha1 raw-sha256 raw-sha512 nt md5crypt sha256crypt sha512crypt bcrypt)"
+        )
+
+    elapsed = time.monotonic() - start
+    print()
+    print("=== Result ===")
+    if found is not None:
+        print(f"{target}:{found}    [found in {elapsed:.2f}s]")
+    elif timed_out:
+        print("Timed out after 120s. Try a bigger wordlist or a different format.")
+    else:
+        print(f"Not found in wordlist ({elapsed:.2f}s, {n} entries).")
+        if wl.endswith("passwords-top.txt"):
+            print(f"  -> try: net-hash-crack '{target}' '{fmt}' john")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)

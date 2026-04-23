@@ -111,7 +111,7 @@ func TestApplyThinkingStream_SkipMode_TokenByToken(t *testing.T) {
 		{Type: "text", Delta: "<"},
 		{Type: "text", Delta: "think"},
 		{Type: "text", Delta: ">"},
-		{Type: "text", Delta: "Пользователь просит выполнить uname"},
+		{Type: "text", Delta: "User is asking to run uname"},
 		{Type: "text", Delta: "\n"},
 		{Type: "text", Delta: "</"},
 		{Type: "text", Delta: "think"},

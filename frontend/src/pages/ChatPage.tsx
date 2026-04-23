@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, GitBranch } from 'lucide-react'
+import { Send, GitBranch, Square } from 'lucide-react'
 import { api } from '../api'
 import { navigate } from '../router'
 import { MessageBubble, StepPanel } from '../components/ChatMessages'
@@ -23,6 +23,7 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [activeStep, setActiveStep] = useState<Step | null>(null)
@@ -133,6 +134,19 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
     }
   }
 
+  async function stop() {
+    if (!sessionId || stopping) return
+    setStopping(true)
+    try {
+      await api.chat.stopSession(sessionId)
+      await pollLatest()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setStopping(false)
+    }
+  }
+
   if (!sessionId) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
@@ -142,61 +156,74 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto px-6 py-5 space-y-1">
-        {hasMore && messages.length > 0 && (
-          <div className="flex justify-center mb-4">
-            <Button variant="secondary" size="sm" onClick={loadMoreMessages} disabled={loadingMore}>
-              {loadingMore ? 'Loading...' : `Load previous ${PAGE_SIZE}`}
-            </Button>
+    <div className="flex h-full min-w-0">
+      <div className="flex flex-col h-full min-w-0 flex-1">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-auto px-6 py-5 space-y-1">
+          {hasMore && messages.length > 0 && (
+            <div className="flex justify-center mb-4">
+              <Button variant="secondary" size="sm" onClick={loadMoreMessages} disabled={loadingMore}>
+                {loadingMore ? 'Loading...' : `Load previous ${PAGE_SIZE}`}
+              </Button>
+            </div>
+          )}
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
+              Send a message to start the conversation
+            </div>
+          )}
+          <div className="space-y-3">
+            {messages.map(msg => (
+              <MessageBubble key={msg.id} msg={msg} onStepClick={setActiveStep} />
+            ))}
           </div>
-        )}
-        {messages.length === 0 && (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
-            Send a message to start the conversation
-          </div>
-        )}
-        <div className="space-y-3">
-          {messages.map(msg => (
-            <MessageBubble key={msg.id} msg={msg} onStepClick={setActiveStep} />
-          ))}
+          <div ref={bottomRef} />
         </div>
-        <div ref={bottomRef} />
+
+        {isPlanSession ? (
+          <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">
+              <GitBranch size={13} className="text-amber-500/70" />
+              <span>Plan execution chat (read-only)</span>
+              {planId && (
+                <button onClick={() => navigate({ page: 'plans', planId })} className="text-amber-500/70 hover:text-amber-400 hover:underline ml-auto">
+                  Open plan
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                placeholder="Type a message..."
+                className="flex-1 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+                disabled={sending || hasPending}
+              />
+              {hasPending ? (
+                <Button
+                  onClick={stop}
+                  disabled={stopping}
+                  variant="secondary"
+                  title="Stop generation"
+                >
+                  <Square size={14} className="fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={send}
+                  disabled={sending || !input.trim()}
+                >
+                  <Send size={16} />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
-
-      {isPlanSession ? (
-        <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0">
-          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">
-            <GitBranch size={13} className="text-amber-500/70" />
-            <span>Plan execution chat (read-only)</span>
-            {planId && (
-              <button onClick={() => navigate({ page: 'plans', planId })} className="text-amber-500/70 hover:text-amber-400 hover:underline ml-auto">
-                Open plan
-              </button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              placeholder="Type a message..."
-              className="flex-1 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
-              disabled={sending || hasPending}
-            />
-            <Button
-              onClick={send}
-              disabled={sending || hasPending || !input.trim()}
-            >
-              <Send size={16} />
-            </Button>
-          </div>
-        </div>
-      )}
-
       {activeStep && <StepPanel step={activeStep} onClose={() => setActiveStep(null)} />}
     </div>
   )

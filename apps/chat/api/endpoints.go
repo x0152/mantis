@@ -19,6 +19,7 @@ type UseCases struct {
 	ListMessages      *usecases.ListMessages
 	SendMessage       *usecases.SendMessage
 	ClearHistory      *usecases.ClearHistory
+	StopGeneration    *usecases.StopGeneration
 }
 
 type Endpoints struct {
@@ -38,6 +39,7 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "delete-chat-session", Method: http.MethodDelete, Path: "/api/chat/sessions/{id}", DefaultStatus: 204}, e.deleteSession)
 	huma.Register(api, huma.Operation{OperationID: "list-chat-messages", Method: http.MethodGet, Path: "/api/chat/messages"}, e.listMessages)
 	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201}, e.sendMessage)
+	huma.Register(api, huma.Operation{OperationID: "stop-chat-session", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/stop"}, e.stopSession)
 	huma.Register(api, huma.Operation{OperationID: "clear-chat-history", Method: http.MethodDelete, Path: "/api/chat/history", DefaultStatus: 204}, e.clearHistory)
 }
 
@@ -104,6 +106,14 @@ func (e *Endpoints) sendMessage(ctx context.Context, input *SendMessageInput) (*
 	return &SendMessageOutput{Body: SendMessageResponse{
 		UserMessage: user, AssistantMessage: assistant,
 	}}, nil
+}
+
+func (e *Endpoints) stopSession(ctx context.Context, input *StopSessionInput) (*StopSessionOutput, error) {
+	stopped, err := e.uc.StopGeneration.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, huma.NewError(http.StatusInternalServerError, err.Error())
+	}
+	return &StopSessionOutput{Body: StopSessionResponse{Stopped: stopped}}, nil
 }
 
 func (e *Endpoints) clearHistory(ctx context.Context, _ *struct{}) (*struct{}, error) {

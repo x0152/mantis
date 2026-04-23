@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: net-whatweb <url>" >&2
+    exit 1
+fi
+
+exec timeout --foreground --kill-after 10 90 \
+    whatweb -a 1 --color=never --max-threads 5 --open-timeout 10 --read-timeout 20 "$1"

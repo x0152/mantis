@@ -1,10 +1,29 @@
-import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, Channel } from './types'
+import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User } from './types'
+
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized') {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+type UnauthorizedHandler = () => void
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
+  if (res.status === 401) {
+    unauthorizedHandler?.()
+    throw new UnauthorizedError()
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.title ?? `${res.status} ${res.statusText}`)
@@ -14,6 +33,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  auth: {
+    me: () => request<User>('/auth/me'),
+    login: (token: string) =>
+      request<User>('/auth/login', { method: 'POST', body: JSON.stringify({ token }) }),
+    logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  },
   settings: {
     get: () => request<Settings>('/settings'),
     update: (data: Omit<Settings, 'id'>) =>
@@ -26,6 +51,10 @@ export const api = {
       request<LlmConnection>('/llm-connections', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: { provider: string; baseUrl: string; apiKey: string }) =>
       request<LlmConnection>(`/llm-connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    listAvailableModels: (id: string) =>
+      request<ProviderModel[]>(`/llm-connections/${id}/available-models`),
+    getInferenceLimit: (id: string) =>
+      request<InferenceLimit>(`/llm-connections/${id}/inference-limit`),
     delete: (id: string) => request<void>(`/llm-connections/${id}`, { method: 'DELETE' }),
   },
   models: {
@@ -141,6 +170,8 @@ export const api = {
       request<{ userMessage: ChatMessage; assistantMessage: ChatMessage }>('/chat/messages', {
         method: 'POST', body: JSON.stringify({ sessionId, content }),
       }),
+    stopSession: (sessionId: string) =>
+      request<{ stopped: boolean }>(`/chat/sessions/${sessionId}/stop`, { method: 'POST' }),
     clearHistory: () => request<void>('/chat/history', { method: 'DELETE' }),
   },
 }
