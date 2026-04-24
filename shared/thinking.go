@@ -36,6 +36,9 @@ func ApplyThinkingStream(src <-chan types.StreamEvent, mode string) <-chan types
 	go func() {
 		defer close(out)
 		var textParts []string
+		var skippedThinking []string
+		sawText := false
+		sawToolCalls := false
 
 		flushText := func() {
 			if len(textParts) == 0 {
@@ -44,6 +47,7 @@ func ApplyThinkingStream(src <-chan types.StreamEvent, mode string) <-chan types
 			combined := ApplyThinkingMode(strings.Join(textParts, ""), mode)
 			if combined != "" {
 				out <- types.StreamEvent{Type: "text", Delta: combined}
+				sawText = true
 			}
 			textParts = nil
 		}
@@ -56,7 +60,7 @@ func ApplyThinkingStream(src <-chan types.StreamEvent, mode string) <-chan types
 			if event.Type == "thinking" {
 				switch mode {
 				case "skip":
-					continue
+					skippedThinking = append(skippedThinking, event.Delta)
 				case "inline":
 					flushText()
 					out <- types.StreamEvent{Type: "text", Delta: event.Delta, Sequence: event.Sequence}
@@ -66,6 +70,9 @@ func ApplyThinkingStream(src <-chan types.StreamEvent, mode string) <-chan types
 				}
 				continue
 			}
+			if event.Type == "tool_calls" {
+				sawToolCalls = true
+			}
 			flushText()
 			out <- event
 		}
@@ -74,6 +81,14 @@ func ApplyThinkingStream(src <-chan types.StreamEvent, mode string) <-chan types
 			combined := ApplyThinkingMode(strings.Join(textParts, ""), mode)
 			if combined != "" {
 				out <- types.StreamEvent{Type: "text", Delta: combined, IsFinal: true}
+				sawText = true
+			}
+		}
+
+		if mode == "skip" && !sawText && !sawToolCalls && len(skippedThinking) > 0 {
+			fallback := strings.TrimSpace(thinkingTagsRe.ReplaceAllString(strings.Join(skippedThinking, ""), ""))
+			if fallback != "" {
+				out <- types.StreamEvent{Type: "text", Delta: fallback, IsFinal: true}
 			}
 		}
 	}()

@@ -13,6 +13,7 @@ import (
 	artifactplugin "mantis/core/plugins/artifact"
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/plugins/pipeline"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
@@ -35,11 +36,12 @@ func NewApp(
 	buf *shared.Buffer,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	summ *summarizer.Summarizer,
 	cancellations *pipeline.Cancellations,
 	planRunner protocols.PlanRunner,
 ) *App {
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor, cancellations)
+	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
 	return &App{
 		workflow: workflow,
 		endpoints: api.NewEndpoints(api.UseCases{
@@ -53,6 +55,7 @@ func NewApp(
 			SendMessage:       usecases.NewSendMessage(workflow, sessionStore, mantisAgent.Limits()),
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
 			StopGeneration:    usecases.NewStopGeneration(cancellations, planRunner),
+			RegenerateLast:    usecases.NewRegenerateLast(workflow, messageStore, mantisAgent.Limits()),
 		}),
 	}
 }

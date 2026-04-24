@@ -200,8 +200,8 @@ func (e *Endpoints) getLlmConnectionInferenceLimit(ctx context.Context, input *L
 }
 
 func (e *Endpoints) createModel(ctx context.Context, input *CreateModelInput) (*ModelOutput, error) {
-	connID, name, thinkingMode := modelFromCreateInput(input)
-	m, err := e.uc.CreateModel.Execute(ctx, connID, name, thinkingMode)
+	connID, name, thinkingMode, compactTokens := modelFromCreateInput(input)
+	m, err := e.uc.CreateModel.Execute(ctx, connID, name, thinkingMode, compactTokens)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -225,8 +225,8 @@ func (e *Endpoints) getModel(ctx context.Context, input *ModelIDInput) (*ModelOu
 }
 
 func (e *Endpoints) updateModel(ctx context.Context, input *UpdateModelInput) (*ModelOutput, error) {
-	id, connID, name, thinkingMode := modelFromUpdateInput(input)
-	m, err := e.uc.UpdateModel.Execute(ctx, id, connID, name, thinkingMode)
+	id, connID, name, thinkingMode, compactTokens := modelFromUpdateInput(input)
+	m, err := e.uc.UpdateModel.Execute(ctx, id, connID, name, thinkingMode, compactTokens)
 	if err != nil {
 		return nil, mapErr(err)
 	}

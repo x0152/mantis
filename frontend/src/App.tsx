@@ -13,6 +13,8 @@ import PlansPage from './pages/PlansPage'
 import SetupWizard from './pages/SetupWizard'
 import LoginPage from './pages/LoginPage'
 import ChatSidebar from './components/ChatSidebar'
+import { MantisLogo } from './components/MantisLogo'
+import { LogoStateProvider, useLogoState } from './components/LogoState'
 import { ModeToggle } from './components/mode-toggle'
 import { api, setUnauthorizedHandler, UnauthorizedError } from './api'
 import { parseRoute, navigate, type PageId, type Route } from './router'
@@ -153,15 +155,16 @@ export default function App() {
   const planId = route.page === 'plans' && 'planId' in route ? route.planId : undefined
 
   return (
+    <LogoStateProvider>
     <div className="flex h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       <aside className="w-56 bg-zinc-50 dark:bg-zinc-900/60 border-r border-zinc-200 dark:border-zinc-800/80 flex flex-col shrink-0 transition-colors">
         <div className="px-5 py-5 border-b border-zinc-200 dark:border-zinc-800/80 flex justify-between items-center transition-colors">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-2 h-2 rounded-full bg-teal-400" />
+          <div className="flex items-center gap-2.5">
+            <SidebarLogo />
+            <div className="leading-tight">
               <h1 className="text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight transition-colors">Mantis</h1>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5 transition-colors">Control Plane</p>
             </div>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5 ml-4.5 transition-colors">Control Plane</p>
           </div>
           <div className="flex items-center gap-1">
             <ModeToggle />
@@ -215,5 +218,17 @@ export default function App() {
       </main>
       <Toaster />
     </div>
+    </LogoStateProvider>
+  )
+}
+
+function SidebarLogo() {
+  const { state } = useLogoState()
+  return (
+    <MantisLogo
+      size={34}
+      state={state}
+      className="text-teal-500 dark:text-teal-400 shrink-0"
+    />
   )
 }

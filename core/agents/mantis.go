@@ -149,6 +149,7 @@ type MantisAgent struct {
 	planRunner      protocols.PlanRunner
 	channelStore    protocols.Store[string, types.Channel]
 	settingsStore   protocols.Store[string, types.Settings]
+	sessionStore    protocols.Store[string, types.ChatSession]
 	agent           *agent.Agent
 	sshAgent        *SSHAgent
 	asr             protocols.ASR
@@ -167,6 +168,7 @@ func NewMantisAgent(
 	planStore protocols.Store[string, types.Plan],
 	channelStore protocols.Store[string, types.Channel],
 	settingsStore protocols.Store[string, types.Settings],
+	sessionStore protocols.Store[string, types.ChatSession],
 	llm protocols.LLM,
 	g *guard.Guard,
 	sessionLogger *shared.SessionLogger,
@@ -185,6 +187,7 @@ func NewMantisAgent(
 		planStore:       planStore,
 		channelStore:    channelStore,
 		settingsStore:   settingsStore,
+		sessionStore:    sessionStore,
 		agent:           agent.New(llm),
 		sshAgent:        NewSSHAgent(llmConnStore, llm, g, sessionLogger, limits),
 		asr:             asr,
@@ -214,7 +217,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	var history []protocols.LLMMessage
 	if !in.DisableHistory {
 		var err error
-		history, err = shared.BuildHistory(ctx, a.messageStore, in.SessionID)
+		history, err = shared.BuildHistory(ctx, a.messageStore, a.sessionStore, in.SessionID)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +317,7 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 	prompt := mantisBasePrompt
 	prompt = strings.Replace(prompt,
 		"artifact_read_text — preview a text artifact",
-		"send_file — send an artifact (file/image) to the user.\n  Parameter artifactId.\n\nartifact_read_text — preview a text artifact",
+		"send_file — send an artifact (file/image) to the user in the current channel (attaches it to the assistant reply in the chat UI, or replies with the file in telegram).\n  Parameter artifactId, optional fileName, caption.\n\nsend_file_telegram — push an artifact to the user's Telegram chat regardless of where they are talking to you right now. Use this when the user writes from the web chat and asks to receive something in Telegram.\n  Parameter artifactId, optional fileName, caption.\n\nartifact_read_text — preview a text artifact",
 		1)
 	if source == "plan" {
 		prompt = "[PIPELINE MODE] You are executing ONE step of a multi-step pipeline.\n" +
@@ -420,6 +423,7 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 		tools = append(tools, a.sendFileTelegramTool(artifacts))
 	} else {
 		tools = append(tools, sendFileChatTool(artifacts, requestID))
+		tools = append(tools, a.sendFileTelegramExplicitTool(artifacts))
 	}
 	if source != "plan" {
 		tools = append(tools,

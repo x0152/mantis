@@ -1,4 +1,7 @@
-# Mantis
+<h1>
+  <img src="docs/logo.svg" alt="" width="48" height="48" align="left" />
+  &nbsp;Mantis
+</h1>
 
 Multi-agent system where an LLM orchestrates a pool of isolated agents, each running on a dedicated SSH sandbox container with specialized tools. Designed for managing large server infrastructure — from quick one-off tasks to complex multi-step workflows. You interact via Telegram or Web UI — the LLM routes tasks to the right agent, commands pass through a guard layer before execution.
 

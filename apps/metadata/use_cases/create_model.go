@@ -17,12 +17,18 @@ func NewCreateModel(store protocols.Store[string, types.Model]) *CreateModel {
 	return &CreateModel{store: store}
 }
 
-func (uc *CreateModel) Execute(ctx context.Context, connectionID, name, thinkingMode string) (types.Model, error) {
+const defaultCompactTokens = 100000
+
+func (uc *CreateModel) Execute(ctx context.Context, connectionID, name, thinkingMode string, compactTokens int) (types.Model, error) {
+	if compactTokens <= 0 {
+		compactTokens = defaultCompactTokens
+	}
 	m := types.Model{
-		ID:           uuid.New().String(),
-		ConnectionID: connectionID,
-		Name:         name,
-		ThinkingMode: thinkingMode,
+		ID:            uuid.New().String(),
+		ConnectionID:  connectionID,
+		Name:          name,
+		ThinkingMode:  thinkingMode,
+		CompactTokens: compactTokens,
 	}
 	result, err := uc.store.Create(ctx, []types.Model{m})
 	if err != nil {

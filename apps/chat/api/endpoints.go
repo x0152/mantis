@@ -2,11 +2,14 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	usecases "mantis/apps/chat/use_cases"
+	"mantis/core/protocols"
 )
 
 type UseCases struct {
@@ -20,6 +23,7 @@ type UseCases struct {
 	SendMessage       *usecases.SendMessage
 	ClearHistory      *usecases.ClearHistory
 	StopGeneration    *usecases.StopGeneration
+	RegenerateLast    *usecases.RegenerateLast
 }
 
 type Endpoints struct {
@@ -38,7 +42,8 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "update-chat-session", Method: http.MethodPut, Path: "/api/chat/sessions/{id}"}, e.updateSession)
 	huma.Register(api, huma.Operation{OperationID: "delete-chat-session", Method: http.MethodDelete, Path: "/api/chat/sessions/{id}", DefaultStatus: 204}, e.deleteSession)
 	huma.Register(api, huma.Operation{OperationID: "list-chat-messages", Method: http.MethodGet, Path: "/api/chat/messages"}, e.listMessages)
-	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201}, e.sendMessage)
+	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201, MaxBodyBytes: 64 * 1024 * 1024}, e.sendMessage)
+	huma.Register(api, huma.Operation{OperationID: "regenerate-chat-last", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/regenerate", DefaultStatus: 201}, e.regenerate)
 	huma.Register(api, huma.Operation{OperationID: "stop-chat-session", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/stop"}, e.stopSession)
 	huma.Register(api, huma.Operation{OperationID: "clear-chat-history", Method: http.MethodDelete, Path: "/api/chat/history", DefaultStatus: 204}, e.clearHistory)
 }
@@ -99,13 +104,46 @@ func (e *Endpoints) listMessages(ctx context.Context, input *ListMessagesInput) 
 }
 
 func (e *Endpoints) sendMessage(ctx context.Context, input *SendMessageInput) (*SendMessageOutput, error) {
-	user, assistant, err := e.uc.SendMessage.Execute(ctx, input.Body.SessionID, input.Body.Content)
+	content := strings.TrimSpace(input.Body.Content)
+	if content == "" && len(input.Body.Files) == 0 {
+		return nil, huma.NewError(http.StatusBadRequest, "content or files are required")
+	}
+
+	files := make([]protocols.FileAttachment, 0, len(input.Body.Files))
+	for _, f := range input.Body.Files {
+		data, err := base64.StdEncoding.DecodeString(f.DataBase64)
+		if err != nil {
+			return nil, huma.NewError(http.StatusBadRequest, "invalid base64 for file "+f.FileName)
+		}
+		if len(data) == 0 {
+			continue
+		}
+		files = append(files, protocols.FileAttachment{
+			FileName: f.FileName,
+			MimeType: f.MimeType,
+			Data:     data,
+			Caption:  f.Caption,
+		})
+	}
+
+	user, assistant, err := e.uc.SendMessage.Execute(ctx, input.Body.SessionID, input.Body.Content, files)
 	if err != nil {
 		return nil, huma.NewError(http.StatusInternalServerError, err.Error())
 	}
 	return &SendMessageOutput{Body: SendMessageResponse{
 		UserMessage: user, AssistantMessage: assistant,
 	}}, nil
+}
+
+func (e *Endpoints) regenerate(ctx context.Context, input *RegenerateInput) (*RegenerateOutput, error) {
+	if e.uc.RegenerateLast == nil {
+		return nil, huma.NewError(http.StatusNotImplemented, "regeneration is not configured")
+	}
+	assistant, err := e.uc.RegenerateLast.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, huma.NewError(http.StatusInternalServerError, err.Error())
+	}
+	return &RegenerateOutput{Body: RegenerateResponse{AssistantMessage: assistant}}, nil
 }
 
 func (e *Endpoints) stopSession(ctx context.Context, input *StopSessionInput) (*StopSessionOutput, error) {

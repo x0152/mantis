@@ -19,7 +19,9 @@ import { FormField } from '@/components/FormField'
 import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 type EndpointForm = { id: string; provider: string; baseUrl: string; apiKey: string }
-type ModelForm = { name: string; connectionId: string; thinkingMode: string }
+type ModelForm = { name: string; connectionId: string; thinkingMode: string; compactTokens: string }
+
+const defaultCompactTokens = 100000
 type ProfileForm = {
   name: string
   chatModelId: string
@@ -78,7 +80,7 @@ export default function LlmPage() {
 
   const [modelModalOpen, setModelModalOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [modelForm, setModelForm] = useState<ModelForm>({ name: '', connectionId: '', thinkingMode: '' })
+  const [modelForm, setModelForm] = useState<ModelForm>({ name: '', connectionId: '', thinkingMode: '', compactTokens: String(defaultCompactTokens) })
   const [loadingAvailableModels, setLoadingAvailableModels] = useState(false)
   const [availableModelsByEndpoint, setAvailableModelsByEndpoint] = useState<Record<string, ProviderModel[]>>({})
   const [endpointLimits, setEndpointLimits] = useState<Record<string, InferenceLimit>>({})
@@ -215,21 +217,28 @@ export default function LlmPage() {
   const openCreateModel = (connectionId?: string) => {
     setEditingModel(null)
     const selectedConnection = connectionId ?? endpoints[0]?.id ?? ''
-    setModelForm({ name: '', connectionId: selectedConnection, thinkingMode: '' })
+    setModelForm({ name: '', connectionId: selectedConnection, thinkingMode: '', compactTokens: String(defaultCompactTokens) })
     setModelModalOpen(true)
   }
   const openEditModel = (m: Model) => {
     setEditingModel(m)
-    setModelForm({ name: m.name, connectionId: m.connectionId, thinkingMode: m.thinkingMode })
+    setModelForm({
+      name: m.name,
+      connectionId: m.connectionId,
+      thinkingMode: m.thinkingMode,
+      compactTokens: String(m.compactTokens || defaultCompactTokens),
+    })
     setModelModalOpen(true)
   }
   const submitModel = async () => {
     try {
+      const parsed = Math.max(0, parseInt(modelForm.compactTokens, 10) || 0)
+      const compactTokens = parsed > 0 ? parsed : defaultCompactTokens
       if (editingModel) {
-        await api.models.update(editingModel.id, modelForm.connectionId, modelForm.name, modelForm.thinkingMode)
+        await api.models.update(editingModel.id, modelForm.connectionId, modelForm.name, modelForm.thinkingMode, compactTokens)
         toast.success('Model updated')
       } else {
-        await api.models.create(modelForm.connectionId, modelForm.name, modelForm.thinkingMode)
+        await api.models.create(modelForm.connectionId, modelForm.name, modelForm.thinkingMode, compactTokens)
         toast.success('Model created')
       }
       setModelModalOpen(false)
@@ -720,6 +729,16 @@ export default function LlmPage() {
                 <option value="skip">Remove reasoning blocks</option>
                 <option value="inline">Strip tags, keep content</option>
               </select>
+            </FormField>
+            <FormField label="Compact at (tokens)" hint="Summarize earlier chat history when estimated context exceeds this threshold">
+              <Input
+                type="number"
+                min={1000}
+                step={1000}
+                value={modelForm.compactTokens}
+                onChange={e => setModelForm(f => ({ ...f, compactTokens: e.target.value }))}
+                placeholder={String(defaultCompactTokens)}
+              />
             </FormField>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setModelModalOpen(false)}>Cancel</Button>

@@ -60,10 +60,10 @@ export const api = {
   models: {
     list: () => request<Model[]>('/models'),
     get: (id: string) => request<Model>(`/models/${id}`),
-    create: (connectionId: string, name: string, thinkingMode: string) =>
-      request<Model>('/models', { method: 'POST', body: JSON.stringify({ connectionId, name, thinkingMode }) }),
-    update: (id: string, connectionId: string, name: string, thinkingMode: string) =>
-      request<Model>(`/models/${id}`, { method: 'PUT', body: JSON.stringify({ connectionId, name, thinkingMode }) }),
+    create: (connectionId: string, name: string, thinkingMode: string, compactTokens: number) =>
+      request<Model>('/models', { method: 'POST', body: JSON.stringify({ connectionId, name, thinkingMode, compactTokens }) }),
+    update: (id: string, connectionId: string, name: string, thinkingMode: string, compactTokens: number) =>
+      request<Model>(`/models/${id}`, { method: 'PUT', body: JSON.stringify({ connectionId, name, thinkingMode, compactTokens }) }),
     delete: (id: string) => request<void>(`/models/${id}`, { method: 'DELETE' }),
   },
   presets: {
@@ -166,9 +166,18 @@ export const api = {
       const q = qs.toString()
       return request<ChatMessage[]>(`/chat/messages${q ? `?${q}` : ''}`)
     },
-    sendMessage: (sessionId: string, content: string) =>
+    sendMessage: (
+      sessionId: string,
+      content: string,
+      files?: { fileName: string; mimeType?: string; dataBase64: string; caption?: string }[],
+    ) =>
       request<{ userMessage: ChatMessage; assistantMessage: ChatMessage }>('/chat/messages', {
-        method: 'POST', body: JSON.stringify({ sessionId, content }),
+        method: 'POST',
+        body: JSON.stringify({ sessionId, content, files: files ?? [] }),
+      }),
+    regenerate: (sessionId: string) =>
+      request<{ assistantMessage: ChatMessage }>(`/chat/sessions/${sessionId}/regenerate`, {
+        method: 'POST',
       }),
     stopSession: (sessionId: string) =>
       request<{ stopped: boolean }>(`/chat/sessions/${sessionId}/stop`, { method: 'POST' }),

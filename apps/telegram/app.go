@@ -11,6 +11,7 @@ import (
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/plugins/pipeline"
 	sessionplugin "mantis/core/plugins/session"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
@@ -38,6 +39,7 @@ func NewApp(
 	asr protocols.ASR,
 	tts protocols.TTS,
 	memoryExtractor pipeline.MemoryExtractor,
+	summ *summarizer.Summarizer,
 	cancellations *pipeline.Cancellations,
 	planRunner protocols.PlanRunner,
 ) *App {
@@ -45,7 +47,7 @@ func NewApp(
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor, cancellations)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
 
 	sessionUC := usecases.NewSession(sessionplugin.NewPolicy(sessionStore))
 	modelCommandUC := usecases.NewHandleModelCommand(presetStore, channelStore)

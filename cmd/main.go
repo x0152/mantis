@@ -32,6 +32,7 @@ import (
 	"mantis/core/plugins/guard"
 	"mantis/core/plugins/memory"
 	"mantis/core/plugins/pipeline"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	artifactadapter "mantis/infrastructure/adapters/artifact"
@@ -171,23 +172,24 @@ func main() {
 		shared.FormatDuration(limits.SupervisorTimeout), limits.SupervisorMaxIterations,
 		shared.FormatDuration(limits.ServerTimeout), limits.ServerMaxIterations,
 		shared.FormatDuration(limits.PlanStepTimeout))
-	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, planStore, channelStore, settingsStore, llmAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter, limits)
+	mantisAgent := agents.NewMantisAgent(messageStore, modelStore, presetStore, llmConnStore, connectionStore, skillStore, planStore, channelStore, settingsStore, sessionStore, llmAdapter, commandGuard, sessionLogger, asrAdapter, ocrAdapter, visionAdapter, limits)
 
 	buf := shared.NewBuffer()
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 	memoryExtractor := memory.NewExtractor(llmAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
+	summ := summarizer.New(llmAdapter, sessionStore, messageStore, modelStore, presetStore, llmConnStore, buf)
 
 	attachmentDir := env("ATTACHMENT_DIR", "/data/attachments")
 
 	cancellations := pipeline.NewCancellations()
 
-	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor, buf)
+	plansApp := plansapp.NewApp(settingsStore, sessionStore, messageStore, modelStore, presetStore, planStore, planRunStore, mantisAgent, artifactMgr, memoryExtractor, summ, buf)
 	mantisAgent.SetPlanRunner(plansApp.Runner())
 
 	metadataApp := metadata.NewApp(settingsStore, llmConnStore, modelStore, presetStore, connectionStore, skillStore, planStore, planRunStore, plansApp.Runner(), guardProfileStore, channelStore, llmCatalogs)
-	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor, cancellations, plansApp.Runner())
+	chatApp := chat.NewApp(sessionStore, messageStore, modelStore, presetStore, channelStore, settingsStore, mantisAgent, buf, artifactMgr, memoryExtractor, summ, cancellations, plansApp.Runner())
 	logsApp := logs.NewApp(logStore)
-	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor, cancellations, plansApp.Runner())
+	telegramApp := telegram.NewApp(channelStore, sessionStore, messageStore, modelStore, presetStore, settingsStore, mantisAgent, buf, artifactMgr, asrAdapter, ttsAdapter, memoryExtractor, summ, cancellations, plansApp.Runner())
 
 	chatApp.SetAttachmentDir(attachmentDir)
 	plansApp.SetAttachmentDir(attachmentDir)

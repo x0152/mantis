@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square } from 'lucide-react'
+import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, Layers, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square, RotateCcw } from 'lucide-react'
 import { Markdown } from './Markdown'
 import { EntryLine, PromptBanner } from './LogEntries'
 import { api } from '../api'
@@ -34,9 +34,22 @@ export const STEP_ICONS: Record<string, typeof Terminal> = {
   play: Play,
   'git-branch': GitBranch,
   bell: Bell,
+  layers: Layers,
 }
 
-export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepClick: (s: Step) => void }) {
+export function MessageBubble({
+  msg,
+  onStepClick,
+  canRegenerate,
+  onRegenerate,
+  regenerating,
+}: {
+  msg: ChatMessage
+  onStepClick: (s: Step) => void
+  canRegenerate?: boolean
+  onRegenerate?: () => void
+  regenerating?: boolean
+}) {
   const isUser = msg.role === 'user'
   const steps = msg.steps ?? []
 
@@ -88,60 +101,67 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
   const images = (msg.attachments ?? []).filter(isImage)
   const otherFiles = (msg.attachments ?? []).filter(a => !isImage(a))
 
+  const showHeader = !!(msg.modelName || msg.presetName || msg.modelRole === 'fallback' || showMsgDuration)
+  const hasText = parts.some(p => p.type === 'text')
+  const hasAnyContent =
+    parts.length > 0 ||
+    images.length > 0 ||
+    otherFiles.length > 0 ||
+    showThinking ||
+    showTyping ||
+    isCancelled
+  const showEmpty = !hasAnyContent && !isPending
+
   return (
     <div className="flex justify-start">
-      <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        {(msg.modelName || msg.presetName || msg.modelRole === 'fallback' || showMsgDuration) && (
-          <div className="px-4 pt-2.5 pb-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {msg.presetName && (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
-                  {msg.presetName}
-                </span>
-              )}
-              {msg.modelName && (
-                <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-600">
-                  {msg.modelName}
-                </span>
-              )}
-              {msg.modelRole === 'fallback' && (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400">
-                  fallback
-                </span>
-              )}
-              {showMsgDuration && (
-                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600 tabular-nums">
-                  {isPending && !msg.finishedAt ? '· ' : '· '}{fmtElapsed(msgElapsed)}
-                </span>
-              )}
-            </div>
+      <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 overflow-hidden px-4 py-2.5 space-y-2">
+        {showHeader && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {msg.presetName && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">
+                {msg.presetName}
+              </span>
+            )}
+            {msg.modelName && (
+              <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-600">
+                {msg.modelName}
+              </span>
+            )}
+            {msg.modelRole === 'fallback' && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400">
+                fallback
+              </span>
+            )}
+            {showMsgDuration && (
+              <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600 tabular-nums">
+                · {fmtElapsed(msgElapsed)}
+              </span>
+            )}
           </div>
         )}
         {parts.map((part, i) => {
           if (part.type === 'step') {
             return (
-              <div key={part.step!.id} className={`px-4 ${i === 0 ? 'pt-2.5' : 'pt-1.5'} pb-1`}>
+              <div key={part.step!.id}>
                 <StepBadge step={part.step!} onClick={() => onStepClick(part.step!)} />
               </div>
             )
           }
           return (
-            <div key={`text-${i}`} className={`px-4 ${i === 0 ? 'py-3' : 'pt-1.5 pb-3'}`}>
+            <div key={`text-${i}`} className={hasText ? 'py-0.5' : ''}>
               <Markdown content={part.text!} />
             </div>
           )
         })}
         {images.length > 0 && (
-          <div className={`px-2 pb-2 ${parts.length > 0 ? 'pt-1' : 'pt-2'}`}>
-            <div className={`grid gap-1.5 ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {images.map(a => (
-                <AttachmentImage key={a.id} attachment={a} sessionId={msg.sessionId} />
-              ))}
-            </div>
+          <div className={`grid gap-1.5 ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} -mx-2`}>
+            {images.map(a => (
+              <AttachmentImage key={a.id} attachment={a} sessionId={msg.sessionId} />
+            ))}
           </div>
         )}
         {otherFiles.length > 0 && (
-          <div className="px-3.5 pb-2.5 pt-1 space-y-1">
+          <div className="space-y-1">
             {otherFiles.map(a => (
               <a
                 key={a.id}
@@ -156,18 +176,35 @@ export function MessageBubble({ msg, onStepClick }: { msg: ChatMessage; onStepCl
             ))}
           </div>
         )}
-        {showThinking && (
-          <div className="px-4 pb-3 pt-1"><PendingIndicator mode="thinking" /></div>
-        )}
-        {showTyping && (
-          <div className="px-4 pb-3 pt-1"><PendingIndicator mode="typing" /></div>
-        )}
+        {showThinking && <PendingIndicator mode="thinking" />}
+        {showTyping && <PendingIndicator mode="typing" />}
         {isCancelled && (
-          <div className="px-4 pb-2 pt-1">
+          <div>
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500">
               <Square size={9} className="fill-current" />
               stopped
             </span>
+          </div>
+        )}
+        {showEmpty && (
+          <div className="text-xs italic text-zinc-500 dark:text-zinc-600">
+            (no response)
+          </div>
+        )}
+        {canRegenerate && onRegenerate && !isPending && (
+          <div>
+            <button
+              onClick={onRegenerate}
+              disabled={regenerating}
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-zinc-500 dark:text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-500/5 disabled:opacity-50 transition-colors"
+              title="Regenerate response"
+            >
+              {regenerating
+                ? <Loader2 size={11} className="animate-spin" />
+                : <RotateCcw size={11} />
+              }
+              Regenerate
+            </button>
           </div>
         )}
       </div>

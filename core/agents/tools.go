@@ -1275,19 +1275,35 @@ func sendFileChatTool(artifacts *shared.ArtifactStore, requestID string) types.T
 }
 
 func (a *MantisAgent) sendFileTelegramTool(artifacts *shared.ArtifactStore) types.Tool {
+	return a.buildSendFileTelegramTool(artifacts, "send_file", "Send an artifact (file/image) to the user.")
+}
+
+func (a *MantisAgent) sendFileTelegramExplicitTool(artifacts *shared.ArtifactStore) types.Tool {
+	return a.buildSendFileTelegramTool(
+		artifacts,
+		"send_file_telegram",
+		"Send an artifact (file/image) to the user's Telegram chat. Use this from non-telegram sources (e.g. web chat) when the user asks to receive the file in Telegram.",
+	)
+}
+
+func (a *MantisAgent) buildSendFileTelegramTool(artifacts *shared.ArtifactStore, name, description string) types.Tool {
+	labelPrefix := "Send file to Telegram"
+	if name == "send_file" {
+		labelPrefix = "Send file"
+	}
 	return types.Tool{
-		Name:        "send_file",
-		Description: "Send an artifact (file/image) to the user.",
-		Icon:        "download",
+		Name:        name,
+		Description: description,
+		Icon:        "bell",
 		Label: func(args string) string {
 			var input struct {
 				FileName string `json:"fileName"`
 			}
 			json.Unmarshal([]byte(args), &input)
 			if input.FileName != "" {
-				return "Send: " + input.FileName
+				return labelPrefix + ": " + input.FileName
 			}
-			return "Send file"
+			return labelPrefix
 		},
 		Parameters: map[string]any{
 			"type": "object",
@@ -1508,7 +1524,7 @@ func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) typ
 				return "", fmt.Errorf("neither OCR nor Vision LLM is configured")
 			}
 
-			var ocrText, visionText string
+			var ocrText, visionText, visionModelName string
 			var ocrErr, visionErr error
 
 			if a.ocr != nil {
@@ -1518,39 +1534,48 @@ func (a *MantisAgent) artifactReadImageTool(artifacts *shared.ArtifactStore) typ
 
 			if visionModelID != "" && a.vision != nil {
 				model, err := shared.ResolveModel(ctx, a.modelStore, visionModelID)
-				if err == nil {
-					conn, err := shared.ResolveConnection(ctx, a.llmConnStore, model.ConnectionID)
-					if err == nil {
+				if err != nil {
+					visionErr = err
+				} else {
+					visionModelName = model.Name
+					conn, cErr := shared.ResolveConnection(ctx, a.llmConnStore, model.ConnectionID)
+					if cErr != nil {
+						visionErr = cErr
+					} else {
 						prompt := "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler."
 						if ocrText != "" {
-							prompt = "Describe everything visible in this image: objects, text, layout, colors, people, actions, UI elements, charts, diagrams — anything present. Be thorough but concise, no filler. OCR extracted the following text from the image:\n" + ocrText
+							prompt = prompt + " OCR extracted the following text from the image:\n" + ocrText
 						}
 						visionText, visionErr = a.vision.Describe(ctx, conn.BaseURL, conn.APIKey, model.Name, art.Bytes, format, prompt)
 						visionText = strings.TrimSpace(visionText)
-					} else {
-						visionErr = err
 					}
-				} else {
-					visionErr = err
 				}
 			}
 
 			var parts []string
 
-			if ocrText != "" {
+			if a.ocr == nil {
+				parts = append(parts, "OCR: not configured")
+			} else if ocrErr != nil {
+				parts = append(parts, "OCR: error — "+ocrErr.Error())
+			} else if ocrText == "" {
+				parts = append(parts, "OCR: no text detected")
+			} else {
 				parts = append(parts, "--- OCR Text ---\n"+ocrText)
-			} else if a.ocr != nil && ocrErr != nil {
-				parts = append(parts, "--- OCR ---\nError: "+ocrErr.Error())
-			} else if a.ocr == nil {
-				parts = append(parts, "Note: OCR is not configured")
 			}
 
-			if visionText != "" {
-				parts = append(parts, "--- Image Description ---\n"+visionText)
-			} else if visionModelID != "" && a.vision != nil && visionErr != nil {
-				parts = append(parts, "--- Vision ---\nError: "+visionErr.Error())
-			} else if visionModelID == "" || a.vision == nil {
-				parts = append(parts, "Note: Vision LLM is not configured (set Image Model in your preset)")
+			visionHeader := "Vision"
+			if visionModelName != "" {
+				visionHeader = "Vision (" + visionModelName + ")"
+			}
+			if visionModelID == "" || a.vision == nil {
+				parts = append(parts, "Vision: not configured (set Image Model or Fallback Model in the active preset)")
+			} else if visionErr != nil {
+				parts = append(parts, visionHeader+": error — "+visionErr.Error())
+			} else if visionText == "" {
+				parts = append(parts, visionHeader+": model returned empty content — it may not support image input, try configuring an image-capable model (e.g. gpt-4o) as Image Model in your preset")
+			} else {
+				parts = append(parts, "--- Image Description ("+visionModelName+") ---\n"+visionText)
 			}
 
 			return "<file_content>\n" + strings.Join(parts, "\n\n") + "\n</file_content>", nil

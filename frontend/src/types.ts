@@ -34,6 +34,7 @@ export interface Model {
   connectionId: string
   name: string
   thinkingMode: '' | 'skip' | 'inline'
+  compactTokens: number
 }
 
 export interface Preset {

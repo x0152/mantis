@@ -16,7 +16,7 @@ func NewUpdateModel(store protocols.Store[string, types.Model]) *UpdateModel {
 	return &UpdateModel{store: store}
 }
 
-func (uc *UpdateModel) Execute(ctx context.Context, id, connectionID, name, thinkingMode string) (types.Model, error) {
+func (uc *UpdateModel) Execute(ctx context.Context, id, connectionID, name, thinkingMode string, compactTokens int) (types.Model, error) {
 	existing, err := uc.store.Get(ctx, []string{id})
 	if err != nil {
 		return types.Model{}, err
@@ -24,7 +24,10 @@ func (uc *UpdateModel) Execute(ctx context.Context, id, connectionID, name, thin
 	if _, ok := existing[id]; !ok {
 		return types.Model{}, base.ErrNotFound
 	}
-	m := types.Model{ID: id, ConnectionID: connectionID, Name: name, ThinkingMode: thinkingMode}
+	if compactTokens <= 0 {
+		compactTokens = defaultCompactTokens
+	}
+	m := types.Model{ID: id, ConnectionID: connectionID, Name: name, ThinkingMode: thinkingMode, CompactTokens: compactTokens}
 	result, err := uc.store.Update(ctx, []types.Model{m})
 	if err != nil {
 		return types.Model{}, err

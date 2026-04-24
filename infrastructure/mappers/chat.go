@@ -8,11 +8,17 @@ import (
 )
 
 func ChatSessionToRow(s types.ChatSession) models.ChatSessionRow {
-	return models.ChatSessionRow{ID: s.ID, Title: s.Title, Source: s.Source, CreatedAt: s.CreatedAt}
+	return models.ChatSessionRow{
+		ID: s.ID, Title: s.Title, Source: s.Source, CreatedAt: s.CreatedAt,
+		SummaryText: s.SummaryText, SummarizedUpTo: s.SummarizedUpTo, SummaryVersion: s.SummaryVersion,
+	}
 }
 
 func ChatSessionFromRow(r models.ChatSessionRow) types.ChatSession {
-	return types.ChatSession{ID: r.ID, Title: r.Title, Source: r.Source, CreatedAt: r.CreatedAt}
+	return types.ChatSession{
+		ID: r.ID, Title: r.Title, Source: r.Source, CreatedAt: r.CreatedAt,
+		SummaryText: r.SummaryText, SummarizedUpTo: r.SummarizedUpTo, SummaryVersion: r.SummaryVersion,
+	}
 }
 
 func ChatMessageToRow(m types.ChatMessage) models.ChatMessageRow {

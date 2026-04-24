@@ -71,18 +71,20 @@ type ModelIDInput struct {
 
 type CreateModelInput struct {
 	Body struct {
-		ConnectionID string `json:"connectionId" required:"true" minLength:"1"`
-		Name         string `json:"name" required:"true" minLength:"1"`
-		ThinkingMode string `json:"thinkingMode" enum:",skip,inline"`
+		ConnectionID  string `json:"connectionId" required:"true" minLength:"1"`
+		Name          string `json:"name" required:"true" minLength:"1"`
+		ThinkingMode  string `json:"thinkingMode" enum:",skip,inline"`
+		CompactTokens int    `json:"compactTokens,omitempty" minimum:"0"`
 	}
 }
 
 type UpdateModelInput struct {
 	ID   string `path:"id"`
 	Body struct {
-		ConnectionID string `json:"connectionId" required:"true" minLength:"1"`
-		Name         string `json:"name" required:"true" minLength:"1"`
-		ThinkingMode string `json:"thinkingMode" enum:",skip,inline"`
+		ConnectionID  string `json:"connectionId" required:"true" minLength:"1"`
+		Name          string `json:"name" required:"true" minLength:"1"`
+		ThinkingMode  string `json:"thinkingMode" enum:",skip,inline"`
+		CompactTokens int    `json:"compactTokens,omitempty" minimum:"0"`
 	}
 }
 

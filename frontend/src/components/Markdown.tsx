@@ -1,13 +1,57 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
+import { ThinkingBlock } from './ThinkingBlock'
+
+type Segment =
+  | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string; streaming: boolean }
+
+function splitThinking(input: string): Segment[] {
+  const segments: Segment[] = []
+  let rest = input
+  while (rest.length > 0) {
+    const open = rest.indexOf('<think>')
+    if (open < 0) {
+      segments.push({ type: 'text', content: rest })
+      break
+    }
+    if (open > 0) {
+      segments.push({ type: 'text', content: rest.slice(0, open) })
+    }
+    const afterOpen = rest.slice(open + 7)
+    const close = afterOpen.indexOf('</think>')
+    if (close < 0) {
+      segments.push({ type: 'thinking', content: afterOpen, streaming: true })
+      break
+    }
+    segments.push({ type: 'thinking', content: afterOpen.slice(0, close), streaming: false })
+    rest = afterOpen.slice(close + 8)
+  }
+  return segments
+}
 
 export function Markdown({ content }: { content: string }) {
   if (!content) return null
 
+  const segments = splitThinking(content)
+
   return (
     <div className="markdown text-[15px] leading-relaxed">
-      <ReactMarkdown
+      {segments.map((seg, i) => {
+        if (seg.type === 'thinking') {
+          return <ThinkingBlock key={i} content={seg.content} streaming={seg.streaming} />
+        }
+        if (!seg.content) return null
+        return <MarkdownSegment key={i} content={seg.content} />
+      })}
+    </div>
+  )
+}
+
+function MarkdownSegment({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
         skipHtml
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
@@ -75,9 +119,8 @@ export function Markdown({ content }: { content: string }) {
             <img src={src ?? ''} alt={alt ?? ''} className="max-w-full rounded-lg border border-zinc-200 dark:border-zinc-800" />
           ),
         }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
+    >
+      {content}
+    </ReactMarkdown>
   )
 }

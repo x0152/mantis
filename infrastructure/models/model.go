@@ -8,4 +8,5 @@ type ModelRow struct {
 	ConnectionID  string `bun:"connection_id"`
 	Name          string `bun:"name"`
 	ThinkingMode  string `bun:"thinking_mode"`
+	CompactTokens int    `bun:"compact_tokens"`
 }

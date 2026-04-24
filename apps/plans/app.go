@@ -13,6 +13,7 @@ import (
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/plugins/pipeline"
 	sessionplugin "mantis/core/plugins/session"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	messageworkflow "mantis/core/workflows/message"
@@ -43,6 +44,7 @@ func NewApp(
 	agent *agents.MantisAgent,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	summ *summarizer.Summarizer,
 	buf *shared.Buffer,
 ) *App {
 	if artifactMgr == nil {
@@ -50,7 +52,7 @@ func NewApp(
 	}
 
 	modelResolver := modelplugin.NewResolver(nil, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor, nil)
+	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor, summ, nil)
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 

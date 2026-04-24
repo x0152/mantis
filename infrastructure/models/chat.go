@@ -8,11 +8,14 @@ import (
 )
 
 type ChatSessionRow struct {
-	bun.BaseModel `bun:"table:chat_sessions"`
-	ID            string    `bun:"id,pk"`
-	Title         string    `bun:"title"`
-	Source        string    `bun:"source"`
-	CreatedAt     time.Time `bun:"created_at"`
+	bun.BaseModel  `bun:"table:chat_sessions"`
+	ID             string     `bun:"id,pk"`
+	Title          string     `bun:"title"`
+	Source         string     `bun:"source"`
+	CreatedAt      time.Time  `bun:"created_at"`
+	SummaryText    string     `bun:"summary_text"`
+	SummarizedUpTo *time.Time `bun:"summarized_up_to"`
+	SummaryVersion int        `bun:"summary_version"`
 }
 
 type ChatMessageRow struct {

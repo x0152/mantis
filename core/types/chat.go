@@ -6,11 +6,14 @@ import (
 )
 
 type ChatSession struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Source    string    `json:"source,omitempty"`
-	Active    bool      `json:"active,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID             string     `json:"id"`
+	Title          string     `json:"title"`
+	Source         string     `json:"source,omitempty"`
+	Active         bool       `json:"active,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	SummaryText    string     `json:"summaryText,omitempty"`
+	SummarizedUpTo *time.Time `json:"summarizedUpTo,omitempty"`
+	SummaryVersion int        `json:"summaryVersion,omitempty"`
 }
 
 type Attachment struct {

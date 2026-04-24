@@ -13,6 +13,7 @@ import (
 
 	"mantis/core/agents"
 	modelplugin "mantis/core/plugins/model"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	"mantis/shared"
@@ -56,6 +57,7 @@ type RequestHandlePipeline struct {
 	modelStore      protocols.Store[string, types.Model]
 	modelResolver   *modelplugin.Resolver
 	memoryExtractor MemoryExtractor
+	summarizer      *summarizer.Summarizer
 	attachmentDir   string
 	limits          shared.Limits
 }
@@ -67,6 +69,7 @@ func New(
 	modelStore protocols.Store[string, types.Model],
 	modelResolver *modelplugin.Resolver,
 	memoryExtractor MemoryExtractor,
+	summ *summarizer.Summarizer,
 	limits shared.Limits,
 ) *RequestHandlePipeline {
 	return &RequestHandlePipeline{
@@ -76,6 +79,7 @@ func New(
 		modelStore:      modelStore,
 		modelResolver:   modelResolver,
 		memoryExtractor: memoryExtractor,
+		summarizer:      summ,
 		limits:          limits,
 	}
 }
@@ -112,6 +116,24 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 		in.Message.ModelName = model.Name
 	}
 
+	if p.buffer != nil {
+		p.buffer.SetSessionID(in.Message.ID, in.SessionID)
+	}
+
+	var compactStep *types.Step
+	if p.summarizer != nil && !in.DisableHistory {
+		if res, err := p.summarizer.MaybeCompact(ctx, summarizer.Input{
+			SessionID: in.SessionID,
+			RequestID: in.Message.ID,
+			ModelID:   modelID,
+			PresetID:  strings.TrimSpace(modelOut.PresetID),
+		}); err == nil {
+			compactStep = res.Step
+		} else {
+			log.Printf("pipeline: compact: %v", err)
+		}
+	}
+
 	var replyChannel, replyTo string
 	if in.ResponseTo != nil {
 		replyChannel = in.ResponseTo.Channel()
@@ -130,14 +152,14 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 		DisableHistory: in.DisableHistory,
 	})
 
-	if p.buffer != nil {
-		p.buffer.SetSessionID(in.Message.ID, in.SessionID)
-	}
-
 	var content string
 	var steps []types.Step
 	if runErr == nil && stream != nil {
 		content, steps, runErr = p.collectStream(in.Message.ID, stream)
+	}
+
+	if compactStep != nil {
+		steps = append([]types.Step{*compactStep}, steps...)
 	}
 
 	stopMarker, stopped := p.classifyStop(ctx, runErr)
@@ -202,17 +224,37 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 	var steps []types.Step
 	var err error
 	stepIdx := map[string]int{}
+	inThinking := false
+
+	closeThinking := func() {
+		if inThinking {
+			sb.WriteString("</think>\n\n")
+			inThinking = false
+		}
+	}
 
 	for event := range stream {
 		switch event.Type {
 		case "error":
+			closeThinking()
 			err = errors.New(event.Delta)
 		case "text":
+			closeThinking()
+			sb.WriteString(event.Delta)
+			if p.buffer != nil {
+				p.buffer.SetContent(requestID, sb.String())
+			}
+		case "thinking":
+			if !inThinking {
+				sb.WriteString("<think>")
+				inThinking = true
+			}
 			sb.WriteString(event.Delta)
 			if p.buffer != nil {
 				p.buffer.SetContent(requestID, sb.String())
 			}
 		case "tool_start":
+			closeThinking()
 			var step types.Step
 			_ = json.Unmarshal([]byte(event.Delta), &step)
 			step.ContentOffset = sb.Len()
@@ -250,6 +292,7 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 			}
 		}
 	}
+	closeThinking()
 
 	return sb.String(), steps, err
 }

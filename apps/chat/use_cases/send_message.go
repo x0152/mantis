@@ -21,10 +21,11 @@ func NewSendMessage(workflow *messageworkflow.Workflow, sessionStore protocols.S
 	return &SendMessage{workflow: workflow, sessionStore: sessionStore, limits: limits}
 }
 
-func (uc *SendMessage) Execute(ctx context.Context, sessionID, content string) (types.ChatMessage, types.ChatMessage, error) {
+func (uc *SendMessage) Execute(ctx context.Context, sessionID, content string, files []protocols.FileAttachment) (types.ChatMessage, types.ChatMessage, error) {
 	out, err := uc.workflow.Execute(ctx, messageworkflow.Input{
 		SessionID:   sessionID,
 		Content:     content,
+		Incoming:    files,
 		Source:      "web",
 		ModelConfig: modelplugin.Input{ChannelID: "chat", DefaultPreset: "chat"},
 		Timeout:     uc.limits.SupervisorTimeout,

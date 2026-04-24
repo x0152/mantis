@@ -43,10 +43,18 @@ type ListMessagesInput struct {
 	Source    string `query:"source"`
 }
 
+type FileAttachmentInput struct {
+	FileName   string `json:"fileName" required:"true" minLength:"1"`
+	MimeType   string `json:"mimeType,omitempty"`
+	DataBase64 string `json:"dataBase64" required:"true" minLength:"1"`
+	Caption    string `json:"caption,omitempty"`
+}
+
 type SendMessageInput struct {
 	Body struct {
-		SessionID string `json:"sessionId" required:"true" minLength:"1"`
-		Content   string `json:"content" required:"true" minLength:"1"`
+		SessionID string                `json:"sessionId" required:"true" minLength:"1"`
+		Content   string                `json:"content"`
+		Files     []FileAttachmentInput `json:"files,omitempty"`
 	}
 }
 
@@ -57,6 +65,18 @@ type SendMessageResponse struct {
 
 type SendMessageOutput struct {
 	Body SendMessageResponse
+}
+
+type RegenerateInput struct {
+	ID string `path:"id"`
+}
+
+type RegenerateResponse struct {
+	AssistantMessage types.ChatMessage `json:"assistantMessage"`
+}
+
+type RegenerateOutput struct {
+	Body RegenerateResponse
 }
 
 type StopSessionInput struct {

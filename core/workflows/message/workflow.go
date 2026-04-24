@@ -12,6 +12,7 @@ import (
 	artifactplugin "mantis/core/plugins/artifact"
 	modelplugin "mantis/core/plugins/model"
 	"mantis/core/plugins/pipeline"
+	"mantis/core/plugins/summarizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	"mantis/shared"
@@ -50,13 +51,14 @@ func New(
 	modelResolver *modelplugin.Resolver,
 	artifactMgr *artifactplugin.Manager,
 	memoryExtractor pipeline.MemoryExtractor,
+	summ *summarizer.Summarizer,
 	cancellations *pipeline.Cancellations,
 ) *Workflow {
 	if artifactMgr == nil {
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	return &Workflow{
-		pipeline:      pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor, agent.Limits()),
+		pipeline:      pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor, summ, agent.Limits()),
 		messageStore:  messageStore,
 		artifactMgr:   artifactMgr,
 		cancellations: cancellations,
@@ -65,6 +67,53 @@ func New(
 
 func (w *Workflow) SetAttachmentDir(dir string) {
 	w.pipeline.SetAttachmentDir(dir)
+}
+
+type RegenerateInput struct {
+	SessionID    string
+	UserContent  string
+	Source       string
+	ModelConfig  modelplugin.Input
+	Timeout      time.Duration
+	ErrorPrefix  string
+	ResponseTo   protocols.ResponseTo
+}
+
+func (w *Workflow) Regenerate(ctx context.Context, in RegenerateInput) (types.ChatMessage, error) {
+	sessionID := strings.TrimSpace(in.SessionID)
+	if sessionID == "" {
+		return types.ChatMessage{}, fmt.Errorf("session_id is required")
+	}
+
+	now := time.Now()
+	assistantMsg := types.ChatMessage{
+		ID: uuid.New().String(), SessionID: sessionID,
+		Role: "assistant", Content: "", Status: "pending",
+		Source: in.Source, CreatedAt: now,
+	}
+	if _, err := w.messageStore.Create(ctx, []types.ChatMessage{assistantMsg}); err != nil {
+		return types.ChatMessage{}, err
+	}
+
+	artifacts := w.artifactMgr.ForSession(sessionID)
+
+	execCtx, release := w.cancellations.Begin(context.Background(), sessionID)
+	go func() {
+		defer release()
+		_ = w.pipeline.Execute(execCtx, pipeline.Input{
+			Message:     assistantMsg,
+			SessionID:   sessionID,
+			Content:     in.UserContent,
+			Artifacts:   artifacts,
+			ModelConfig: in.ModelConfig,
+			ResponseTo:  in.ResponseTo,
+			Source:      in.Source,
+			ErrorPrefix: in.ErrorPrefix,
+			Timeout:     in.Timeout,
+		})
+	}()
+
+	return assistantMsg, nil
 }
 
 func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
