@@ -75,12 +75,27 @@ func llmConnectionFromUpdateInput(input *UpdateLlmConnectionInput) (string, stri
 	return input.ID, input.Body.Provider, input.Body.BaseURL, input.Body.APIKey
 }
 
-func modelFromCreateInput(input *CreateModelInput) (string, string, string, int) {
-	return input.Body.ConnectionID, input.Body.Name, input.Body.ThinkingMode, input.Body.CompactTokens
+func modelFromCreateInput(input *CreateModelInput) types.Model {
+	return types.Model{
+		ConnectionID:  input.Body.ConnectionID,
+		Name:          input.Body.Name,
+		ThinkingMode:  input.Body.ThinkingMode,
+		ContextWindow: input.Body.ContextWindow,
+		ReserveTokens: input.Body.ReserveTokens,
+		CompactTokens: input.Body.CompactTokens,
+	}
 }
 
-func modelFromUpdateInput(input *UpdateModelInput) (string, string, string, string, int) {
-	return input.ID, input.Body.ConnectionID, input.Body.Name, input.Body.ThinkingMode, input.Body.CompactTokens
+func modelFromUpdateInput(input *UpdateModelInput) types.Model {
+	return types.Model{
+		ID:            input.ID,
+		ConnectionID:  input.Body.ConnectionID,
+		Name:          input.Body.Name,
+		ThinkingMode:  input.Body.ThinkingMode,
+		ContextWindow: input.Body.ContextWindow,
+		ReserveTokens: input.Body.ReserveTokens,
+		CompactTokens: input.Body.CompactTokens,
+	}
 }
 
 func connectionFromCreateInput(input *CreateConnectionInput) (string, string, string, string, string, json.RawMessage, []string, bool) {

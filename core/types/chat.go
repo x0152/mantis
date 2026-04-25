@@ -6,14 +6,15 @@ import (
 )
 
 type ChatSession struct {
-	ID             string     `json:"id"`
-	Title          string     `json:"title"`
-	Source         string     `json:"source,omitempty"`
-	Active         bool       `json:"active,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	SummaryText    string     `json:"summaryText,omitempty"`
-	SummarizedUpTo *time.Time `json:"summarizedUpTo,omitempty"`
-	SummaryVersion int        `json:"summaryVersion,omitempty"`
+	ID                string     `json:"id"`
+	Title             string     `json:"title"`
+	Source            string     `json:"source,omitempty"`
+	Active            bool       `json:"active,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	SummaryText       string     `json:"summaryText,omitempty"`
+	SummarizedUpTo    *time.Time `json:"summarizedUpTo,omitempty"`
+	SummaryVersion    int        `json:"summaryVersion,omitempty"`
+	LastContextTokens int        `json:"lastContextTokens,omitempty"`
 }
 
 type Attachment struct {
@@ -37,6 +38,9 @@ type ChatMessage struct {
 	ModelRole   string          `json:"modelRole,omitempty"` // primary | fallback | explicit | legacy
 	Steps       json.RawMessage `json:"steps,omitempty"`
 	Attachments []Attachment    `json:"attachments,omitempty"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	FinishedAt  *time.Time      `json:"finishedAt,omitempty"`
+	CreatedAt        time.Time       `json:"createdAt"`
+	FinishedAt       *time.Time      `json:"finishedAt,omitempty"`
+	PromptTokens     int             `json:"promptTokens,omitempty"`
+	CompletionTokens int             `json:"completionTokens,omitempty"`
+	Tokens           int             `json:"tokens,omitempty"`
 }

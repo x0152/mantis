@@ -1,6 +1,17 @@
 package api
 
-import "mantis/core/types"
+import (
+	usecases "mantis/apps/chat/use_cases"
+	"mantis/core/types"
+)
+
+type ContextStatusInput struct {
+	ID string `path:"id"`
+}
+
+type ContextStatusOutput struct {
+	Body usecases.ContextStatus
+}
 
 type SessionOutput struct {
 	Body types.ChatSession

@@ -24,6 +24,7 @@ type UseCases struct {
 	ClearHistory      *usecases.ClearHistory
 	StopGeneration    *usecases.StopGeneration
 	RegenerateLast    *usecases.RegenerateLast
+	GetContextStatus  *usecases.GetContextStatus
 }
 
 type Endpoints struct {
@@ -45,7 +46,19 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201, MaxBodyBytes: 64 * 1024 * 1024}, e.sendMessage)
 	huma.Register(api, huma.Operation{OperationID: "regenerate-chat-last", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/regenerate", DefaultStatus: 201}, e.regenerate)
 	huma.Register(api, huma.Operation{OperationID: "stop-chat-session", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/stop"}, e.stopSession)
+	huma.Register(api, huma.Operation{OperationID: "get-chat-context-status", Method: http.MethodGet, Path: "/api/chat/sessions/{id}/context"}, e.getContextStatus)
 	huma.Register(api, huma.Operation{OperationID: "clear-chat-history", Method: http.MethodDelete, Path: "/api/chat/history", DefaultStatus: 204}, e.clearHistory)
+}
+
+func (e *Endpoints) getContextStatus(ctx context.Context, input *ContextStatusInput) (*ContextStatusOutput, error) {
+	if e.uc.GetContextStatus == nil {
+		return nil, huma.NewError(http.StatusNotImplemented, "context status is not configured")
+	}
+	status, err := e.uc.GetContextStatus.Execute(ctx, input.ID)
+	if err != nil {
+		return nil, huma.NewError(http.StatusInternalServerError, err.Error())
+	}
+	return &ContextStatusOutput{Body: status}, nil
 }
 
 func (e *Endpoints) getSession(ctx context.Context, _ *struct{}) (*SessionOutput, error) {

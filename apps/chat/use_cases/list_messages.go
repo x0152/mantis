@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"mantis/core/plugins/tokenizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	"mantis/shared"
@@ -67,6 +68,13 @@ func (uc *ListMessages) Execute(ctx context.Context, limit, offset int, sessionI
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].CreatedAt.Before(result[j].CreatedAt)
 	})
+	for i := range result {
+		if result[i].Role == "assistant" && result[i].CompletionTokens > 0 {
+			result[i].Tokens = result[i].CompletionTokens
+			continue
+		}
+		result[i].Tokens = tokenizer.For(result[i].ModelName).CountChatMessage(result[i])
+	}
 	return result, nil
 }
 

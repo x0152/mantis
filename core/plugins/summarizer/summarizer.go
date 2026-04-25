@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"mantis/core/plugins/tokenizer"
 	"mantis/core/protocols"
 	"mantis/core/types"
 	"mantis/shared"
@@ -63,6 +64,10 @@ type Result struct {
 	After      int
 }
 
+type MemoryFlusher interface {
+	FlushCompactedWindow(ctx context.Context, msgs []types.ChatMessage)
+}
+
 type Summarizer struct {
 	llm           protocols.LLM
 	sessionStore  protocols.Store[string, types.ChatSession]
@@ -71,6 +76,7 @@ type Summarizer struct {
 	presetStore   protocols.Store[string, types.Preset]
 	llmConnStore  protocols.Store[string, types.LlmConnection]
 	buffer        *shared.Buffer
+	memoryFlusher MemoryFlusher
 	minKeepRecent int
 	minCompact    int
 	targetRatio   float64
@@ -99,7 +105,35 @@ func New(
 	}
 }
 
+func (s *Summarizer) SetMemoryFlusher(f MemoryFlusher) {
+	if s == nil {
+		return
+	}
+	s.memoryFlusher = f
+}
+
+func EffectiveThreshold(model types.Model) int {
+	if model.CompactTokens > 0 {
+		return model.CompactTokens
+	}
+	if model.ContextWindow > 0 {
+		if budget := model.ContextWindow - model.ReserveTokens; budget > 0 {
+			return budget
+		}
+		return model.ContextWindow
+	}
+	return DefaultCompactTokens
+}
+
 func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error) {
+	return s.compact(ctx, in, false)
+}
+
+func (s *Summarizer) ForceCompact(ctx context.Context, in Input) (Result, error) {
+	return s.compact(ctx, in, true)
+}
+
+func (s *Summarizer) compact(ctx context.Context, in Input, force bool) (Result, error) {
 	if s == nil || s.sessionStore == nil || s.messageStore == nil {
 		return Result{}, nil
 	}
@@ -112,10 +146,7 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 	if err != nil {
 		return Result{}, nil
 	}
-	threshold := model.CompactTokens
-	if threshold <= 0 {
-		threshold = DefaultCompactTokens
-	}
+	threshold := EffectiveThreshold(model)
 
 	session, err := s.loadSession(ctx, sessionID)
 	if err != nil {
@@ -127,19 +158,29 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 		return Result{}, err
 	}
 
-	before := s.estimateTokens(session.SummaryText, kept)
-	if before <= threshold {
+	tok := tokenizer.For(model.Name)
+	before := estimateConversationTokens(tok, session.SummaryText, kept)
+	if !force && before <= threshold {
 		return Result{}, nil
 	}
 
-	cutIdx := s.chooseCut(kept, threshold)
+	var cutIdx int
+	if force {
+		cutIdx = forceCut(kept, s.minKeepRecent)
+	} else {
+		cutIdx = chooseCut(tok, kept, threshold, s.minKeepRecent, s.targetRatio)
+	}
 	if cutIdx < s.minCompact {
 		return Result{}, nil
 	}
 	toCompact := kept[:cutIdx]
 	remaining := kept[cutIdx:]
 
-	step := s.startStep(in.RequestID, len(toCompact), before)
+	step := s.startStep(in.RequestID, len(toCompact), before, force)
+
+	if s.memoryFlusher != nil {
+		s.memoryFlusher.FlushCompactedWindow(ctx, toCompact)
+	}
 
 	summaryModel, summaryConn, err := s.pickSummaryModel(ctx, in.PresetID, model)
 	if err != nil {
@@ -151,7 +192,7 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 	if budget < 80 {
 		budget = 80
 	}
-	replacedTokens := shared.EstimateTokens(session.SummaryText) + s.estimateMessageTokens(toCompact)
+	replacedTokens := tok.Count(session.SummaryText) + estimateMessagesTokens(tok, toCompact)
 
 	newSummary, err := s.generateSummary(ctx, summaryConn, summaryModel, session.SummaryText, toCompact, budget)
 	if err != nil {
@@ -159,8 +200,8 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 		return Result{Step: step}, nil
 	}
 
-	newSummaryTokens := shared.EstimateTokens(newSummary)
-	if newSummaryTokens >= replacedTokens {
+	newSummaryTokens := tok.Count(newSummary)
+	if !force && newSummaryTokens >= replacedTokens {
 		s.finishStepSkipped(in.RequestID, step, len(toCompact), before, replacedTokens, newSummaryTokens)
 		return Result{Step: step}, nil
 	}
@@ -174,7 +215,7 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 		return Result{Step: step}, nil
 	}
 
-	after := newSummaryTokens + s.estimateMessageTokens(remaining)
+	after := newSummaryTokens + estimateMessagesTokens(tok, remaining)
 	s.finishStepSuccess(in.RequestID, step, len(toCompact), before, after)
 	return Result{
 		Compacted:  true,
@@ -185,18 +226,18 @@ func (s *Summarizer) MaybeCompact(ctx context.Context, in Input) (Result, error)
 	}, nil
 }
 
-func (s *Summarizer) chooseCut(kept []types.ChatMessage, threshold int) int {
-	target := int(float64(threshold) * s.targetRatio)
+func chooseCut(tok tokenizer.Tokenizer, kept []types.ChatMessage, threshold, minKeepRecent int, targetRatio float64) int {
+	target := int(float64(threshold) * targetRatio)
 	if target < 1 {
 		target = 1
 	}
-	maxCut := len(kept) - s.minKeepRecent
+	maxCut := len(kept) - minKeepRecent
 	if maxCut < 1 {
 		return 0
 	}
 	acc := 0
 	for i := len(kept) - 1; i >= 0; i-- {
-		acc += shared.EstimateTokens(kept[i].Content) + 4
+		acc += tok.Count(kept[i].Content) + 4
 		if acc > target {
 			cut := i
 			if cut > maxCut {
@@ -206,6 +247,14 @@ func (s *Summarizer) chooseCut(kept []types.ChatMessage, threshold int) int {
 		}
 	}
 	return 0
+}
+
+func forceCut(kept []types.ChatMessage, minKeepRecent int) int {
+	cut := len(kept) - minKeepRecent
+	if cut < 0 {
+		cut = 0
+	}
+	return cut
 }
 
 func (s *Summarizer) loadSession(ctx context.Context, sessionID string) (types.ChatSession, error) {
@@ -242,18 +291,14 @@ func (s *Summarizer) loadSessionMessages(ctx context.Context, sessionID string, 
 	return kept, nil
 }
 
-func (s *Summarizer) estimateTokens(summary string, msgs []types.ChatMessage) int {
-	total := shared.EstimateTokens(summary)
-	for _, m := range msgs {
-		total += shared.EstimateTokens(m.Content) + 4
-	}
-	return total
+func estimateConversationTokens(tok tokenizer.Tokenizer, summary string, msgs []types.ChatMessage) int {
+	return tok.Count(summary) + estimateMessagesTokens(tok, msgs)
 }
 
-func (s *Summarizer) estimateMessageTokens(msgs []types.ChatMessage) int {
+func estimateMessagesTokens(tok tokenizer.Tokenizer, msgs []types.ChatMessage) int {
 	total := 0
 	for _, m := range msgs {
-		total += shared.EstimateTokens(m.Content) + 4
+		total += tok.Count(m.Content) + 4
 	}
 	return total
 }
@@ -324,12 +369,16 @@ func (s *Summarizer) generateSummary(ctx context.Context, conn types.LlmConnecti
 	return result, nil
 }
 
-func (s *Summarizer) startStep(requestID string, count, before int) *types.Step {
+func (s *Summarizer) startStep(requestID string, count, before int, force bool) *types.Step {
+	label := fmt.Sprintf("Compressing earlier context (%d messages, ~%s tokens)…", count, humanTokens(before))
+	if force {
+		label = fmt.Sprintf("Context overflow — forcing compaction of %d messages (~%s tokens)…", count, humanTokens(before))
+	}
 	step := &types.Step{
 		ID:        "compact-" + uuid.New().String(),
 		Tool:      SummaryToolName,
 		Icon:      SummaryToolIcon,
-		Label:     fmt.Sprintf("Compressing earlier context (%d messages, ~%s tokens)…", count, humanTokens(before)),
+		Label:     label,
 		Status:    "running",
 		StartedAt: time.Now().UTC().Format(time.RFC3339),
 	}

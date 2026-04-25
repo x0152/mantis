@@ -74,6 +74,8 @@ type CreateModelInput struct {
 		ConnectionID  string `json:"connectionId" required:"true" minLength:"1"`
 		Name          string `json:"name" required:"true" minLength:"1"`
 		ThinkingMode  string `json:"thinkingMode" enum:",skip,inline"`
+		ContextWindow int    `json:"contextWindow,omitempty" minimum:"0"`
+		ReserveTokens int    `json:"reserveTokens,omitempty" minimum:"0"`
 		CompactTokens int    `json:"compactTokens,omitempty" minimum:"0"`
 	}
 }
@@ -84,6 +86,8 @@ type UpdateModelInput struct {
 		ConnectionID  string `json:"connectionId" required:"true" minLength:"1"`
 		Name          string `json:"name" required:"true" minLength:"1"`
 		ThinkingMode  string `json:"thinkingMode" enum:",skip,inline"`
+		ContextWindow int    `json:"contextWindow,omitempty" minimum:"0"`
+		ReserveTokens int    `json:"reserveTokens,omitempty" minimum:"0"`
 		CompactTokens int    `json:"compactTokens,omitempty" minimum:"0"`
 	}
 }

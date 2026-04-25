@@ -52,7 +52,7 @@ func NewApp(
 	}
 
 	modelResolver := modelplugin.NewResolver(nil, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buf, modelResolver, artifactMgr, memoryExtractor, summ, nil)
+	workflow := messageworkflow.New(messageStore, modelStore, sessionStore, agent, buf, modelResolver, artifactMgr, memoryExtractor, summ, nil)
 	sessionPolicy := sessionplugin.NewPolicy(sessionStore)
 	parser := robcron.NewParser(robcron.Minute | robcron.Hour | robcron.Dom | robcron.Month | robcron.Dow | robcron.Descriptor)
 

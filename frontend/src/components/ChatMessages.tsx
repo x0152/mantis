@@ -24,6 +24,17 @@ function fmtElapsed(ms: number): string {
   return `${m}m ${s}s`
 }
 
+function estimateTokens(text: string | undefined | null): number {
+  if (!text) return 0
+  return Math.ceil(text.length / 4)
+}
+
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 10000) return (n / 1000).toFixed(1) + 'k'
+  return Math.round(n / 1000) + 'k'
+}
+
 export const STEP_ICONS: Record<string, typeof Terminal> = {
   terminal: Terminal,
   calculator: Calculator,
@@ -54,10 +65,16 @@ export function MessageBubble({
   const steps = msg.steps ?? []
 
   if (isUser) {
+    const userTokens = msg.tokens ?? estimateTokens(msg.content)
     return (
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-xl rounded-br-sm text-[15px] bg-teal-600 text-white px-4 py-3">
           <div className="whitespace-pre-wrap">{msg.content}</div>
+          {userTokens > 0 && (
+            <div className="mt-1 text-[10px] font-mono tabular-nums text-white/60 text-right">
+              ~{fmtTokens(userTokens)} tok
+            </div>
+          )}
         </div>
       </div>
     )
@@ -66,8 +83,24 @@ export function MessageBubble({
   if (msg.status === 'error') {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-3">
+        <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-3 space-y-2">
           <Markdown content={msg.content} />
+          {canRegenerate && onRegenerate && (
+            <div>
+              <button
+                onClick={onRegenerate}
+                disabled={regenerating}
+                className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                title="Regenerate response"
+              >
+                {regenerating
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : <RotateCcw size={11} />
+                }
+                Regenerate
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -89,8 +122,11 @@ export function MessageBubble({
     }
   }, [contentLen])
   const sinceContentChange = Date.now() - lastContentChangeRef.current
-  const isTyping = isPending && contentLen > 0 && sinceContentChange < 900
-  const showThinking = isPending && !hasRunningStep && !isTyping
+  const lastOpen = msg.content ? msg.content.lastIndexOf('<think>') : -1
+  const lastClose = msg.content ? msg.content.lastIndexOf('</think>') : -1
+  const inThinkTag = isPending && lastOpen >= 0 && lastOpen > lastClose
+  const isTyping = isPending && contentLen > 0 && sinceContentChange < 900 && !inThinkTag
+  const showThinking = isPending && !hasRunningStep && !isTyping && !inThinkTag
   const showTyping = isTyping && !hasRunningStep
   const msgStart = new Date(msg.createdAt).getTime()
   const msgEnd = msg.finishedAt ? new Date(msg.finishedAt).getTime() : Date.now()
@@ -101,7 +137,9 @@ export function MessageBubble({
   const images = (msg.attachments ?? []).filter(isImage)
   const otherFiles = (msg.attachments ?? []).filter(a => !isImage(a))
 
-  const showHeader = !!(msg.modelName || msg.presetName || msg.modelRole === 'fallback' || showMsgDuration)
+  const estimatedTokens = msg.tokens ?? estimateTokens(msg.content)
+  const showTokens = estimatedTokens > 0
+  const showHeader = !!(msg.modelName || msg.presetName || msg.modelRole === 'fallback' || showMsgDuration || showTokens)
   const hasText = parts.some(p => p.type === 'text')
   const hasAnyContent =
     parts.length > 0 ||
@@ -135,6 +173,14 @@ export function MessageBubble({
             {showMsgDuration && (
               <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600 tabular-nums">
                 · {fmtElapsed(msgElapsed)}
+              </span>
+            )}
+            {showTokens && (
+              <span
+                className="text-[10px] font-mono text-zinc-500 dark:text-zinc-600 tabular-nums"
+                title="Estimated tokens in this message"
+              >
+                · ~{fmtTokens(estimatedTokens)} tok
               </span>
             )}
           </div>

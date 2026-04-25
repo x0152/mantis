@@ -1,4 +1,4 @@
-import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User } from './types'
+import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User, ContextStatus } from './types'
 
 export class UnauthorizedError extends Error {
   constructor(message = 'Unauthorized') {
@@ -60,10 +60,10 @@ export const api = {
   models: {
     list: () => request<Model[]>('/models'),
     get: (id: string) => request<Model>(`/models/${id}`),
-    create: (connectionId: string, name: string, thinkingMode: string, compactTokens: number) =>
-      request<Model>('/models', { method: 'POST', body: JSON.stringify({ connectionId, name, thinkingMode, compactTokens }) }),
-    update: (id: string, connectionId: string, name: string, thinkingMode: string, compactTokens: number) =>
-      request<Model>(`/models/${id}`, { method: 'PUT', body: JSON.stringify({ connectionId, name, thinkingMode, compactTokens }) }),
+    create: (data: Omit<Model, 'id'>) =>
+      request<Model>('/models', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Omit<Model, 'id'>) =>
+      request<Model>(`/models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/models/${id}`, { method: 'DELETE' }),
   },
   presets: {
@@ -181,6 +181,8 @@ export const api = {
       }),
     stopSession: (sessionId: string) =>
       request<{ stopped: boolean }>(`/chat/sessions/${sessionId}/stop`, { method: 'POST' }),
+    getContextStatus: (sessionId: string) =>
+      request<ContextStatus>(`/chat/sessions/${sessionId}/context`),
     clearHistory: () => request<void>('/chat/history', { method: 'DELETE' }),
   },
 }

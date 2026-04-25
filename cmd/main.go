@@ -178,6 +178,7 @@ func main() {
 	artifactMgr := artifactplugin.NewManager(artifactadapter.NewInMemorySessionStorage())
 	memoryExtractor := memory.NewExtractor(llmAdapter, settingsStore, connectionStore, modelStore, presetStore, llmConnStore)
 	summ := summarizer.New(llmAdapter, sessionStore, messageStore, modelStore, presetStore, llmConnStore, buf)
+	summ.SetMemoryFlusher(memoryExtractor)
 
 	attachmentDir := env("ATTACHMENT_DIR", "/data/attachments")
 

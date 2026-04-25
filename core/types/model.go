@@ -5,5 +5,7 @@ type Model struct {
 	ConnectionID  string `json:"connectionId"`
 	Name          string `json:"name"`
 	ThinkingMode  string `json:"thinkingMode"`
+	ContextWindow int    `json:"contextWindow"`
+	ReserveTokens int    `json:"reserveTokens"`
 	CompactTokens int    `json:"compactTokens"`
 }

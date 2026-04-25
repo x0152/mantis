@@ -19,9 +19,10 @@ import { FormField } from '@/components/FormField'
 import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 type EndpointForm = { id: string; provider: string; baseUrl: string; apiKey: string }
-type ModelForm = { name: string; connectionId: string; thinkingMode: string; compactTokens: string }
+type ModelForm = { name: string; connectionId: string; thinkingMode: string; contextWindow: string; reserveTokens: string; compactTokens: string }
 
-const defaultCompactTokens = 100000
+const defaultContextWindow = 128000
+const defaultReserveTokens = 20000
 type ProfileForm = {
   name: string
   chatModelId: string
@@ -80,7 +81,7 @@ export default function LlmPage() {
 
   const [modelModalOpen, setModelModalOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [modelForm, setModelForm] = useState<ModelForm>({ name: '', connectionId: '', thinkingMode: '', compactTokens: String(defaultCompactTokens) })
+  const [modelForm, setModelForm] = useState<ModelForm>({ name: '', connectionId: '', thinkingMode: '', contextWindow: String(defaultContextWindow), reserveTokens: String(defaultReserveTokens), compactTokens: '' })
   const [loadingAvailableModels, setLoadingAvailableModels] = useState(false)
   const [availableModelsByEndpoint, setAvailableModelsByEndpoint] = useState<Record<string, ProviderModel[]>>({})
   const [endpointLimits, setEndpointLimits] = useState<Record<string, InferenceLimit>>({})
@@ -217,7 +218,7 @@ export default function LlmPage() {
   const openCreateModel = (connectionId?: string) => {
     setEditingModel(null)
     const selectedConnection = connectionId ?? endpoints[0]?.id ?? ''
-    setModelForm({ name: '', connectionId: selectedConnection, thinkingMode: '', compactTokens: String(defaultCompactTokens) })
+    setModelForm({ name: '', connectionId: selectedConnection, thinkingMode: '', contextWindow: String(defaultContextWindow), reserveTokens: String(defaultReserveTokens), compactTokens: '' })
     setModelModalOpen(true)
   }
   const openEditModel = (m: Model) => {
@@ -226,19 +227,28 @@ export default function LlmPage() {
       name: m.name,
       connectionId: m.connectionId,
       thinkingMode: m.thinkingMode,
-      compactTokens: String(m.compactTokens || defaultCompactTokens),
+      contextWindow: String(m.contextWindow || defaultContextWindow),
+      reserveTokens: String(m.reserveTokens || defaultReserveTokens),
+      compactTokens: m.compactTokens ? String(m.compactTokens) : '',
     })
     setModelModalOpen(true)
   }
   const submitModel = async () => {
     try {
-      const parsed = Math.max(0, parseInt(modelForm.compactTokens, 10) || 0)
-      const compactTokens = parsed > 0 ? parsed : defaultCompactTokens
+      const parseInt10 = (s: string) => Math.max(0, parseInt(s, 10) || 0)
+      const payload = {
+        connectionId: modelForm.connectionId,
+        name: modelForm.name,
+        thinkingMode: modelForm.thinkingMode as '' | 'skip' | 'inline',
+        contextWindow: parseInt10(modelForm.contextWindow),
+        reserveTokens: parseInt10(modelForm.reserveTokens),
+        compactTokens: parseInt10(modelForm.compactTokens),
+      }
       if (editingModel) {
-        await api.models.update(editingModel.id, modelForm.connectionId, modelForm.name, modelForm.thinkingMode, compactTokens)
+        await api.models.update(editingModel.id, payload)
         toast.success('Model updated')
       } else {
-        await api.models.create(modelForm.connectionId, modelForm.name, modelForm.thinkingMode, compactTokens)
+        await api.models.create(payload)
         toast.success('Model created')
       }
       setModelModalOpen(false)
@@ -730,14 +740,34 @@ export default function LlmPage() {
                 <option value="inline">Strip tags, keep content</option>
               </select>
             </FormField>
-            <FormField label="Compact at (tokens)" hint="Summarize earlier chat history when estimated context exceeds this threshold">
+            <FormField label="Context window (tokens)" hint="Model's maximum context length">
               <Input
                 type="number"
                 min={1000}
                 step={1000}
+                value={modelForm.contextWindow}
+                onChange={e => setModelForm(f => ({ ...f, contextWindow: e.target.value }))}
+                placeholder={String(defaultContextWindow)}
+              />
+            </FormField>
+            <FormField label="Reserve for output (tokens)" hint="Headroom left for the reply so prompts never fill the window">
+              <Input
+                type="number"
+                min={0}
+                step={1000}
+                value={modelForm.reserveTokens}
+                onChange={e => setModelForm(f => ({ ...f, reserveTokens: e.target.value }))}
+                placeholder={String(defaultReserveTokens)}
+              />
+            </FormField>
+            <FormField label="Compact at (tokens, optional override)" hint="If empty, uses context window − reserve">
+              <Input
+                type="number"
+                min={0}
+                step={1000}
                 value={modelForm.compactTokens}
                 onChange={e => setModelForm(f => ({ ...f, compactTokens: e.target.value }))}
-                placeholder={String(defaultCompactTokens)}
+                placeholder="auto"
               />
             </FormField>
             <DialogFooter>

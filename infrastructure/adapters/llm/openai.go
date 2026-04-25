@@ -64,10 +64,15 @@ type reqToolDef struct {
 }
 
 type chatReq struct {
-	Model    string       `json:"model"`
-	Messages []reqMessage `json:"messages"`
-	Tools    []reqTool    `json:"tools,omitempty"`
-	Stream   bool         `json:"stream"`
+	Model         string        `json:"model"`
+	Messages      []reqMessage  `json:"messages"`
+	Tools         []reqTool     `json:"tools,omitempty"`
+	Stream        bool          `json:"stream"`
+	StreamOptions streamOptions `json:"stream_options"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type streamDelta struct {
@@ -89,6 +94,16 @@ type streamChunk struct {
 		Delta        streamDelta `json:"delta"`
 		FinishReason *string     `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *streamUsage `json:"usage"`
+}
+
+type streamUsage struct {
+	PromptTokens            int `json:"prompt_tokens"`
+	CompletionTokens        int `json:"completion_tokens"`
+	TotalTokens             int `json:"total_tokens"`
+	PromptTokensDetails     *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
 }
 
 type modelsResp struct {
@@ -143,7 +158,7 @@ func (o *OpenAI) ChatStream(ctx context.Context, _ string, baseURL, apiKey strin
 	msgs := buildMessages(messages)
 	reqTools := buildTools(tools)
 
-	payload := chatReq{Model: model, Messages: msgs, Stream: true}
+	payload := chatReq{Model: model, Messages: msgs, Stream: true, StreamOptions: streamOptions{IncludeUsage: true}}
 	if len(reqTools) > 0 {
 		payload.Tools = reqTools
 	}
@@ -180,6 +195,16 @@ func (o *OpenAI) ChatStream(ctx context.Context, _ string, baseURL, apiKey strin
 		seq := 0
 
 		toolCalls := map[int]*types.ToolCall{}
+		var lastUsage *types.LLMUsage
+
+		emitUsage := func() {
+			if lastUsage == nil {
+				return
+			}
+			ch <- types.StreamEvent{Type: "usage", Usage: lastUsage, Sequence: seq}
+			seq++
+			lastUsage = nil
+		}
 
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -195,6 +220,9 @@ func (o *OpenAI) ChatStream(ctx context.Context, _ string, baseURL, apiKey strin
 			var chunk streamChunk
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 				continue
+			}
+			if chunk.Usage != nil {
+				lastUsage = convertUsage(chunk.Usage)
 			}
 			if len(chunk.Choices) == 0 {
 				continue
@@ -229,18 +257,20 @@ func (o *OpenAI) ChatStream(ctx context.Context, _ string, baseURL, apiKey strin
 
 			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
 				calls := orderedToolCalls(toolCalls)
+				emitUsage()
 				ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 				return
 			}
 		}
 
-		// Emit accumulated tool calls even if finish_reason was not "tool_calls".
-		// Some providers (e.g. LM Studio) return "stop" while still including tool_calls in deltas.
 		if len(toolCalls) > 0 {
 			calls := orderedToolCalls(toolCalls)
+			emitUsage()
 			ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 			return
 		}
+
+		emitUsage()
 
 		if err := scanner.Err(); err != nil {
 			log.Printf("LLM stream read error: %v", err)
@@ -293,6 +323,21 @@ func buildTools(tools []types.Tool) []reqTool {
 				Parameters:  t.Parameters,
 			},
 		}
+	}
+	return out
+}
+
+func convertUsage(u *streamUsage) *types.LLMUsage {
+	if u == nil {
+		return nil
+	}
+	out := &types.LLMUsage{
+		PromptTokens:     u.PromptTokens,
+		CompletionTokens: u.CompletionTokens,
+		TotalTokens:      u.TotalTokens,
+	}
+	if u.PromptTokensDetails != nil {
+		out.CachedTokens = u.PromptTokensDetails.CachedTokens
 	}
 	return out
 }

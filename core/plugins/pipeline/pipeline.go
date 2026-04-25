@@ -55,6 +55,7 @@ type RequestHandlePipeline struct {
 	buffer          *shared.Buffer
 	messageStore    protocols.Store[string, types.ChatMessage]
 	modelStore      protocols.Store[string, types.Model]
+	sessionStore    protocols.Store[string, types.ChatSession]
 	modelResolver   *modelplugin.Resolver
 	memoryExtractor MemoryExtractor
 	summarizer      *summarizer.Summarizer
@@ -67,6 +68,7 @@ func New(
 	buffer *shared.Buffer,
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	sessionStore protocols.Store[string, types.ChatSession],
 	modelResolver *modelplugin.Resolver,
 	memoryExtractor MemoryExtractor,
 	summ *summarizer.Summarizer,
@@ -77,6 +79,7 @@ func New(
 		buffer:          buffer,
 		messageStore:    messageStore,
 		modelStore:      modelStore,
+		sessionStore:    sessionStore,
 		modelResolver:   modelResolver,
 		memoryExtractor: memoryExtractor,
 		summarizer:      summ,
@@ -140,7 +143,7 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 		replyTo = in.ResponseTo.Recipient()
 	}
 
-	stream, runErr := p.agent.Execute(ctx, agents.MantisInput{
+	agentInput := agents.MantisInput{
 		SessionID:      in.SessionID,
 		ModelID:        modelID,
 		Content:        in.Content,
@@ -150,12 +153,25 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 		ReplyChannel:   replyChannel,
 		ReplyTo:        replyTo,
 		DisableHistory: in.DisableHistory,
-	})
+	}
+
+	stream, runErr := p.agent.Execute(ctx, agentInput)
 
 	var content string
 	var steps []types.Step
+	var usage *types.LLMUsage
 	if runErr == nil && stream != nil {
-		content, steps, runErr = p.collectStream(in.Message.ID, stream)
+		content, steps, usage, runErr = p.collectStream(in.Message.ID, stream)
+	}
+
+	if runErr != nil && shared.IsContextOverflow(runErr) && p.summarizer != nil && !in.DisableHistory {
+		if retryStep, retried := p.retryOverflow(ctx, in, modelID, strings.TrimSpace(modelOut.PresetID), agentInput); retried {
+			compactStep = retryStep.compact
+			content = retryStep.content
+			steps = retryStep.steps
+			usage = retryStep.usage
+			runErr = retryStep.err
+		}
 	}
 
 	if compactStep != nil {
@@ -168,6 +184,11 @@ func (p *RequestHandlePipeline) Execute(ctx context.Context, in Input) Result {
 	}
 
 	msg := p.finalizeMessage(in.Message, content, steps, runErr, in.ErrorPrefix, stopMarker, stopped)
+	if usage != nil {
+		msg.PromptTokens = usage.PromptTokens
+		msg.CompletionTokens = usage.CompletionTokens
+		p.updateSessionContextTokens(in.SessionID, usage.PromptTokens)
+	}
 
 	outgoing := p.collectOutgoing(in.Message.ID, in.Artifacts)
 
@@ -206,6 +227,69 @@ func (p *RequestHandlePipeline) fail(ctx context.Context, in Input, err error) R
 	return Result{Message: msg, Err: err, SendErr: sendErr}
 }
 
+type overflowRetryResult struct {
+	compact *types.Step
+	content string
+	steps   []types.Step
+	usage   *types.LLMUsage
+	err     error
+}
+
+func (p *RequestHandlePipeline) retryOverflow(ctx context.Context, in Input, modelID, presetID string, agentInput agents.MantisInput) (overflowRetryResult, bool) {
+	log.Printf("pipeline: context overflow detected, forcing compaction and retrying once")
+	res, err := p.summarizer.ForceCompact(ctx, summarizer.Input{
+		SessionID: in.SessionID,
+		RequestID: in.Message.ID,
+		ModelID:   modelID,
+		PresetID:  presetID,
+	})
+	if err != nil || !res.Compacted {
+		return overflowRetryResult{}, false
+	}
+	stream, runErr := p.agent.Execute(ctx, agentInput)
+	var (
+		content string
+		steps   []types.Step
+		usage   *types.LLMUsage
+	)
+	if runErr == nil && stream != nil {
+		content, steps, usage, runErr = p.collectStream(in.Message.ID, stream)
+	}
+	return overflowRetryResult{
+		compact: res.Step,
+		content: content,
+		steps:   steps,
+		usage:   usage,
+		err:     runErr,
+	}, true
+}
+
+func (p *RequestHandlePipeline) updateSessionContextTokens(sessionID string, tokens int) {
+	if p.sessionStore == nil || sessionID == "" || tokens <= 0 {
+		return
+	}
+	if strings.HasPrefix(sessionID, "plan:") {
+		return
+	}
+	ctx := context.Background()
+	sessions, err := p.sessionStore.Get(ctx, []string{sessionID})
+	if err != nil {
+		log.Printf("pipeline: load session for usage: %v", err)
+		return
+	}
+	session, ok := sessions[sessionID]
+	if !ok {
+		return
+	}
+	if session.LastContextTokens == tokens {
+		return
+	}
+	session.LastContextTokens = tokens
+	if _, err := p.sessionStore.Update(ctx, []types.ChatSession{session}); err != nil {
+		log.Printf("pipeline: update session usage: %v", err)
+	}
+}
+
 func (p *RequestHandlePipeline) classifyStop(ctx context.Context, runErr error) (string, bool) {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return shared.StopReasonSupervisorTimeout(p.limits.SupervisorTimeout), true
@@ -219,10 +303,11 @@ func (p *RequestHandlePipeline) classifyStop(ctx context.Context, runErr error) 
 	return "", false
 }
 
-func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan types.StreamEvent) (string, []types.Step, error) {
+func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan types.StreamEvent) (string, []types.Step, *types.LLMUsage, error) {
 	var sb strings.Builder
 	var steps []types.Step
 	var err error
+	var usage *types.LLMUsage
 	stepIdx := map[string]int{}
 	inThinking := false
 
@@ -238,6 +323,10 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 		case "error":
 			closeThinking()
 			err = errors.New(event.Delta)
+		case "usage":
+			if event.Usage != nil {
+				usage = event.Usage
+			}
 		case "text":
 			closeThinking()
 			sb.WriteString(event.Delta)
@@ -294,7 +383,7 @@ func (p *RequestHandlePipeline) collectStream(requestID string, stream <-chan ty
 	}
 	closeThinking()
 
-	return sb.String(), steps, err
+	return sb.String(), steps, usage, err
 }
 
 func (p *RequestHandlePipeline) finalizeMessage(msg types.ChatMessage, content string, steps []types.Step, err error, errorPrefix string, stopMarker string, stopped bool) types.ChatMessage {

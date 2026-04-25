@@ -279,7 +279,14 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
       const existing = await api.models.list()
       const findOrCreate = async (name: string) => {
         const found = existing.find(m => m.connectionId === endpointID && m.name === name)
-        return found ?? await api.models.create(endpointID, name, '', 100000)
+        return found ?? await api.models.create({
+          connectionId: endpointID,
+          name,
+          thinkingMode: '',
+          contextWindow: 0,
+          reserveTokens: 0,
+          compactTokens: 0,
+        })
       }
 
       const validRows = modelRows.filter(r => r.name.trim())

@@ -47,7 +47,7 @@ func NewApp(
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
+	workflow := messageworkflow.New(messageStore, modelStore, sessionStore, agent, buffer, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
 
 	sessionUC := usecases.NewSession(sessionplugin.NewPolicy(sessionStore))
 	modelCommandUC := usecases.NewHandleModelCommand(presetStore, channelStore)

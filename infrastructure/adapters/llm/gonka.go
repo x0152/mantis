@@ -91,6 +91,9 @@ func (g *Gonka) ChatStream(ctx context.Context, _ string, baseURL, apiKey string
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: buildGonkaMessages(messages),
+		StreamOptions: openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true),
+		},
 	}
 	if reqTools := buildGonkaTools(tools); len(reqTools) > 0 {
 		params.Tools = reqTools
@@ -105,9 +108,22 @@ func (g *Gonka) ChatStream(ctx context.Context, _ string, baseURL, apiKey string
 
 		seq := 0
 		toolCalls := map[int]*types.ToolCall{}
+		var lastUsage *types.LLMUsage
+
+		emitUsage := func() {
+			if lastUsage == nil {
+				return
+			}
+			ch <- types.StreamEvent{Type: "usage", Usage: lastUsage, Sequence: seq}
+			seq++
+			lastUsage = nil
+		}
 
 		for stream.Next() {
 			chunk := stream.Current()
+			if u := gonkaUsage(chunk); u != nil {
+				lastUsage = u
+			}
 			if len(chunk.Choices) == 0 {
 				continue
 			}
@@ -141,6 +157,7 @@ func (g *Gonka) ChatStream(ctx context.Context, _ string, baseURL, apiKey string
 
 			if choice.FinishReason == "tool_calls" {
 				calls := orderedToolCalls(toolCalls)
+				emitUsage()
 				ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 				return
 			}
@@ -148,9 +165,12 @@ func (g *Gonka) ChatStream(ctx context.Context, _ string, baseURL, apiKey string
 
 		if len(toolCalls) > 0 {
 			calls := orderedToolCalls(toolCalls)
+			emitUsage()
 			ch <- types.StreamEvent{Type: "tool_calls", ToolCalls: calls, Sequence: seq, IsFinal: true}
 			return
 		}
+
+		emitUsage()
 
 		if err := stream.Err(); err != nil {
 			ch <- types.StreamEvent{Type: "error", Delta: err.Error(), IsFinal: true}
@@ -338,4 +358,16 @@ func gonkaReasoningContent(chunk openai.ChatCompletionChunk) string {
 		return ""
 	}
 	return payload.Choices[0].Delta.ReasoningContent
+}
+
+func gonkaUsage(chunk openai.ChatCompletionChunk) *types.LLMUsage {
+	raw := strings.TrimSpace(chunk.RawJSON())
+	if raw == "" {
+		return nil
+	}
+	var payload streamChunk
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil
+	}
+	return convertUsage(payload.Usage)
 }

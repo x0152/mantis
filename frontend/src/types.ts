@@ -34,6 +34,8 @@ export interface Model {
   connectionId: string
   name: string
   thinkingMode: '' | 'skip' | 'inline'
+  contextWindow: number
+  reserveTokens: number
   compactTokens: number
 }
 
@@ -182,6 +184,18 @@ export interface ChatSession {
   source?: string
   active?: boolean
   createdAt: string
+  summaryVersion?: number
+  lastContextTokens?: number
+}
+
+export interface ContextStatus {
+  sessionId: string
+  contextWindow: number
+  reserveTokens: number
+  compactThreshold: number
+  summaryVersion: number
+  lastContextTokens: number
+  modelName?: string
 }
 
 export interface Step {
@@ -226,6 +240,9 @@ export interface ChatMessage {
   attachments?: Attachment[]
   createdAt: string
   finishedAt?: string
+  tokens?: number
+  promptTokens?: number
+  completionTokens?: number
 }
 
 export interface LogEntry {

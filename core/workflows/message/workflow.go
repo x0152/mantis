@@ -46,6 +46,7 @@ type Workflow struct {
 func New(
 	messageStore protocols.Store[string, types.ChatMessage],
 	modelStore protocols.Store[string, types.Model],
+	sessionStore protocols.Store[string, types.ChatSession],
 	agent *agents.MantisAgent,
 	buffer *shared.Buffer,
 	modelResolver *modelplugin.Resolver,
@@ -58,7 +59,7 @@ func New(
 		artifactMgr = artifactplugin.NewManager(nil)
 	}
 	return &Workflow{
-		pipeline:      pipeline.New(agent, buffer, messageStore, modelStore, modelResolver, memoryExtractor, summ, agent.Limits()),
+		pipeline:      pipeline.New(agent, buffer, messageStore, modelStore, sessionStore, modelResolver, memoryExtractor, summ, agent.Limits()),
 		messageStore:  messageStore,
 		artifactMgr:   artifactMgr,
 		cancellations: cancellations,

@@ -106,6 +106,41 @@ func NewExtractor(
 	}
 }
 
+func (e *Extractor) FlushCompactedWindow(ctx context.Context, msgs []types.ChatMessage) {
+	if len(msgs) == 0 {
+		return
+	}
+	var (
+		pendingUser string
+		pairs       [][2]string
+	)
+	for _, m := range msgs {
+		switch m.Role {
+		case "user":
+			if pendingUser != "" {
+				pairs = append(pairs, [2]string{pendingUser, ""})
+			}
+			pendingUser = strings.TrimSpace(m.Content)
+		case "assistant":
+			assistant := strings.TrimSpace(m.Content)
+			if pendingUser == "" && assistant == "" {
+				continue
+			}
+			pairs = append(pairs, [2]string{pendingUser, assistant})
+			pendingUser = ""
+		}
+	}
+	if pendingUser != "" {
+		pairs = append(pairs, [2]string{pendingUser, ""})
+	}
+	for _, p := range pairs {
+		if p[0] == "" || p[1] == "" {
+			continue
+		}
+		e.Extract(ctx, p[0], p[1], nil)
+	}
+}
+
 func (e *Extractor) Extract(ctx context.Context, userContent, assistantContent string, sshSteps []pipeline.SSHStep) {
 	settings, modelID, userFacts, ok := e.loadSettings(ctx)
 	if !ok || modelID == "" {

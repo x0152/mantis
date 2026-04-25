@@ -41,7 +41,7 @@ func NewApp(
 	planRunner protocols.PlanRunner,
 ) *App {
 	modelResolver := modelplugin.NewResolver(channelStore, settingsStore, presetStore)
-	workflow := messageworkflow.New(messageStore, modelStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
+	workflow := messageworkflow.New(messageStore, modelStore, sessionStore, mantisAgent, buf, modelResolver, artifactMgr, memoryExtractor, summ, cancellations)
 	return &App{
 		workflow: workflow,
 		endpoints: api.NewEndpoints(api.UseCases{
@@ -56,6 +56,7 @@ func NewApp(
 			ClearHistory:      usecases.NewClearHistory(sessionStore, messageStore),
 			StopGeneration:    usecases.NewStopGeneration(cancellations, planRunner),
 			RegenerateLast:    usecases.NewRegenerateLast(workflow, messageStore, mantisAgent.Limits()),
+			GetContextStatus:  usecases.NewGetContextStatus(sessionStore, modelStore, modelResolver),
 		}),
 	}
 }

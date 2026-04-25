@@ -9,15 +9,27 @@ import (
 
 func ChatSessionToRow(s types.ChatSession) models.ChatSessionRow {
 	return models.ChatSessionRow{
-		ID: s.ID, Title: s.Title, Source: s.Source, CreatedAt: s.CreatedAt,
-		SummaryText: s.SummaryText, SummarizedUpTo: s.SummarizedUpTo, SummaryVersion: s.SummaryVersion,
+		ID:                s.ID,
+		Title:             s.Title,
+		Source:            s.Source,
+		CreatedAt:         s.CreatedAt,
+		SummaryText:       s.SummaryText,
+		SummarizedUpTo:    s.SummarizedUpTo,
+		SummaryVersion:    s.SummaryVersion,
+		LastContextTokens: s.LastContextTokens,
 	}
 }
 
 func ChatSessionFromRow(r models.ChatSessionRow) types.ChatSession {
 	return types.ChatSession{
-		ID: r.ID, Title: r.Title, Source: r.Source, CreatedAt: r.CreatedAt,
-		SummaryText: r.SummaryText, SummarizedUpTo: r.SummarizedUpTo, SummaryVersion: r.SummaryVersion,
+		ID:                r.ID,
+		Title:             r.Title,
+		Source:            r.Source,
+		CreatedAt:         r.CreatedAt,
+		SummaryText:       r.SummaryText,
+		SummarizedUpTo:    r.SummarizedUpTo,
+		SummaryVersion:    r.SummaryVersion,
+		LastContextTokens: r.LastContextTokens,
 	}
 }
 
@@ -27,11 +39,23 @@ func ChatMessageToRow(m types.ChatMessage) models.ChatMessageRow {
 		att, _ = json.Marshal(m.Attachments)
 	}
 	return models.ChatMessageRow{
-		ID: m.ID, SessionID: m.SessionID, Role: m.Role,
-		Content: m.Content, Status: m.Status, Source: m.Source,
-		ModelID: m.ModelID, ModelName: m.ModelName,
-		PresetID: m.PresetID, PresetName: m.PresetName, ModelRole: m.ModelRole,
-		Steps: m.Steps, Attachments: att, CreatedAt: m.CreatedAt, FinishedAt: m.FinishedAt,
+		ID:               m.ID,
+		SessionID:        m.SessionID,
+		Role:             m.Role,
+		Content:          m.Content,
+		Status:           m.Status,
+		Source:           m.Source,
+		ModelID:          m.ModelID,
+		ModelName:        m.ModelName,
+		PresetID:         m.PresetID,
+		PresetName:       m.PresetName,
+		ModelRole:        m.ModelRole,
+		Steps:            m.Steps,
+		Attachments:      att,
+		CreatedAt:        m.CreatedAt,
+		FinishedAt:       m.FinishedAt,
+		PromptTokens:     m.PromptTokens,
+		CompletionTokens: m.CompletionTokens,
 	}
 }
 
@@ -41,10 +65,22 @@ func ChatMessageFromRow(r models.ChatMessageRow) types.ChatMessage {
 		_ = json.Unmarshal(r.Attachments, &att)
 	}
 	return types.ChatMessage{
-		ID: r.ID, SessionID: r.SessionID, Role: r.Role,
-		Content: r.Content, Status: r.Status, Source: r.Source,
-		ModelID: r.ModelID, ModelName: r.ModelName,
-		PresetID: r.PresetID, PresetName: r.PresetName, ModelRole: r.ModelRole,
-		Steps: r.Steps, Attachments: att, CreatedAt: r.CreatedAt, FinishedAt: r.FinishedAt,
+		ID:               r.ID,
+		SessionID:        r.SessionID,
+		Role:             r.Role,
+		Content:          r.Content,
+		Status:           r.Status,
+		Source:           r.Source,
+		ModelID:          r.ModelID,
+		ModelName:        r.ModelName,
+		PresetID:         r.PresetID,
+		PresetName:       r.PresetName,
+		ModelRole:        r.ModelRole,
+		Steps:            r.Steps,
+		Attachments:      att,
+		CreatedAt:        r.CreatedAt,
+		FinishedAt:       r.FinishedAt,
+		PromptTokens:     r.PromptTokens,
+		CompletionTokens: r.CompletionTokens,
 	}
 }

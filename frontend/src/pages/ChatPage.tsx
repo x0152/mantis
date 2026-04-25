@@ -3,8 +3,9 @@ import { Send, GitBranch, Square, Paperclip, X, FileText, Image as ImageIcon } f
 import { api } from '../api'
 import { navigate } from '../router'
 import { MessageBubble, StepPanel } from '../components/ChatMessages'
+import { ContextMeter } from '../components/ContextMeter'
 import { useLogoState } from '../components/LogoState'
-import type { ChatMessage, Step } from '../types'
+import type { ChatMessage, ContextStatus, Step } from '../types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -36,6 +37,7 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [activeStep, setActiveStep] = useState<Step | null>(null)
+  const [contextStatus, setContextStatus] = useState<ContextStatus | null>(null)
   const [files, setFiles] = useState<PendingFile[]>([])
   const [dragOver, setDragOver] = useState(false)
   const [attachError, setAttachError] = useState<string | null>(null)
@@ -112,11 +114,29 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
     setMessages([])
     setHasMore(false)
     setActiveStep(null)
+    setContextStatus(null)
     setFiles(prev => { prev.forEach(p => p.previewUrl && URL.revokeObjectURL(p.previewUrl)); return [] })
     setAttachError(null)
     userScrolledUp.current = false
     if (sessionId) loadFull()
   }, [sessionId])
+
+  useEffect(() => {
+    if (!sessionId || isPlanSession) return
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const status = await api.chat.getContextStatus(sessionId)
+        if (!cancelled) setContextStatus(status)
+      } catch {}
+    }
+    refresh()
+    const interval = setInterval(refresh, hasPending ? 2000 : 15000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [sessionId, isPlanSession, hasPending])
 
   useEffect(() => {
     return () => {
@@ -345,6 +365,15 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
           </div>
         ) : (
           <div className="px-6 py-3 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/40 shrink-0 space-y-2">
+            {messages.length > 0 && (
+              <ContextMeter
+                messages={messages}
+                partial={hasMore}
+                threshold={contextStatus?.compactThreshold}
+                serverTokens={contextStatus?.lastContextTokens}
+                compactionCount={contextStatus?.summaryVersion ?? 0}
+              />
+            )}
             {files.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {files.map(pf => (
