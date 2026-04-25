@@ -144,9 +144,9 @@ func ensureGlobal() *Registry {
 	return global
 }
 
-func Global() *Registry      { return ensureGlobal() }
+func Global() *Registry         { return ensureGlobal() }
 func For(name string) Tokenizer { return ensureGlobal().For(name) }
-func Default() Tokenizer     { return ensureGlobal().Default() }
+func Default() Tokenizer        { return ensureGlobal().Default() }
 func Register(pattern *regexp.Regexp, factory func() Tokenizer) {
 	ensureGlobal().Register(pattern, factory)
 }
