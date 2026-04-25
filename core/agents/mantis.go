@@ -46,6 +46,10 @@ ssh_<server_name> — run a task on a server via SSH agent.
   Parameter task: plain-language description of what to do and what result you expect.
   FORBIDDEN: shell commands, code, or flags in the task parameter.
 
+ssh_runtimectl — runtime controller. Use this to provision a NEW sandbox when the user's request cannot be served by any existing ssh_* connection you already have (e.g. they need rust, node, a specific DB client, a custom toolchain). Ask it in plain language ("need a sandbox with rust + cargo + curl"); it will build, run and register the container and reply with a line READY sb-<name>. On the very next step that sandbox appears in your tool list as ssh_sb_<name> — use it directly for the real workload. ssh_runtimectl itself must not be used to run the user's workload, only to provision.
+  Before you call ssh_runtimectl, briefly confirm with the user: creating a sandbox takes ~30-60 seconds, and one of the existing sandboxes may already cover the request — list the existing sandboxes you have and ask whether to reuse one or build a new one. Only skip the confirmation if the user explicitly asked "create a new sandbox".
+  Do NOT ask ssh_runtimectl to "list templates" or "read docs" — it is a builder, just describe what you need and it will produce a sandbox.
+
 ssh_download_<server_name> — download a file from the server into a temporary artifact.
   Parameter remotePath: file path on the server.
 
@@ -251,6 +255,24 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 	tools := a.buildTools(connections, skills, artifacts, requestID, in.Source)
 	prompt := a.buildSystemPrompt(connections, artifacts, in.Source, in.ReplyChannel, in.ReplyTo)
 
+	toolsProvider := func(pctx context.Context) []types.Tool {
+		latestConnections, cerr := a.connectionStore.List(pctx, types.ListQuery{})
+		if cerr != nil {
+			return tools
+		}
+		var latestSkills []types.Skill
+		if a.skillStore != nil {
+			s, serr := a.skillStore.List(pctx, types.ListQuery{})
+			if serr == nil {
+				latestSkills = s
+			}
+		}
+		if latestSkills == nil {
+			latestSkills = []types.Skill{}
+		}
+		return a.buildTools(latestConnections, latestSkills, artifacts, requestID, in.Source)
+	}
+
 	messages := []protocols.LLMMessage{{Role: "system", Content: prompt}}
 	messages = append(messages, history...)
 	if in.DisableHistory {
@@ -279,6 +301,7 @@ func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types
 			},
 			MaxIterations: a.limits.SupervisorMaxIterations,
 			MessageID:     in.RequestID,
+			ToolsProvider: toolsProvider,
 		},
 	})
 	if err != nil {

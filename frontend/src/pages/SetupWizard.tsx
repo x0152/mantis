@@ -57,6 +57,7 @@ const SANDBOXES = [
   { name: 'python', host: 'python-sandbox', port: 22, profileId: 'python', description: 'Python 3 sandbox — scripts, data analysis, pip packages' },
   { name: 'db', host: 'db-sandbox', port: 22, profileId: 'database', description: 'PostgreSQL client — psql, pg_dump, pg_restore' },
   { name: 'netsec', host: 'netsec-sandbox', port: 22, profileId: 'netsec', description: 'Network/pentest toolkit — nmap, dig, nikto, ffuf, hashcat + net-* wrappers with hard timeouts' },
+  { name: 'runtimectl', host: 'runtimectl-sandbox', port: 22, profileId: 'runtimectl', description: 'Runtime controller. Ask it in plain language to provision a new sandbox (e.g. "need rust + cargo + curl"). It builds, runs and registers the container, then replies with a READY sb-<name> handle that you can use directly as an SSH connection.' },
 ]
 
 type SeedSkill = Omit<Skill, 'id' | 'connectionId'>

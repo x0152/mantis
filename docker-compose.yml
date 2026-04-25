@@ -47,12 +47,20 @@ services:
       MANTIS_SERVER_MAX_ITERATIONS: "${MANTIS_SERVER_MAX_ITERATIONS:-}"
       MANTIS_SERVER_TIMEOUT: "${MANTIS_SERVER_TIMEOUT:-}"
       MANTIS_PLAN_STEP_TIMEOUT: "${MANTIS_PLAN_STEP_TIMEOUT:-}"
+      RUNTIME_MODE: "${RUNTIME_MODE:-docker}"
+      RUNTIME_NETWORK: "${RUNTIME_NETWORK:-mantis-sandbox-net}"
+      RUNTIME_API_TOKEN: "${RUNTIME_API_TOKEN:-}"
+      DOCKER_SOCKET: /var/run/docker.sock
       GOFLAGS: "-buildvcs=false"
     volumes:
       - .:/app
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
       - attachments:/data/attachments
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - sandbox
     working_dir: /app
     depends_on:
       migrate:
@@ -105,8 +113,21 @@ services:
   netsec-sandbox:
     build: sandboxes/netsec
 
+  runtimectl-sandbox:
+    build: sandboxes/runtimectl
+    environment:
+      MANTIS_URL: http://app:8080
+      MANTIS_RUNTIME_TOKEN: "${RUNTIME_API_TOKEN:-}"
+    networks:
+      - sandbox
+
 volumes:
   pgdata:
   attachments:
   go-mod-cache:
   go-build-cache:
+
+networks:
+  default:
+  sandbox:
+    name: mantis-sandbox-net

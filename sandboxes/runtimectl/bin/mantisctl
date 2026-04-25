@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MANTIS_URL="${MANTIS_URL:-http://app:8080}"
+MANTIS_RUNTIME_TOKEN="${MANTIS_RUNTIME_TOKEN:-}"
+
+usage() {
+  cat >&2 <<'EOF'
+mantisctl - minimal docker-like CLI for the Mantis runtime
+
+Usage:
+  mantisctl build <name> [-f Dockerfile|-]            build an image from a Dockerfile
+  mantisctl run   <name> [--image IMG] [-e KEY=VAL ...]
+                                                       start (or restart) a container
+  mantisctl ps                                         list sandbox containers
+  mantisctl inspect <name>                             show one container
+  mantisctl logs  <name> [--tail N] [-f]               stream container logs (grep-friendly)
+  mantisctl stop  <name>                               stop a container
+  mantisctl rm    <name>                               stop, unregister and remove
+
+  mantisctl register   <name> [--description TEXT] [--profile ID ...]
+                       [--user USER] [--password PASS] [--port N]
+                       publish the running container as an SSH connection named "sb-<name>"
+                       so the supervisor can reach it via ssh.
+  mantisctl unregister <name>                          remove the sb-<name> connection
+
+Environment:
+  MANTIS_URL             default http://app:8080
+  MANTIS_RUNTIME_TOKEN   required if server enforces a token
+EOF
+}
+
+curl_auth() {
+  local args=(--silent --show-error --fail-with-body --no-buffer)
+  if [ -n "$MANTIS_RUNTIME_TOKEN" ]; then
+    args+=(-H "X-Runtime-Token: ${MANTIS_RUNTIME_TOKEN}")
+  fi
+  curl "${args[@]}" "$@"
+}
+
+cmd_build() {
+  local name="${1:-}"; shift || true
+  [ -z "$name" ] && { echo "build: <name> required" >&2; exit 2; }
+  local file="-"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -f|--file) file="${2:-}"; shift 2 ;;
+      *) echo "build: unknown arg $1" >&2; exit 2 ;;
+    esac
+  done
+  if [ "$file" = "-" ]; then
+    curl_auth -X POST --data-binary @- \
+      -H "Content-Type: application/octet-stream" \
+      "${MANTIS_URL}/api/runtime/build?name=${name}"
+  else
+    curl_auth -X POST --data-binary "@${file}" \
+      -H "Content-Type: application/octet-stream" \
+      "${MANTIS_URL}/api/runtime/build?name=${name}"
+  fi
+}
+
+cmd_run() {
+  local name="${1:-}"; shift || true
+  [ -z "$name" ] && { echo "run: <name> required" >&2; exit 2; }
+  local image=""
+  local env_json="{}"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --image) image="${2:-}"; shift 2 ;;
+      -e|--env)
+        local kv="${2:-}"; shift 2
+        local k="${kv%%=*}"; local v="${kv#*=}"
+        env_json=$(jq -c --arg k "$k" --arg v "$v" '. + {($k): $v}' <<<"$env_json")
+        ;;
+      *) echo "run: unknown arg $1" >&2; exit 2 ;;
+    esac
+  done
+  local payload
+  payload=$(jq -n --arg name "$name" --arg image "$image" --argjson env "$env_json" \
+    '{name:$name} + (if $image=="" then {} else {image:$image} end) + {env:$env}')
+  curl_auth -X POST -H "Content-Type: application/json" \
+    -d "$payload" \
+    "${MANTIS_URL}/api/runtime/run" | jq
+}
+
+cmd_ps() {
+  curl_auth "${MANTIS_URL}/api/runtime/containers" \
+    | jq -r '.containers[] | [.name, .status, .image, .host] | @tsv' \
+    | awk 'BEGIN{printf "%-20s %-10s %-40s %-30s\n","NAME","STATUS","IMAGE","HOST"} {printf "%-20s %-10s %-40s %-30s\n",$1,$2,$3,$4}'
+}
+
+cmd_inspect() {
+  local name="${1:-}"
+  [ -z "$name" ] && { echo "inspect: <name> required" >&2; exit 2; }
+  curl_auth "${MANTIS_URL}/api/runtime/containers/${name}" | jq
+}
+
+cmd_logs() {
+  local name="${1:-}"; shift || true
+  [ -z "$name" ] && { echo "logs: <name> required" >&2; exit 2; }
+  local tail=""
+  local follow=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -f|--follow) follow="1"; shift ;;
+      --tail) tail="${2:-}"; shift 2 ;;
+      *) echo "logs: unknown arg $1" >&2; exit 2 ;;
+    esac
+  done
+  local q=""
+  [ -n "$tail" ] && q="tail=${tail}"
+  if [ -n "$follow" ]; then
+    q="${q:+${q}&}follow=1"
+  fi
+  curl_auth "${MANTIS_URL}/api/runtime/containers/${name}/logs${q:+?${q}}"
+}
+
+cmd_stop() {
+  local name="${1:-}"
+  [ -z "$name" ] && { echo "stop: <name> required" >&2; exit 2; }
+  curl_auth -X POST "${MANTIS_URL}/api/runtime/containers/${name}/stop"
+}
+
+cmd_rm() {
+  local name="${1:-}"
+  [ -z "$name" ] && { echo "rm: <name> required" >&2; exit 2; }
+  curl_auth -X DELETE "${MANTIS_URL}/api/runtime/containers/${name}"
+}
+
+cmd_register() {
+  local name="${1:-}"; shift || true
+  [ -z "$name" ] && { echo "register: <name> required" >&2; exit 2; }
+  local description=""
+  local profiles_json="[]"
+  local username=""
+  local password=""
+  local port="0"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --description) description="${2:-}"; shift 2 ;;
+      --profile)
+        profiles_json=$(jq -c --arg p "${2:-}" '. + [$p]' <<<"$profiles_json")
+        shift 2 ;;
+      --user|--username) username="${2:-}"; shift 2 ;;
+      --password) password="${2:-}"; shift 2 ;;
+      --port) port="${2:-}"; shift 2 ;;
+      *) echo "register: unknown arg $1" >&2; exit 2 ;;
+    esac
+  done
+  local payload
+  payload=$(jq -n \
+    --arg name "$name" \
+    --arg description "$description" \
+    --argjson profiles "$profiles_json" \
+    --arg username "$username" \
+    --arg password "$password" \
+    --argjson port "$port" \
+    '{name:$name, description:$description, profileIds:$profiles}
+     + (if $username=="" then {} else {username:$username} end)
+     + (if $password=="" then {} else {password:$password} end)
+     + (if $port==0 then {} else {port:$port} end)')
+  curl_auth -X POST -H "Content-Type: application/json" \
+    -d "$payload" \
+    "${MANTIS_URL}/api/runtime/register" | jq
+}
+
+cmd_unregister() {
+  local name="${1:-}"
+  [ -z "$name" ] && { echo "unregister: <name> required" >&2; exit 2; }
+  curl_auth -X DELETE "${MANTIS_URL}/api/runtime/register/${name}"
+}
+
+main() {
+  [ "$#" -eq 0 ] && { usage; exit 2; }
+  local cmd="$1"; shift
+  case "$cmd" in
+    build)      cmd_build "$@" ;;
+    run)        cmd_run "$@" ;;
+    ps|list)    cmd_ps ;;
+    inspect)    cmd_inspect "$@" ;;
+    logs)       cmd_logs "$@" ;;
+    stop)       cmd_stop "$@" ;;
+    rm)         cmd_rm "$@" ;;
+    register)   cmd_register "$@" ;;
+    unregister) cmd_unregister "$@" ;;
+    -h|--help|help) usage ;;
+    *) echo "unknown command: $cmd" >&2; usage; exit 2 ;;
+  esac
+}
+
+main "$@"

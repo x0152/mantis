@@ -20,6 +20,7 @@ type LoopInput struct {
 	ActionInput
 	MaxIterations int
 	MessageID     string
+	ToolsProvider func(context.Context) []types.Tool
 }
 
 type AgentLoop struct {
@@ -36,8 +37,9 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 		maxIter = defaultMaxIterations
 	}
 
+	tools := in.Tools
 	toolMap := map[string]types.Tool{}
-	for _, t := range in.Tools {
+	for _, t := range tools {
 		toolMap[t.Name] = t
 	}
 
@@ -49,10 +51,17 @@ func (l *AgentLoop) Execute(ctx context.Context, in LoopInput) (<-chan types.Str
 		copy(messages, in.Messages)
 
 		for iter := 0; iter < maxIter; iter++ {
+			if in.ToolsProvider != nil {
+				tools = in.ToolsProvider(ctx)
+				toolMap = make(map[string]types.Tool, len(tools))
+				for _, t := range tools {
+					toolMap[t.Name] = t
+				}
+			}
 			actionCh, err := l.action.Execute(ctx, ActionInput{
 				Provider: in.Provider,
 				BaseURL:  in.BaseURL, APIKey: in.APIKey,
-				Model: in.Model, Messages: messages, Tools: in.Tools,
+				Model: in.Model, Messages: messages, Tools: tools,
 				ThinkingMode: in.ThinkingMode,
 			})
 			if err != nil {

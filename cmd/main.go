@@ -25,6 +25,7 @@ import (
 	"mantis/apps/logs"
 	"mantis/apps/metadata"
 	plansapp "mantis/apps/plans"
+	runtimeapp "mantis/apps/runtime"
 	"mantis/apps/telegram"
 	"mantis/core/agents"
 	"mantis/core/auth"
@@ -39,6 +40,7 @@ import (
 	"mantis/infrastructure/adapters/asr"
 	"mantis/infrastructure/adapters/llm"
 	"mantis/infrastructure/adapters/ocr"
+	dockerruntime "mantis/infrastructure/adapters/runtime/docker"
 	"mantis/infrastructure/adapters/store"
 	"mantis/infrastructure/adapters/tts"
 	"mantis/infrastructure/mappers"
@@ -225,6 +227,13 @@ func main() {
 	chatApp.Register(api)
 	logsApp.Register(api)
 
+	if mode := env("RUNTIME_MODE", ""); mode == "docker" {
+		rt := dockerruntime.New(env("DOCKER_SOCKET", ""), env("RUNTIME_NETWORK", ""))
+		runtimeApp := runtimeapp.NewApp(rt, connectionStore, env("RUNTIME_API_TOKEN", ""))
+		runtimeApp.Mount(r)
+		log.Printf("runtime: docker adapter ready (network=%s)", rt.Network())
+	}
+
 	r.Get("/api/artifacts/{sessionId}/{artifactId}", func(w http.ResponseWriter, r *http.Request) {
 		sessionID := chi.URLParam(r, "sessionId")
 		artifactID := chi.URLParam(r, "artifactId")
@@ -260,6 +269,9 @@ func isPublicPath(r *http.Request) bool {
 	p := r.URL.Path
 	switch p {
 	case "/api/auth/login", "/api/auth/logout", "/docs", "/openapi.json", "/openapi.yaml":
+		return true
+	}
+	if strings.HasPrefix(p, "/api/runtime/") {
 		return true
 	}
 	return strings.HasPrefix(p, "/schemas/")
