@@ -2,6 +2,8 @@ package shared
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -9,6 +11,60 @@ import (
 	"mantis/core/protocols"
 	"mantis/core/types"
 )
+
+const (
+	historyStepArgsMax = 240
+	historyMaxSteps    = 25
+)
+
+func stepsSummary(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var steps []types.Step
+	if err := json.Unmarshal(raw, &steps); err != nil || len(steps) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n\n[Tool activity from this turn — DO NOT redo these calls; their results are already known:")
+	shown := len(steps)
+	if shown > historyMaxSteps {
+		shown = historyMaxSteps
+	}
+	for _, s := range steps[:shown] {
+		status := strings.TrimSpace(s.Status)
+		if status == "" {
+			status = "done"
+		}
+		tool := s.Tool
+		if tool == "" {
+			tool = "tool"
+		}
+		sb.WriteString(fmt.Sprintf("\n- %s [%s]", tool, status))
+		if label := strings.TrimSpace(s.Label); label != "" && label != tool {
+			sb.WriteString(" — " + label)
+		}
+		if args := strings.TrimSpace(s.Args); args != "" {
+			sb.WriteString("\n  args: " + truncate(args, historyStepArgsMax))
+		}
+		if result := strings.TrimSpace(s.Result); result != "" {
+			sb.WriteString("\n  result: " + result)
+		}
+	}
+	if extra := len(steps) - shown; extra > 0 {
+		sb.WriteString(fmt.Sprintf("\n- …and %d more tool call(s) omitted", extra))
+	}
+	sb.WriteString("\n]")
+	return sb.String()
+}
+
+func truncate(s string, max int) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	return s[:max] + "…[truncated]"
+}
 
 func BuildHistory(
 	ctx context.Context,
@@ -67,6 +123,11 @@ func BuildHistory(
 				content = "[Scheduled task] " + content
 			} else {
 				content = "[Scheduled task result] " + content
+			}
+		}
+		if m.Role == "assistant" {
+			if summary := stepsSummary(m.Steps); summary != "" {
+				content += summary
 			}
 		}
 		msgs = append(msgs, protocols.LLMMessage{Role: m.Role, Content: content})

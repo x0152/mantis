@@ -523,16 +523,18 @@ function fmtDuration(start: string, end: string) {
 
 export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }) {
   const [log, setLog] = useState<SessionLog | null>(null)
-  const [logLoading, setLogLoading] = useState(false)
-  const [showLog, setShowLog] = useState(false)
   const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const logScrollRef = useRef<HTMLDivElement>(null)
   const prevLogId = useRef(step.logId)
+  const stickToBottomRef = useRef(true)
+  const autoScrollingRef = useRef(false)
 
   const isRunning = step.status === 'running'
   const isError = step.status === 'error'
   const prompt = extractStepPrompt(step)
-  const entries = stepToEntries(step)
+  const stepEntries = stepToEntries(step)
+  const hasLog = !!step.logId
+  const logPrompt = log?.prompt || prompt
 
   const fetchLog = useCallback(async () => {
     if (!step.logId) return
@@ -546,174 +548,132 @@ export function StepPanel({ step, onClose }: { step: Step; onClose: () => void }
     if (step.logId !== prevLogId.current) {
       prevLogId.current = step.logId
       setLog(null)
-      setShowLog(false)
+      stickToBottomRef.current = true
     }
   }, [step.logId])
 
   useEffect(() => {
-    if (!showLog) return
+    if (!step.logId) return
     fetchLog()
-    if (isRunning || log?.status === 'running') {
+  }, [step.logId, fetchLog])
+
+  useEffect(() => {
+    if (!step.logId) return
+    const shouldPoll = isRunning || log?.status === 'running' || !log
+    if (shouldPoll) {
       logPollRef.current = setInterval(fetchLog, 500)
     }
-    return () => { if (logPollRef.current) { clearInterval(logPollRef.current); logPollRef.current = null } }
-  }, [showLog, isRunning, fetchLog])
+    return () => {
+      if (logPollRef.current) {
+        clearInterval(logPollRef.current)
+        logPollRef.current = null
+      }
+    }
+  }, [step.logId, isRunning, log?.status, log, fetchLog])
+
+  const handleScroll = useCallback(() => {
+    if (autoScrollingRef.current) return
+    const el = logScrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickToBottomRef.current = distance < 40
+  }, [])
 
   useEffect(() => {
-    if (!isRunning && log?.status !== 'running' && logPollRef.current) {
-      clearInterval(logPollRef.current)
-      logPollRef.current = null
-      fetchLog()
-    }
-  }, [isRunning, log?.status, fetchLog])
-
-  useEffect(() => {
-    if (showLog && logScrollRef.current) {
-      const el = logScrollRef.current
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-      if (atBottom) el.scrollTop = el.scrollHeight
-    }
-  }, [log?.entries.length, showLog])
-
-  async function openLog() {
-    if (!step.logId) return
-    setShowLog(true)
-    if (!log) {
-      setLogLoading(true)
-      await fetchLog()
-      setLogLoading(false)
-    }
-  }
+    if (!stickToBottomRef.current) return
+    const el = logScrollRef.current
+    if (!el) return
+    autoScrollingRef.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => {
+      autoScrollingRef.current = false
+    })
+  }, [log?.entries.length, stepEntries.length])
 
   return (
-    <>
-      <div className="w-[420px] max-w-[48vw] min-w-[340px] h-full bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {isRunning
-              ? <Loader2 size={14} className="text-teal-400 animate-spin shrink-0" />
-              : isError
-                ? <AlertCircle size={14} className="text-red-400 shrink-0" />
-                : <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-            }
-            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-normal break-words leading-snug">{step.label}</span>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shrink-0 ml-2">
-            <X size={16} />
-          </button>
+    <div className="w-[560px] max-w-[60vw] min-w-[400px] h-full bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col shadow-2xl">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {isRunning
+            ? <Loader2 size={14} className="text-teal-400 animate-spin shrink-0" />
+            : isError
+              ? <AlertCircle size={14} className="text-red-400 shrink-0" />
+              : <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+          }
+          <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 whitespace-normal break-words leading-snug">{step.label}</span>
         </div>
-
-        <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-zinc-500 dark:text-zinc-600 font-mono">{step.tool}</span>
-            {step.presetName && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.presetName}</span>
-            )}
-            {step.modelName && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.modelName}</span>
-            )}
-            {step.modelRole === 'fallback' && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">fallback</span>
-            )}
-            {step.finishedAt && step.startedAt && (
-              <span className="text-[11px] text-zinc-500 dark:text-zinc-600">{fmtDuration(step.startedAt, step.finishedAt)}</span>
-            )}
-          </div>
-          {step.args && step.args !== '{}' && (
-            <pre className="text-[11px] font-mono text-zinc-500 dark:text-zinc-600 bg-zinc-50 dark:bg-zinc-950 rounded-md px-2.5 py-1.5 overflow-x-auto max-h-24 whitespace-pre-wrap break-all">{formatArgs(step.args)}</pre>
-          )}
-          {step.logId && (
-            <button
-              onClick={openLog}
-              disabled={logLoading}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded-lg hover:bg-teal-500/20 disabled:opacity-50"
-            >
-              {logLoading ? <Loader2 size={12} className="animate-spin" /> : <ScrollText size={12} />}
-              {isRunning ? 'View Live Log' : 'View Agent Log'}
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-auto min-h-0">
-          <div className="bg-zinc-50 dark:bg-zinc-950 px-4 py-3.5 space-y-1 min-h-[120px]">
-            {prompt && <PromptBanner prompt={prompt} />}
-            {entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
-            {isRunning && !step.result && (
-              <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
-                <Loader2 size={11} className="animate-spin" />
-                <span>Running...</span>
-              </div>
-            )}
-          </div>
-        </div>
+        <button onClick={onClose} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 shrink-0 ml-2">
+          <X size={16} />
+        </button>
       </div>
 
-      {showLog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowLog(false)}>
-          <div
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col max-h-[85vh]"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <ScrollText size={14} className="text-teal-400" />
-                <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{log?.agentName ?? 'Agent'}</span>
-                {log && (
-                  <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-                    log.status === 'running' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
-                  }`}>{log.status}</span>
-                )}
-                {log && (log.presetName || log.modelName || log.modelRole === 'fallback') && (
-                  <div className="flex items-center gap-1.5">
-                    {log.presetName && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{log.presetName}</span>
-                    )}
-                    {log.modelName && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{log.modelName}</span>
-                    )}
-                    {log.modelRole === 'fallback' && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">fallback</span>
-                    )}
-                  </div>
-                )}
-                {!log && <Loader2 size={12} className="text-zinc-500 dark:text-zinc-600 animate-spin" />}
-              </div>
-              <button onClick={() => setShowLog(false)} className="p-1 rounded-md text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                <X size={16} />
-              </button>
-            </div>
-            <div ref={logScrollRef} className="flex-1 overflow-auto min-h-0">
-              <div className="bg-zinc-50 dark:bg-zinc-950 px-4 py-3.5 space-y-1 min-h-[120px]">
-                {log?.prompt && <PromptBanner prompt={log.prompt} />}
-                {log && log.entries.length === 0 && log.status === 'running' ? (
-                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
-                    <Loader2 size={11} className="animate-spin" />
-                    <span>Waiting for output...</span>
-                  </div>
-                ) : log && log.entries.length === 0 ? (
-                  <p className="text-zinc-500 dark:text-zinc-600 text-xs font-mono">No entries</p>
-                ) : log ? (
-                  <>
-                    {log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
-                    {log.status === 'running' && (
-                      <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
-                        <Loader2 size={11} className="animate-spin" />
-                        <span>Running...</span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
-                    <Loader2 size={11} className="animate-spin" />
-                    <span>Loading...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+      <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-600 font-mono">{step.tool}</span>
+          {hasLog && (log?.agentName || log?.status) && (
+            <span className="flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-600">
+              <ScrollText size={11} className="text-teal-400" />
+              {log?.agentName ?? 'agent'}
+              {log?.status === 'running' && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">running</span>
+              )}
+            </span>
+          )}
+          {(step.presetName || log?.presetName) && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.presetName || log?.presetName}</span>
+          )}
+          {(step.modelName || log?.modelName) && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500">{step.modelName || log?.modelName}</span>
+          )}
+          {(step.modelRole === 'fallback' || log?.modelRole === 'fallback') && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-400">fallback</span>
+          )}
+          {step.finishedAt && step.startedAt && (
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-600">{fmtDuration(step.startedAt, step.finishedAt)}</span>
+          )}
         </div>
-      )}
-    </>
+        {step.args && step.args !== '{}' && (
+          <pre className="text-[11px] font-mono text-zinc-500 dark:text-zinc-600 bg-zinc-50 dark:bg-zinc-950 rounded-md px-2.5 py-1.5 overflow-x-auto max-h-24 whitespace-pre-wrap break-all">{formatArgs(step.args)}</pre>
+        )}
+      </div>
+
+      <div ref={logScrollRef} onScroll={handleScroll} className="flex-1 overflow-auto min-h-0">
+        <div className="bg-zinc-50 dark:bg-zinc-950 px-4 py-3.5 space-y-1 min-h-[120px]">
+          {logPrompt && <PromptBanner prompt={logPrompt} />}
+          {hasLog ? (
+            log ? (
+              <>
+                {log.entries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
+                {log.entries.length === 0 && log.status !== 'running' && (
+                  <p className="text-zinc-500 dark:text-zinc-600 text-xs font-mono">No entries</p>
+                )}
+                {(log.status === 'running' || isRunning) && (
+                  <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
+                    <Loader2 size={11} className="animate-spin" />
+                    <span>{log.entries.length === 0 ? 'Waiting for output…' : 'Running…'}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
+                <Loader2 size={11} className="animate-spin" />
+                <span>Loading log…</span>
+              </div>
+            )
+          ) : (
+            <>
+              {stepEntries.map((entry, i) => <EntryLine key={i} entry={entry} />)}
+              {isRunning && !step.result && (
+                <div className="font-mono text-xs flex items-center gap-2 text-zinc-500 dark:text-zinc-600 py-2">
+                  <Loader2 size={11} className="animate-spin" />
+                  <span>Running…</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

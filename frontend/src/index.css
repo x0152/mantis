@@ -154,15 +154,6 @@ body {
   100% { r: 22; opacity: 0; }
 }
 
-@keyframes mantis-antenna-left {
-  0%, 100% { transform: rotate(-3deg); }
-  50%      { transform: rotate(5deg); }
-}
-@keyframes mantis-antenna-right {
-  0%, 100% { transform: rotate(3deg); }
-  50%      { transform: rotate(-5deg); }
-}
-
 .mantis-logo .mantis-eye {
   transform-box: fill-box;
   transform-origin: center;
@@ -179,61 +170,23 @@ body {
   animation-play-state: paused;
 }
 
-.mantis-logo .mantis-antenna {
-  transform-box: view-box;
-  animation-play-state: paused;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-.mantis-logo .mantis-antenna.antenna-left {
-  transform-origin: 28px 12px;
-  animation-name: mantis-antenna-left;
-  animation-duration: 3.8s;
-}
-.mantis-logo .mantis-antenna.antenna-right {
-  transform-origin: 36px 12px;
-  animation-name: mantis-antenna-right;
-  animation-duration: 3.8s;
-  animation-delay: 0.15s;
-}
-
 .mantis-logo .mantis-ring {
   opacity: 0;
 }
 
-.mantis-logo[data-state="thinking"] .mantis-antenna,
-.mantis-logo[data-state="typing"] .mantis-antenna,
-.mantis-logo[data-state="working"] .mantis-antenna {
-  animation-play-state: running;
-}
-
-.mantis-logo[data-state="thinking"] .mantis-antenna {
-  animation-duration: 2.2s;
-}
-
-.mantis-logo[data-state="typing"] .mantis-antenna {
-  animation-duration: 2.6s;
-}
 .mantis-logo[data-state="typing"] .mantis-node {
   animation-play-state: running;
 }
-.mantis-logo[data-state="typing"] .mantis-node.n1 { animation-delay: 0s;   }
-.mantis-logo[data-state="typing"] .mantis-node.n2 { animation-delay: 0.5s; }
 .mantis-logo[data-state="typing"] .mantis-node.n3 { animation-delay: 1.0s; }
 .mantis-logo[data-state="typing"] .mantis-node.n4 { animation-delay: 1.5s; }
 .mantis-logo[data-state="typing"] .mantis-node.n5 { animation-delay: 2.0s; }
 
-.mantis-logo[data-state="working"] .mantis-antenna {
-  animation-duration: 1.4s;
-}
 .mantis-logo[data-state="working"] .mantis-ring {
   animation: mantis-ring 1.6s ease-out infinite;
 }
 .mantis-logo[data-state="working"] .mantis-node {
   animation-play-state: running;
 }
-.mantis-logo[data-state="working"] .mantis-node.n1 { animation-delay: 0s;    animation-duration: 1.6s; }
-.mantis-logo[data-state="working"] .mantis-node.n2 { animation-delay: 0.2s;  animation-duration: 1.6s; }
 .mantis-logo[data-state="working"] .mantis-node.n3 { animation-delay: 0.4s;  animation-duration: 1.6s; }
 .mantis-logo[data-state="working"] .mantis-node.n4 { animation-delay: 0.6s;  animation-duration: 1.6s; }
 .mantis-logo[data-state="working"] .mantis-node.n5 { animation-delay: 0.8s;  animation-duration: 1.6s; }
@@ -241,7 +194,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .mantis-logo .mantis-eye,
   .mantis-logo .mantis-node,
-  .mantis-logo .mantis-antenna,
   .mantis-logo .mantis-ring {
     animation: none;
   }

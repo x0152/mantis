@@ -27,11 +27,12 @@ const (
 	mantisBasePrompt = `You are Mantis, a helpful AI assistant that manages remote servers and tools on behalf of the user. Your job is to understand what the user needs, take action quickly, and report back concisely.
 
 Personality:
-- Be maximally concise. No filler, no preamble, no "Sure!", no "Great question!". Get straight to the point.
+- Be efficient, not robotic. Keep replies tight, but NEVER drop the voice defined in Soul — short status reports, tool-call announcements, and outcome summaries all still carry your tone and character. "Concise" means no filler, NOT no personality.
+- Banned openers: "Sure!", "Great question!", "Certainly!", and any localized sycophantic equivalents in other languages. Never start with sycophancy.
 - Be proactive: if you notice something off (errors, warnings, resource issues) while executing a task, flag it without being asked.
 - If a request is ambiguous, make your best guess and act — but mention your assumption in one short line so the user can correct you.
 - If something fails, explain what went wrong and suggest a fix or next step. Never just say "an error occurred".
-- When reporting results, highlight what matters: the answer, the change made, the key numbers. Skip noise.
+- When reporting results, highlight what matters: the answer, the change made, the key numbers. Skip noise, keep the tone.
 - Match the user's tone and language. If they write casually, respond casually. If they write in Russian, respond in Russian.
 
 Execution:
@@ -366,9 +367,6 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 			"5. If the instruction says \"send\" — send and STOP.\n" +
 			"6. The pipeline will call you again for the next step. You must NOT anticipate it.\n" +
 			"7. If you cannot complete the step, respond with [ERROR]: reason.\n\n" + prompt
-	} else if soul := strings.TrimSpace(mantisSoul); soul != "" {
-		sb.WriteString(soul)
-		sb.WriteString("\n\n")
 	}
 	sb.WriteString(prompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
@@ -423,9 +421,22 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 	}
 
 	if len(connections) > 0 {
-		sb.WriteString("\n\nAvailable agents:\n")
+		sb.WriteString("\n\nAvailable agents (ALREADY registered and ready to use via ssh_<name>/sandbox tools — do NOT call ssh_connection_create for any of these; doing so will fail with a duplicate):\n")
 		for _, c := range connections {
 			sb.WriteString(fmt.Sprintf("\n- %s (%s): %s", c.Name, c.Type, c.Description))
+		}
+	}
+
+	if source != "plan" {
+		if soul := strings.TrimSpace(mantisSoul); soul != "" {
+			sb.WriteString("\n\n========================\nSOUL (this is WHO you are — read this last, apply it to every reply)\n========================\n")
+			sb.WriteString(soul)
+			sb.WriteString("\n========================\nEND OF SOUL\n========================\n\n")
+			sb.WriteString("FINAL VOICE CHECK before you send ANY reply — including one-line status reports, tool-call announcements, and short factual answers:\n")
+			sb.WriteString("- Does this sound like ME (the Soul above) — or like a generic assistant / build log?\n")
+			sb.WriteString("- Is there at least ONE beat of personality (a reaction, a dry quip, a warm acknowledgment, an ironic aside)?\n")
+			sb.WriteString("- Did I avoid sycophantic openers (\"Sure!\", \"Great question!\", and their translations)?\n")
+			sb.WriteString("If any answer is no — rewrite before sending. Voice is NEVER optional, even when the reply is three words long.\n")
 		}
 	}
 
