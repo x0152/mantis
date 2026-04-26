@@ -1,6 +1,6 @@
 apiVersion: v2
 name: mantis
-description: Mantis — Go backend + React/nginx frontend + PostgreSQL + SSH sandboxes
+description: Mantis — Go backend + React/nginx frontend + PostgreSQL. Sandboxes are managed by the app at runtime via the host Docker socket.
 type: application
 version: 0.1.0
 appVersion: "1.0.0"

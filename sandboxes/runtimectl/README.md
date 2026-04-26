@@ -21,26 +21,26 @@ tool. You never run the user's real workload yourself; you only provision.
 
 ## The only tool you use: `mantisctl`
 
-`mantisctl` is a CLI that talks to the Mantis runtime API. It behaves like
-`docker` and its output is plain text (grep-friendly).
+`mantisctl` is a CLI that talks to the Mantis runtime API. The primary flow is
+a single command — `mantisctl sandbox create` — which stores the Dockerfile
+in the DB, builds the image, runs the container, and registers it as an SSH
+connection in one go.
 
 ```
-mantisctl build <name> [-f Dockerfile|-]                # build image
-mantisctl run   <name>                                  # start container
-mantisctl ps                                            # list sandboxes
-mantisctl logs  <name> [--tail N] [-f]                  # inspect logs
-mantisctl register <name> [--description T] [--profile ID ...]
-                                                        # publish as sb-<name>
-mantisctl rm    <name>                                  # remove + unregister
+mantisctl sandbox create <name> -f Dockerfile --description T --profile ID
+mantisctl sandbox ls                                    # list sandboxes with state
+mantisctl sandbox logs <name>                           # build/runtime logs via mantisctl logs
+mantisctl sandbox rebuild <name>                        # rebuild from stored Dockerfile
+mantisctl sandbox rm <name>                             # stop + remove + unregister
 ```
 
 ## End-to-end procedure
 
-1. **Pick a short lowercase name** for the sandbox (no spaces) derived from
-   the user's request. Example: "rust" for a Rust sandbox.
-2. **Before building, always check** whether that name is already running:
-   `mantisctl ps`. If it is, either reuse it (`mantisctl register` again to
-   refresh) or remove it (`mantisctl rm <name>`) and rebuild.
+1. **Pick a short lowercase name** (letters/digits/dashes, no spaces) derived
+   from the user's request. Example: "rust".
+2. **Check existing sandboxes**: `mantisctl sandbox ls`. If a sandbox with the
+   requested name already exists and is `running`, reply with
+   `READY sb-<name>` immediately without rebuilding.
 3. **Write a Dockerfile** at `/tmp/<name>.Dockerfile`. It MUST follow this
    template so the container is reachable over SSH:
 
@@ -54,26 +54,25 @@ mantisctl rm    <name>                                  # remove + unregister
    CMD ["/usr/sbin/sshd","-D","-e"]
    ```
 
-   Replace `<extra-packages>` with whatever the request needs. Package names
-   are Alpine's (`apk search <keyword>` if you are unsure — but avoid long
-   searches; typical mappings: python3, py3-pip, nodejs, npm, go, rust, cargo,
-   ffmpeg, imagemagick, ffmpeg-libs, postgresql-client, curl, wget, git, jq).
+   Replace `<extra-packages>` with whatever the request needs. Typical Alpine
+   package names: python3, py3-pip, nodejs, npm, go, rust, cargo, ffmpeg,
+   imagemagick, postgresql-client, curl, wget, git, jq.
 
-4. **Build**: `mantisctl build <name> -f /tmp/<name>.Dockerfile`. The build
-   log streams live; only the last few lines matter. A successful build ends
-   with `Successfully tagged mantis-sb/<name>:latest`. If `apk add` fails
-   (unknown package), fix the package list and rebuild.
-5. **Run**: `mantisctl run <name>`. The JSON response should show
-   `"status": "running"`. If it is `exited`, run
-   `mantisctl logs <name> --tail 40` to diagnose, fix the Dockerfile, rebuild,
-   run again.
-6. **Register**: `mantisctl register <name> --description "<one sentence>" --profile unrestricted`.
-   This is the step that makes Mantis see the sandbox, and `unrestricted`
-   lets Mantis run whatever tool the new sandbox was built for (rustc, node,
-   ffmpeg, etc.). The response contains `"name": "sb-<name>"`.
-7. **Reply**: a single final line exactly `READY sb-<name>` followed by, on
-   separate lines, one short summary sentence explaining what's inside. No
-   command dumps, no build logs, no step-by-step narration.
+4. **Provision** in a single command:
+
+   ```
+   mantisctl sandbox create <name> \
+     -f /tmp/<name>.Dockerfile \
+     --description "<one short sentence>" \
+     --profile unrestricted
+   ```
+
+   It streams build logs; when successful the last line is
+   `READY sb-<name>`. If the build fails (unknown package, etc.), fix the
+   Dockerfile and rerun the same command — the endpoint is idempotent.
+5. **Reply** with exactly `READY sb-<name>` plus one short summary sentence
+   of what's inside. No command dumps, no build logs, no step-by-step
+   narration.
 
 If anything fails and cannot be recovered, reply `FAILED <reason>` instead.
 
@@ -89,8 +88,7 @@ If anything fails and cannot be recovered, reply `FAILED <reason>` instead.
   the user needs their new toolchain to actually run inside. Only switch to
   a narrower profile (`base`, `python`, `media`, `netsec`, `database`) if
   the user explicitly asks you to lock the sandbox down.
-- Never call `mantisctl build/run` in parallel — do them strictly in order.
-- Never `mantisctl rm` sandboxes you did not create in this task.
+- Never `mantisctl sandbox rm` sandboxes you did not create in this task.
 
 ## Quick reference: common package lists
 

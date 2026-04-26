@@ -1,6 +1,6 @@
 # Mantis Helm Chart
 
-Kubernetes deployment for Mantis — Go backend, React/nginx frontend, PostgreSQL, and SSH sandboxes. Modeled after the Platform 3.0 chart but trimmed to what Mantis actually uses.
+Kubernetes deployment for Mantis — Go backend, React/nginx frontend, PostgreSQL. Modeled after the Platform 3.0 chart but trimmed to what Mantis actually uses.
 
 ## What the chart installs
 
@@ -10,10 +10,24 @@ Kubernetes deployment for Mantis — Go backend, React/nginx frontend, PostgreSQ
 | `frontend` | Deployment + Service | `frontend:80` (ClusterIP) |
 | `postgres` | Deployment + PVC + Service | `postgres:5432` (ClusterIP) |
 | `migrate` | Job (`goose up`) | Helm post-install/post-upgrade hook |
-| Sandboxes (base, browser, ffmpeg, python, db, netsec) | Deployment + Service per sandbox | `sandbox`, `browser-sandbox`, etc. (SSH) |
 | `ingress` | Ingress | `/api → app`, `/ → frontend` |
 
-Sandbox service names match `docker-compose.yml` hostnames (e.g. `browser-sandbox`, `ffmpeg-sandbox`, `netsec-sandbox`, `python-sandbox`, `db-sandbox`, `sandbox` for base), so any `Connection` entries created in the app continue to work unchanged.
+## Sandboxes
+
+Sandboxes are **not** Helm-managed workloads. The `app` pod ships an embedded
+set of built-in Dockerfiles (`base`, `python`, `browser`, `ffmpeg`, `db`,
+`netsec`, `runtimectl`) and seeds them into the `connections` table on
+startup. It then builds and runs each sandbox container itself through the
+Docker socket.
+
+This means the `app` pod needs access to a working Docker daemon on its node
+(hostPath mount of `/var/run/docker.sock`, or an in-cluster DinD/containerd
+equivalent). In pure-Kubernetes clusters without Docker access, run Mantis on
+a dedicated node that exposes the socket.
+
+The list and state of running sandboxes is visible in the **Runtimes** page
+inside the app, and can be inspected or managed via the
+`/api/runtime/sandboxes` API.
 
 ## Prerequisites
 
@@ -23,15 +37,13 @@ Sandbox service names match `docker-compose.yml` hostnames (e.g. `browser-sandbo
 - Built and pushed images:
   - `mantis:<tag>` — from `./Dockerfile.prod`
   - `mantis-frontend:<tag>` — from `./frontend/Dockerfile.prod`
-  - `mantis-sandbox`, `mantis-browser-sandbox`, `mantis-ffmpeg-sandbox`, `mantis-python-sandbox`, `mantis-db-sandbox`, `mantis-netsec-sandbox`
+- Docker socket reachable from the `app` pod
 
 ## Quick start
 
 ```bash
-# Create namespace (or set global.createNamespace=true)
 kubectl create namespace mantis
 
-# Install
 helm install mantis ./helm/mantis \
   --namespace mantis \
   --set ingress.host=mantis.example.com \
@@ -42,7 +54,6 @@ helm install mantis ./helm/mantis \
 ## Common overrides
 
 ```bash
-# Point at your own registry
 helm upgrade --install mantis ./helm/mantis \
   --namespace mantis \
   --set app.image.repository=registry.example.com/mantis \
@@ -57,41 +68,7 @@ helm upgrade --install mantis ./helm/mantis \
 
 ## Secrets
 
-`mantis-secrets` is generated from `values.yaml` (`secrets.postgres.*`). For real environments, either:
-
-1. Override via `--set secrets.postgres.password=<strong>` (not recommended).
-2. Pre-create a secret named `mantis-secrets` with keys `postgres-user`, `postgres-password`, `postgres-db`, and disable the template (TODO: add `secrets.create: false` if needed).
-
-## External PostgreSQL
-
-Disable the bundled DB and point the app at an external host:
-
-```yaml
-postgres:
-  enabled: false
-secrets:
-  postgres:
-    user: myuser
-    password: mypassword
-    db: mantis
-```
-
-Then edit `templates/app-deployment.yaml` `DATABASE_URL` — or override via a Secret with a full `DATABASE_URL` value. (The current chart builds the URL from user/password/db against service `postgres`; for external DBs prepare a custom `DATABASE_URL` secret.)
-
-## Sandboxes
-
-Every sandbox has a `enabled` flag in `values.yaml`. Disable the ones you don't need:
-
-```yaml
-sandboxes:
-  browser:
-    enabled: false
-  netsec:
-    enabled: false
-```
-
-SSH ports:
-- `base` uses `2222` (linuxserver/openssh-server default)
-- all others use `22`
-
-Set up `Connection` entries inside the app using the Kubernetes service names as hosts.
+`mantis-secrets` is generated from `values.yaml` (`secrets.postgres.*`). For
+real environments, pre-create a secret named `mantis-secrets` with keys
+`postgres-user`, `postgres-password`, `postgres-db`, or override via
+`--set secrets.postgres.password=<strong>`.

@@ -16,6 +16,7 @@ type Connection struct {
 	Memories      []Memory        `json:"memories"`
 	ProfileIDs    []string        `json:"profileIds"`
 	MemoryEnabled bool            `json:"memoryEnabled"`
+	Dockerfile    string          `json:"dockerfile,omitempty"`
 }
 
 type Memory struct {

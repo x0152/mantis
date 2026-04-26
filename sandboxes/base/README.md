@@ -1,13 +1,14 @@
 # Base Sandbox
 
-General-purpose Linux host based on Alpine Linux.
+General-purpose Linux host based on Ubuntu 24.04.
 
 ## System info
 
-- OS: Alpine Linux (linuxserver/openssh-server)
-- User: `mantis`
-- Home directory: `/config` (linuxserver convention)
+- OS: Ubuntu 24.04
+- User: `mantis` (passwordless sudo)
+- Home directory: `/home/mantis`
 - Shell: `/bin/bash`
+- SSH: port 22, user `mantis`, password `mantis`
 
 ## Preinstalled utilities
 
@@ -16,7 +17,8 @@ General-purpose Linux host based on Alpine Linux.
 ls, cat, head, tail, find, grep, wc    — view and search
 cp, mv, rm, mkdir, chmod, chown        — file management
 tar, gzip, unzip                       — archiving
-du, df                                  — disk usage
+du, df                                 — disk usage
+tree, file                             — inspect
 ```
 
 ### Network
@@ -25,13 +27,14 @@ curl, wget         — HTTP requests and downloads
 ping, traceroute   — network diagnostics
 ip, ifconfig       — network interfaces
 netstat, ss        — open connections and ports
+dig, whois         — DNS / WHOIS
 ```
 
 ### Text and data
 ```
 awk, sed           — text processing
 sort, uniq, cut    — filtering and transformation
-jq                 — JSON processing (if installed)
+jq                 — JSON processing
 ```
 
 ### Processes and system
@@ -46,16 +49,15 @@ env, printenv      — environment variables
 ## Installing additional packages
 
 ```bash
-sudo apk update
-sudo apk add <package-name>
+sudo apt-get update
+sudo apt-get install -y <package-name>
 ```
 
 Examples:
 ```bash
-sudo apk add jq          # JSON processor
-sudo apk add git         # Git
-sudo apk add python3     # Python 3
-sudo apk add nodejs npm  # Node.js
+sudo apt-get install -y python3     # Python 3
+sudo apt-get install -y nodejs npm  # Node.js
+sudo apt-get install -y git         # Git
 ```
 
 ## Common tasks
@@ -85,6 +87,6 @@ find /home -type f -size +10M      # files larger than 10MB
 
 ## Limitations
 
-- This is a lightweight container; heavy packages (compilers, GUI) are better placed on specialized hosts.
+- This is a lightweight container; heavy packages (compilers, GUI) are better placed on specialized sandboxes.
 - Data is not persistent — everything is reset when the container restarts.
-- For browser work use `browser-sandbox`, for media use `ffmpeg-sandbox`.
+- For browser work use the `browser` sandbox, for media the `ffmpeg` sandbox, for Python data analysis the `python` sandbox.

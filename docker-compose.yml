@@ -86,41 +86,6 @@ services:
     depends_on:
       - app
 
-  sandbox:
-    build: sandboxes/base
-    environment:
-      PUID: 1000
-      PGID: 1000
-      USER_NAME: mantis
-      USER_PASSWORD: mantis
-      PASSWORD_ACCESS: "true"
-
-  browser-sandbox:
-    build: sandboxes/browser
-    environment:
-      ASR_API_URL: "${ASR_API_URL:-}"
-      OCR_API_URL: "${OCR_API_URL:-}"
-
-  ffmpeg-sandbox:
-    build: sandboxes/ffmpeg
-
-  python-sandbox:
-    build: sandboxes/python
-
-  db-sandbox:
-    build: sandboxes/db
-
-  netsec-sandbox:
-    build: sandboxes/netsec
-
-  runtimectl-sandbox:
-    build: sandboxes/runtimectl
-    environment:
-      MANTIS_URL: http://app:8080
-      MANTIS_RUNTIME_TOKEN: "${RUNTIME_API_TOKEN:-}"
-    networks:
-      - sandbox
-
 volumes:
   pgdata:
   attachments:

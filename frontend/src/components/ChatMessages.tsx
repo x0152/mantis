@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, Layers, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square, RotateCcw } from 'lucide-react'
+import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, Layers, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square, RotateCcw, Copy, Check } from 'lucide-react'
 import { Markdown } from './Markdown'
 import { EntryLine, PromptBanner } from './LogEntries'
 import { api } from '../api'
@@ -48,6 +48,90 @@ export const STEP_ICONS: Record<string, typeof Terminal> = {
   layers: Layers,
 }
 
+function stripThinking(content: string): string {
+  if (!content) return ''
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<think>[\s\S]*$/, '')
+    .trim()
+}
+
+function CopyMessageButton({
+  text,
+  variant = 'inline',
+  tone = 'neutral',
+}: {
+  text: string
+  variant?: 'inline' | 'hover'
+  tone?: 'neutral' | 'danger'
+}) {
+  const [copied, setCopied] = useState(false)
+  const resetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (resetRef.current) clearTimeout(resetRef.current)
+  }, [])
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch { return }
+    }
+    setCopied(true)
+    if (resetRef.current) clearTimeout(resetRef.current)
+    resetRef.current = setTimeout(() => setCopied(false), 1500)
+  }
+
+  if (variant === 'hover') {
+    return (
+      <button
+        onClick={handleCopy}
+        type="button"
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1.5 rounded-md text-zinc-500 dark:text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 shrink-0"
+        title={copied ? 'Copied' : 'Copy message'}
+        aria-label={copied ? 'Copied' : 'Copy message'}
+      >
+        {copied
+          ? <Check size={13} className="text-emerald-500" />
+          : <Copy size={13} />
+        }
+      </button>
+    )
+  }
+
+  const toneClasses = tone === 'danger'
+    ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+    : 'text-zinc-500 dark:text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-500/5'
+
+  return (
+    <button
+      onClick={handleCopy}
+      type="button"
+      className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${toneClasses}`}
+      title={copied ? 'Copied' : 'Copy message'}
+      aria-label={copied ? 'Copied' : 'Copy message'}
+    >
+      {copied
+        ? <Check size={11} className="text-emerald-500" />
+        : <Copy size={11} />
+      }
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
 export function MessageBubble({
   msg,
   onStepClick,
@@ -67,7 +151,8 @@ export function MessageBubble({
   if (isUser) {
     const userTokens = msg.tokens ?? estimateTokens(msg.content)
     return (
-      <div className="flex justify-end">
+      <div className="group flex justify-end items-center gap-2">
+        {msg.content && <CopyMessageButton text={msg.content} variant="hover" />}
         <div className="max-w-[80%] rounded-xl rounded-br-sm text-[15px] bg-teal-600 text-white px-4 py-3">
           <div className="whitespace-pre-wrap">{msg.content}</div>
           {userTokens > 0 && (
@@ -81,24 +166,29 @@ export function MessageBubble({
   }
 
   if (msg.status === 'error') {
+    const errorCopyText = stripThinking(msg.content)
+    const showErrorActions = !!errorCopyText || (canRegenerate && !!onRegenerate)
     return (
       <div className="flex justify-start">
         <div className="max-w-[80%] rounded-xl rounded-bl-sm text-[15px] bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-3 space-y-2">
           <Markdown content={msg.content} />
-          {canRegenerate && onRegenerate && (
-            <div>
-              <button
-                onClick={onRegenerate}
-                disabled={regenerating}
-                className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
-                title="Regenerate response"
-              >
-                {regenerating
-                  ? <Loader2 size={11} className="animate-spin" />
-                  : <RotateCcw size={11} />
-                }
-                Regenerate
-              </button>
+          {showErrorActions && (
+            <div className="flex items-center gap-1">
+              {errorCopyText && <CopyMessageButton text={errorCopyText} tone="danger" />}
+              {canRegenerate && onRegenerate && (
+                <button
+                  onClick={onRegenerate}
+                  disabled={regenerating}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                  title="Regenerate response"
+                >
+                  {regenerating
+                    ? <Loader2 size={11} className="animate-spin" />
+                    : <RotateCcw size={11} />
+                  }
+                  Regenerate
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -237,22 +327,31 @@ export function MessageBubble({
             (no response)
           </div>
         )}
-        {canRegenerate && onRegenerate && !isPending && (
-          <div>
-            <button
-              onClick={onRegenerate}
-              disabled={regenerating}
-              className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-zinc-500 dark:text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-500/5 disabled:opacity-50 transition-colors"
-              title="Regenerate response"
-            >
-              {regenerating
-                ? <Loader2 size={11} className="animate-spin" />
-                : <RotateCcw size={11} />
-              }
-              Regenerate
-            </button>
-          </div>
-        )}
+        {!isPending && (() => {
+          const copyText = stripThinking(msg.content)
+          const canShowCopy = copyText.length > 0
+          const canShowRegenerate = !!canRegenerate && !!onRegenerate
+          if (!canShowCopy && !canShowRegenerate) return null
+          return (
+            <div className="flex items-center gap-1">
+              {canShowCopy && <CopyMessageButton text={copyText} />}
+              {canShowRegenerate && (
+                <button
+                  onClick={onRegenerate}
+                  disabled={regenerating}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md text-zinc-500 dark:text-zinc-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-500/5 disabled:opacity-50 transition-colors"
+                  title="Regenerate response"
+                >
+                  {regenerating
+                    ? <Loader2 size={11} className="animate-spin" />
+                    : <RotateCcw size={11} />
+                  }
+                  Regenerate
+                </button>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

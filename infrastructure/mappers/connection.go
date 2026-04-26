@@ -21,6 +21,7 @@ func ConnectionToRow(c types.Connection) models.ConnectionRow {
 		Memories:      memories,
 		ProfileIDs:    profileIDs,
 		MemoryEnabled: c.MemoryEnabled,
+		Dockerfile:    c.Dockerfile,
 	}
 }
 
@@ -46,5 +47,6 @@ func ConnectionFromRow(r models.ConnectionRow) types.Connection {
 		Memories:      memories,
 		ProfileIDs:    profileIDs,
 		MemoryEnabled: r.MemoryEnabled,
+		Dockerfile:    r.Dockerfile,
 	}
 }

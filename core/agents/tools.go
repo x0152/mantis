@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
 	robcron "github.com/robfig/cron/v3"
@@ -71,6 +72,9 @@ func (a *MantisAgent) sshTool(c types.Connection) types.Tool {
 				Task string `json:"task"`
 			}
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			if err := a.checkSandboxRunning(ctx, connCopy); err != nil {
 				return "", err
 			}
 			selection := a.resolveConnectionModelSelection(connCopy)
@@ -132,6 +136,7 @@ func annotateServerLimit(partial string, runErr error, ctx context.Context, limi
 func (a *MantisAgent) skillTool(c types.Connection, s types.Skill) types.Tool {
 	connName := c.Name
 	rawConfig := c.Config
+	connCopy := c
 	toolName := skillToolName(s)
 	params := skillParametersSchema(s.Parameters)
 	description := strings.TrimSpace(s.Description)
@@ -153,7 +158,10 @@ func (a *MantisAgent) skillTool(c types.Connection, s types.Skill) types.Tool {
 			return "Skill: " + s.Name + " " + payload
 		},
 		Parameters: params,
-		Execute: func(_ context.Context, args string) (string, error) {
+		Execute: func(ctx context.Context, args string) (string, error) {
+			if err := a.checkSandboxRunning(ctx, connCopy); err != nil {
+				return "", err
+			}
 			input := map[string]any{}
 			payload := strings.TrimSpace(args)
 			if payload != "" && payload != "null" {
@@ -268,6 +276,7 @@ func normalizeToolPart(value string) string {
 func (a *MantisAgent) sshDownloadTool(c types.Connection, artifacts *shared.ArtifactStore) types.Tool {
 	connName := c.Name
 	rawConfig := c.Config
+	connCopy := c
 
 	return types.Tool{
 		Name:        fmt.Sprintf("ssh_download_%s", sanitizeName(connName)),
@@ -298,12 +307,15 @@ func (a *MantisAgent) sshDownloadTool(c types.Connection, artifacts *shared.Arti
 			},
 			"required": []string{"remotePath"},
 		},
-		Execute: func(_ context.Context, args string) (string, error) {
+		Execute: func(ctx context.Context, args string) (string, error) {
 			var input struct {
 				RemotePath string `json:"remotePath"`
 				Name       string `json:"name"`
 			}
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			if err := a.checkSandboxRunning(ctx, connCopy); err != nil {
 				return "", err
 			}
 			var sshCfg SSHConfig
@@ -338,6 +350,7 @@ func (a *MantisAgent) sshDownloadTool(c types.Connection, artifacts *shared.Arti
 func (a *MantisAgent) sshUploadTool(c types.Connection, artifacts *shared.ArtifactStore) types.Tool {
 	connName := c.Name
 	rawConfig := c.Config
+	connCopy := c
 
 	return types.Tool{
 		Name:        fmt.Sprintf("ssh_upload_%s", sanitizeName(connName)),
@@ -378,7 +391,7 @@ func (a *MantisAgent) sshUploadTool(c types.Connection, artifacts *shared.Artifa
 			},
 			"required": []string{"artifactId", "remotePath"},
 		},
-		Execute: func(_ context.Context, args string) (string, error) {
+		Execute: func(ctx context.Context, args string) (string, error) {
 			var input struct {
 				ArtifactID  string `json:"artifactId"`
 				RemotePath  string `json:"remotePath"`
@@ -386,6 +399,9 @@ func (a *MantisAgent) sshUploadTool(c types.Connection, artifacts *shared.Artifa
 				Permissions string `json:"mode"`
 			}
 			if err := json.Unmarshal([]byte(args), &input); err != nil {
+				return "", err
+			}
+			if err := a.checkSandboxRunning(ctx, connCopy); err != nil {
 				return "", err
 			}
 
@@ -428,6 +444,26 @@ func (a *MantisAgent) sshUploadTool(c types.Connection, artifacts *shared.Artifa
 func sanitizeName(name string) string {
 	r := strings.NewReplacer(" ", "_", "-", "_", ".", "_")
 	return strings.ToLower(r.Replace(name))
+}
+
+func (a *MantisAgent) checkSandboxRunning(ctx context.Context, conn types.Connection) error {
+	if conn.Dockerfile == "" {
+		return nil
+	}
+	if a.runtime == nil {
+		return nil
+	}
+	sandboxName := strings.TrimPrefix(conn.Name, "sb-")
+	inspectCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	container, err := a.runtime.Inspect(inspectCtx, sandboxName)
+	if err != nil {
+		return fmt.Errorf("sandbox %q is not available (container not found). Start it from the Runtimes page or run: mantisctl sandbox start %s", conn.Name, sandboxName)
+	}
+	if container.Status != "running" {
+		return fmt.Errorf("sandbox %q is %s, not running. Start it from the Runtimes page or run: mantisctl sandbox start %s", conn.Name, container.Status, sandboxName)
+	}
+	return nil
 }
 
 // --- Notification tools ---

@@ -41,6 +41,17 @@ function suggestEndpointId(baseUrl: string, provider: string): string {
   }
 }
 
+async function pollConnections(names: string[], timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const list = await api.connections.list()
+    const have = new Set(list.map(c => c.name))
+    if (names.every(n => have.has(n))) return list
+    await new Promise(r => setTimeout(r, 500))
+  }
+  return api.connections.list()
+}
+
 function makeUniqueID(base: string, existing: Set<string>): string {
   if (!existing.has(base)) return base
   for (let i = 2; i < 1000; i++) {
@@ -49,16 +60,6 @@ function makeUniqueID(base: string, existing: Set<string>): string {
   }
   return `${base}-${Date.now()}`.slice(0, 48)
 }
-
-const SANDBOXES = [
-  { name: 'base', host: 'sandbox', port: 2222, profileId: 'base', description: 'General-purpose Linux sandbox — shell, files, networking utilities' },
-  { name: 'browser', host: 'browser-sandbox', port: 22, profileId: 'browser', description: 'Headless Chromium + Playwright — web navigation, screenshots, PDF, parsing' },
-  { name: 'ffmpeg', host: 'ffmpeg-sandbox', port: 22, profileId: 'media', description: 'FFmpeg + MediaInfo + ImageMagick — video, audio, image processing' },
-  { name: 'python', host: 'python-sandbox', port: 22, profileId: 'python', description: 'Python 3 sandbox — scripts, data analysis, pip packages' },
-  { name: 'db', host: 'db-sandbox', port: 22, profileId: 'database', description: 'PostgreSQL client — psql, pg_dump, pg_restore' },
-  { name: 'netsec', host: 'netsec-sandbox', port: 22, profileId: 'netsec', description: 'Network/pentest toolkit — nmap, dig, nikto, ffuf, hashcat + net-* wrappers with hard timeouts' },
-  { name: 'runtimectl', host: 'runtimectl-sandbox', port: 22, profileId: 'runtimectl', description: 'Runtime controller. Ask it in plain language to provision a new sandbox (e.g. "need rust + cargo + curl"). It builds, runs and registers the container, then replies with a READY sb-<name> handle that you can use directly as an SSH connection.' },
-]
 
 type SeedSkill = Omit<Skill, 'id' | 'connectionId'>
 
@@ -326,19 +327,13 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             systemPrompt: '',
           })
 
-      for (const sb of SANDBOXES) {
-        const conn = await api.connections.create({
-          type: 'ssh',
-          name: sb.name,
-          description: sb.description,
-          config: { host: sb.host, port: sb.port, username: 'mantis', password: 'mantis' },
-          profileIds: [sb.profileId],
-          memoryEnabled: true,
-        }).catch(() => null)
-        if (conn) {
-          for (const sk of SEED_SKILLS[sb.profileId] ?? []) {
-            await api.skills.create({ ...sk, connectionId: conn.id }).catch(() => {})
-          }
+      const connList = await pollConnections(['base', 'browser'], 15_000).catch(() => [] as Awaited<ReturnType<typeof api.connections.list>>)
+      const connByName = new Map(connList.map(c => [c.name, c]))
+      for (const profileId of Object.keys(SEED_SKILLS)) {
+        const conn = connByName.get(profileId)
+        if (!conn) continue
+        for (const sk of SEED_SKILLS[profileId]) {
+          await api.skills.create({ ...sk, connectionId: conn.id }).catch(() => {})
         }
       }
 

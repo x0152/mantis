@@ -47,8 +47,16 @@ services:
       MANTIS_SERVER_MAX_ITERATIONS: "${MANTIS_SERVER_MAX_ITERATIONS:-}"
       MANTIS_SERVER_TIMEOUT: "${MANTIS_SERVER_TIMEOUT:-}"
       MANTIS_PLAN_STEP_TIMEOUT: "${MANTIS_PLAN_STEP_TIMEOUT:-}"
+      RUNTIME_MODE: "${RUNTIME_MODE:-docker}"
+      RUNTIME_NETWORK: "${RUNTIME_NETWORK:-mantis-sandbox-net}"
+      RUNTIME_API_TOKEN: "${RUNTIME_API_TOKEN:-}"
+      DOCKER_SOCKET: /var/run/docker.sock
     volumes:
       - attachments:/data/attachments
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - sandbox
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -69,39 +77,11 @@ services:
     depends_on:
       - app
 
-  sandbox:
-    build: sandboxes/base
-    restart: unless-stopped
-    environment:
-      PUID: 1000
-      PGID: 1000
-      USER_NAME: mantis
-      USER_PASSWORD: "${SANDBOX_PASSWORD:-mantis}"
-      PASSWORD_ACCESS: "true"
-
-  browser-sandbox:
-    build: sandboxes/browser
-    restart: unless-stopped
-    environment:
-      ASR_API_URL: "${ASR_API_URL:-}"
-      OCR_API_URL: "${OCR_API_URL:-}"
-
-  ffmpeg-sandbox:
-    build: sandboxes/ffmpeg
-    restart: unless-stopped
-
-  python-sandbox:
-    build: sandboxes/python
-    restart: unless-stopped
-
-  db-sandbox:
-    build: sandboxes/db
-    restart: unless-stopped
-
-  netsec-sandbox:
-    build: sandboxes/netsec
-    restart: unless-stopped
-
 volumes:
   pgdata:
   attachments:
+
+networks:
+  default:
+  sandbox:
+    name: mantis-sandbox-net

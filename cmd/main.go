@@ -218,7 +218,7 @@ func main() {
 		envDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
 	)
 	r.Use(loginLimiter.Middleware("/api/auth/login"))
-	r.Use(auth.Middleware(userStore, isPublicPath))
+	r.Use(auth.Middleware(userStore, isPublicPathFactory(env("RUNTIME_API_TOKEN", ""))))
 
 	api := humachi.New(r, huma.DefaultConfig("Mantis API", "1.0.0"))
 
@@ -231,7 +231,15 @@ func main() {
 		rt := dockerruntime.New(env("DOCKER_SOCKET", ""), env("RUNTIME_NETWORK", ""))
 		runtimeApp := runtimeapp.NewApp(rt, connectionStore, env("RUNTIME_API_TOKEN", ""))
 		runtimeApp.Mount(r)
+		mantisAgent.SetRuntime(rt)
 		log.Printf("runtime: docker adapter ready (network=%s)", rt.Network())
+
+		bootstrapper := runtimeapp.NewBootstrapper(rt, connectionStore)
+		go func() {
+			if err := bootstrapper.Run(context.Background()); err != nil {
+				log.Printf("runtime bootstrap: %v", err)
+			}
+		}()
 	}
 
 	r.Get("/api/artifacts/{sessionId}/{artifactId}", func(w http.ResponseWriter, r *http.Request) {
@@ -265,16 +273,23 @@ func main() {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
 }
 
-func isPublicPath(r *http.Request) bool {
-	p := r.URL.Path
-	switch p {
-	case "/api/auth/login", "/api/auth/logout", "/docs", "/openapi.json", "/openapi.yaml":
-		return true
+func isPublicPathFactory(runtimeToken string) func(*http.Request) bool {
+	return func(r *http.Request) bool {
+		p := r.URL.Path
+		switch p {
+		case "/api/auth/login", "/api/auth/logout", "/docs", "/openapi.json", "/openapi.yaml":
+			return true
+		}
+		if strings.HasPrefix(p, "/api/runtime/") {
+			if runtimeToken == "" {
+				return true
+			}
+			if r.Header.Get("X-Runtime-Token") != "" {
+				return true
+			}
+		}
+		return strings.HasPrefix(p, "/schemas/")
 	}
-	if strings.HasPrefix(p, "/api/runtime/") {
-		return true
-	}
-	return strings.HasPrefix(p, "/schemas/")
 }
 
 func env(key, fallback string) string {

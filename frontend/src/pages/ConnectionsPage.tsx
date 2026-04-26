@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield } from 'lucide-react'
+import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield, Container, Cloud } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { Connection, Preset, GuardProfile } from '../types'
@@ -169,6 +169,15 @@ export default function ConnectionsPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{conn.name}</span>
                     <Badge className="uppercase">{conn.type}</Badge>
+                    {conn.dockerfile ? (
+                      <Badge className="bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30">
+                        <Container size={10} /> Sandbox
+                      </Badge>
+                    ) : conn.type === 'ssh' && (
+                      <Badge variant="secondary">
+                        <Cloud size={10} /> Remote
+                      </Badge>
+                    )}
                     {conn.memories.length > 0 && (
                       <Badge variant="secondary">
                         <MessageSquare size={10} /> {conn.memories.length}

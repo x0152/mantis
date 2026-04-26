@@ -7,6 +7,7 @@ export type Route =
   | { page: 'logs' }
   | { page: 'llm' }
   | { page: 'guard-profiles' }
+  | { page: 'runtimes' }
 
 export type PageId = Route['page']
 
@@ -21,6 +22,7 @@ const patterns: [RegExp, (m: RegExpMatchArray) => Route][] = [
   [/^\/logs\/?$/, () => ({ page: 'logs' })],
   [/^\/llm\/?$/, () => ({ page: 'llm' })],
   [/^\/guard-profiles\/?$/, () => ({ page: 'guard-profiles' })],
+  [/^\/runtimes\/?$/, () => ({ page: 'runtimes' })],
 ]
 
 export function parseRoute(path = window.location.pathname): Route {

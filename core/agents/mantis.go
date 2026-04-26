@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,9 @@ import (
 	"mantis/core/types"
 	"mantis/shared"
 )
+
+//go:embed soul.md
+var mantisSoul string
 
 const (
 	telegramMarkdownV2ReservedChars = "_ * [ ] ( ) ~ ` > # + - = | { } . !"
@@ -55,6 +59,11 @@ ssh_download_<server_name> — download a file from the server into a temporary 
 
 ssh_upload_<server_name> — upload a temporary artifact to the server.
   Parameters: artifactId, remotePath.
+
+ssh_connection_create — register a NEW remote SSH host as a connection. Use this when the user wants to attach an external machine (their own server, a VPS, a staging box) as opposed to creating a local sandbox. Authenticate with either a password string or a private_key_artifact_id (the artifact id of a PEM private key the user attached to the chat — find it with artifacts_list first). The tool test-dials the host and only saves the connection if the handshake succeeds. The new ssh_<name> tool becomes available on the next assistant turn.
+  Before calling, confirm credentials with the user; never guess a password. If the user pasted a private key in chat as a file, look it up via artifacts_list.
+
+ssh_connection_delete — remove a previously registered remote SSH connection by name. Refuses to delete built-in sandboxes; those are managed from the Runtimes page or via mantisctl.
 
 artifacts_list — list temporary in-memory artifacts.
 
@@ -156,6 +165,7 @@ type MantisAgent struct {
 	sessionStore    protocols.Store[string, types.ChatSession]
 	agent           *agent.Agent
 	sshAgent        *SSHAgent
+	runtime         protocols.Runtime
 	asr             protocols.ASR
 	ocr             protocols.OCR
 	vision          protocols.VisionLLM
@@ -205,6 +215,10 @@ func (a *MantisAgent) Limits() shared.Limits { return a.limits }
 
 func (a *MantisAgent) SetPlanRunner(r protocols.PlanRunner) {
 	a.planRunner = r
+}
+
+func (a *MantisAgent) SetRuntime(rt protocols.Runtime) {
+	a.runtime = rt
 }
 
 func (a *MantisAgent) Execute(ctx context.Context, in MantisInput) (<-chan types.StreamEvent, error) {
@@ -352,6 +366,9 @@ func (a *MantisAgent) buildSystemPrompt(connections []types.Connection, artifact
 			"5. If the instruction says \"send\" — send and STOP.\n" +
 			"6. The pipeline will call you again for the next step. You must NOT anticipate it.\n" +
 			"7. If you cannot complete the step, respond with [ERROR]: reason.\n\n" + prompt
+	} else if soul := strings.TrimSpace(mantisSoul); soul != "" {
+		sb.WriteString(soul)
+		sb.WriteString("\n\n")
 	}
 	sb.WriteString(prompt)
 	sb.WriteString(fmt.Sprintf("\n\nCurrent date/time: %s", time.Now().UTC().Format("Monday, 2006-01-02 15:04:05 UTC")))
@@ -440,6 +457,8 @@ func (a *MantisAgent) buildTools(connections []types.Connection, skills []types.
 		artifactTranscribeTool(artifacts, a.asr),
 		a.artifactReadImageTool(artifacts),
 		a.sendNotificationTool(),
+		a.sshConnectionCreateTool(artifacts),
+		a.sshConnectionDeleteTool(),
 		sumTool(),
 	)
 	if source == "plan" {

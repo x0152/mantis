@@ -67,6 +67,23 @@ export interface Connection {
   memories: Memory[]
   profileIds: string[]
   memoryEnabled: boolean
+  dockerfile?: string
+}
+
+export interface RuntimeContainer {
+  name: string
+  image: string
+  status: string
+  host: string
+  port?: number
+  labels?: Record<string, string>
+  createdAt: string
+}
+
+export interface SandboxStatus {
+  connection: Connection
+  container: RuntimeContainer
+  state: string
 }
 
 export interface Skill {

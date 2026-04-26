@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch, LogOut } from 'lucide-react'
+import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch, LogOut, Container } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 import LlmPage from './pages/LlmPage'
@@ -10,6 +10,7 @@ import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import SkillsPage from './pages/SkillsPage'
 import PlansPage from './pages/PlansPage'
+import RuntimesPage from './pages/RuntimesPage'
 import SetupWizard from './pages/SetupWizard'
 import LoginPage from './pages/LoginPage'
 import ChatSidebar from './components/ChatSidebar'
@@ -36,6 +37,7 @@ const nav: NavSection[] = [
     items: [
       { id: 'llm', label: 'AI Engine', icon: Sparkles },
       { id: 'connections', label: 'Servers', icon: Plug },
+      { id: 'runtimes', label: 'Runtimes', icon: Container },
       { id: 'skills', label: 'Skills', icon: Wrench },
       { id: 'channels', label: 'Channels', icon: Radio },
     ],
@@ -211,6 +213,7 @@ export default function App() {
         {route.page === 'channels' && <ChannelsPage />}
         {route.page === 'llm' && <LlmPage />}
         {route.page === 'connections' && <ConnectionsPage />}
+        {route.page === 'runtimes' && <RuntimesPage />}
         {route.page === 'skills' && <SkillsPage />}
         {route.page === 'plans' && <PlansPage deepPlanId={planId} key={planId ?? '_'} />}
         {route.page === 'logs' && <LogsPage />}

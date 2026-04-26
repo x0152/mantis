@@ -105,74 +105,11 @@ secrets:
     db: mantis
 
 # ===========================================
-# Sandboxes — ephemeral SSH environments
-# Each sandbox exposes SSH; users point Connection entries
-# in the app at the ClusterIP service name and port.
+# Runtime — the app provisions sandbox containers itself by writing
+# Dockerfiles into the connections table on startup. For that to work
+# the app pod needs Docker access on its node (hostPath mount on a
+# DinD/containerd-hosted cluster, or equivalent). This chart does NOT
+# ship per-sandbox Deployments anymore.
 # ===========================================
-sandboxes:
-  global:
-    imagePullPolicy: IfNotPresent
-    # SSH user/password used by every sandbox (matches docker-compose default)
-    user: mantis
-    password: mantis
-    resources:
-      requests:
-        memory: 128Mi
-        cpu: 100m
-
-  base:
-    enabled: true
-    image:
-      repository: mantis-sandbox
-      tag: latest
-    # linuxserver/openssh-server listens on 2222 by default
-    sshPort: 2222
-    env:
-      PUID: "1000"
-      PGID: "1000"
-      PASSWORD_ACCESS: "true"
-
-  browser:
-    enabled: true
-    image:
-      repository: mantis-browser-sandbox
-      tag: latest
-    sshPort: 22
-    env: {}
-    # ASR/OCR optional, inherited from app.env unless overridden
-    inheritAsrOcr: true
-    resources:
-      requests:
-        memory: 512Mi
-        cpu: 250m
-      limits:
-        memory: 2Gi
-        cpu: 1000m
-
-  ffmpeg:
-    enabled: true
-    image:
-      repository: mantis-ffmpeg-sandbox
-      tag: latest
-    sshPort: 22
-
-  python:
-    enabled: true
-    image:
-      repository: mantis-python-sandbox
-      tag: latest
-    sshPort: 22
-
-  db:
-    enabled: true
-    image:
-      repository: mantis-db-sandbox
-      tag: latest
-    sshPort: 22
-
-  netsec:
-    enabled: true
-    image:
-      repository: mantis-netsec-sandbox
-      tag: latest
-    sshPort: 22
+runtime:
+  dockerSocket: /var/run/docker.sock

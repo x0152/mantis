@@ -18,4 +18,5 @@ type ConnectionRow struct {
 	Memories      json.RawMessage `bun:"memories,type:jsonb"`
 	ProfileIDs    json.RawMessage `bun:"profile_ids,type:jsonb"`
 	MemoryEnabled bool            `bun:"memory_enabled"`
+	Dockerfile    string          `bun:"dockerfile,nullzero"`
 }

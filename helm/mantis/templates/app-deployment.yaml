@@ -47,6 +47,10 @@ spec:
                 secretKeyRef: { name: mantis-secrets, key: postgres-db }
             - name: DATABASE_URL
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)?sslmode=disable"
+            - name: RUNTIME_MODE
+              value: docker
+            - name: DOCKER_SOCKET
+              value: {{ .Values.runtime.dockerSocket | quote }}
             {{- range $k, $v := .Values.app.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
@@ -54,10 +58,16 @@ spec:
           volumeMounts:
             - name: attachments
               mountPath: /data/attachments
+            - name: docker-socket
+              mountPath: {{ .Values.runtime.dockerSocket }}
           resources:
             {{- toYaml .Values.app.resources | nindent 12 }}
       volumes:
         - name: attachments
           persistentVolumeClaim:
             claimName: mantis-attachments
+        - name: docker-socket
+          hostPath:
+            path: {{ .Values.runtime.dockerSocket }}
+            type: Socket
 {{- end }}

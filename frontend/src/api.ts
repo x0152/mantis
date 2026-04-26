@@ -1,4 +1,4 @@
-import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User, ContextStatus } from './types'
+import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User, ContextStatus, SandboxStatus } from './types'
 
 export class UnauthorizedError extends Error {
   constructor(message = 'Unauthorized') {
@@ -114,6 +114,18 @@ export const api = {
     trigger: (planId: string, input?: Record<string, unknown>) =>
       request<PlanRun>(`/plans/${planId}/runs`, { method: 'POST', body: JSON.stringify({ input: input ?? {} }) }),
     cancel: (id: string) => request<PlanRun>(`/plan-runs/${id}/cancel`, { method: 'POST' }),
+  },
+  sandboxes: {
+    list: () =>
+      request<{ sandboxes: SandboxStatus[] }>('/runtime/sandboxes').then(r => r.sandboxes),
+    rebuild: (name: string) =>
+      fetch(`/api/runtime/sandboxes/${encodeURIComponent(name)}/rebuild`, { method: 'POST', credentials: 'include' }),
+    start: (name: string) =>
+      request<void>(`/runtime/sandboxes/${encodeURIComponent(name)}/start`, { method: 'POST' }),
+    stop: (name: string) =>
+      request<void>(`/runtime/sandboxes/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
+    delete: (name: string) =>
+      request<void>(`/runtime/sandboxes/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   },
   guardProfiles: {
     list: () => request<GuardProfile[]>('/guard-profiles'),
