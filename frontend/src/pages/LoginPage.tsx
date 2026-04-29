@@ -31,15 +31,19 @@ export default function LoginPage({ onLogin }: { onLogin: (user: User) => void }
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <MantisLogo size={48} className="text-teal-500 dark:text-teal-400" />
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <MantisLogo size={40} className="text-teal-500 dark:text-teal-400" />
           <div className="leading-tight">
-            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">Mantis</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Control Plane</p>
+            <h1 className="font-mono text-[20px] font-medium lowercase tracking-tight text-zinc-900 dark:text-zinc-50">mantis</h1>
+            <p className="font-mono text-[11px] lowercase tracking-tight text-zinc-500 mt-0.5">v0 · control</p>
           </div>
         </div>
 
-        <Card className="bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 p-6">
+        <Card className="bg-white dark:bg-zinc-900/60 p-6">
+          <div className="kicker mb-4 pb-3 border-b border-zinc-200/60 dark:border-zinc-800/60">
+            <span className="kicker-num">·</span>
+            <span>auth</span>
+          </div>
           <form onSubmit={submit} className="space-y-4">
             <FormField label="Access token">
               <Input
@@ -51,14 +55,14 @@ export default function LoginPage({ onLogin }: { onLogin: (user: User) => void }
               />
             </FormField>
 
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="font-mono text-[11px] lowercase text-rose-500">err: {error}</p>}
 
             <Button
               type="submit"
               disabled={loading || !token.trim()}
-              className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-zinc-950 font-semibold text-sm"
+              className="w-full h-9"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'signing in...' : 'sign in'}
             </Button>
           </form>
         </Card>

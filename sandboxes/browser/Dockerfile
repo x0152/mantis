@@ -4,12 +4,9 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN npm install -g playwright@1.50.0 && \
     apt-get update && \
-    apt-get install -y openssh-server sudo jq && \
+    apt-get install -y openssh-server jq && \
     rm -rf /var/lib/apt/lists/* && \
-    mkdir /run/sshd && \
     useradd -m -s /bin/bash mantis && \
-    echo "mantis:mantis" | chpasswd && \
-    adduser mantis sudo && \
     echo "PLAYWRIGHT_BROWSERS_PATH=/ms-playwright" >> /etc/environment
 
 COPY pw-screenshot /usr/local/bin/pw-screenshot
@@ -22,4 +19,3 @@ COPY README.md /home/mantis/README.md
 RUN chown mantis:mantis /home/mantis/README.md
 
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D"]

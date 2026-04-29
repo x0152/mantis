@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield, Container, Cloud } from 'lucide-react'
+import { Plus, Pencil, Trash2, Plug, ChevronDown, ChevronRight, MessageSquare, Send, Shield, Container, Cloud } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { Connection, Preset, GuardProfile } from '../types'

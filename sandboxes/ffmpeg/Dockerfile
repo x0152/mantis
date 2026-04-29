@@ -1,21 +1,14 @@
-FROM ubuntu:24.04
+FROM alpine:3.20
 
-RUN apt-get update && \
-    apt-get install -y \
-        openssh-server sudo \
-        ffmpeg \
-        mediainfo \
-        imagemagick \
-        curl wget file \
-    && rm -rf /var/lib/apt/lists/* && \
-    mkdir /run/sshd && \
-    useradd -m -s /bin/bash mantis && \
-    echo "mantis:mantis" | chpasswd && \
-    adduser mantis sudo
+RUN apk add --no-cache \
+        bash openssh-server openssh-client ca-certificates \
+        ffmpeg mediainfo imagemagick \
+        curl wget file jq \
+        coreutils \
+    && adduser -D -s /bin/bash mantis
 
 COPY README.md /etc/mantis/README.md
 COPY README.md /home/mantis/README.md
 RUN chown mantis:mantis /home/mantis/README.md
 
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D"]

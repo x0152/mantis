@@ -1,92 +1,163 @@
 # Base Sandbox
 
-General-purpose Linux host based on Ubuntu 24.04.
+General-purpose workhorse host. Combines a small shell environment, network
+diagnostic utilities, the most common database clients, and a full Python 3.12
+stack with libraries for data analysis, parsing, and visualization. Most data
+tasks (download → parse → transform → store) can be done end-to-end here
+without hopping between sandboxes.
 
 ## System info
 
-- OS: Ubuntu 24.04
-- User: `mantis` (passwordless sudo)
-- Home directory: `/home/mantis`
+- OS: Alpine Linux (`python:3.12-alpine`)
+- User: `mantis` (no sudo, unprivileged)
+- Home directory: `/home/mantis` (persistent across restarts)
 - Shell: `/bin/bash`
-- SSH: port 22, user `mantis`, password `mantis`
+- Python: 3.12
+- SSH: port 22, user `mantis`, key-only authentication
 
-## Preinstalled utilities
+## Filesystem and process utilities
 
-### Filesystem
 ```
 ls, cat, head, tail, find, grep, wc    — view and search
 cp, mv, rm, mkdir, chmod, chown        — file management
-tar, gzip, unzip                       — archiving
+tar, gzip, xz, unzip                   — archiving
 du, df                                 — disk usage
 tree, file                             — inspect
+ps, top, htop                          — processes
+uname -a, free -h, uptime              — system info
+env, printenv                          — environment variables
+awk, sed, sort, uniq, cut              — text processing
+jq                                     — JSON processing
 ```
 
-### Network
+## Network utilities
+
 ```
 curl, wget         — HTTP requests and downloads
 ping, traceroute   — network diagnostics
-ip, ifconfig       — network interfaces
-netstat, ss        — open connections and ports
+ip, ss             — interfaces and connections
 dig, whois         — DNS / WHOIS
+ssh, scp           — remote shell, file copy
+git                — clone repositories
 ```
 
-### Text and data
-```
-awk, sed           — text processing
-sort, uniq, cut    — filtering and transformation
-jq                 — JSON processing
-```
+## Database clients
 
-### Processes and system
-```
-ps, top, htop      — processes
-uname -a           — system info
-free -h            — memory
-uptime             — uptime and load
-env, printenv      — environment variables
-```
+| Client | Command | Description |
+|---|---|---|
+| PostgreSQL | `psql`, `pg_dump`, `pg_isready` | PostgreSQL client + tooling |
+| MySQL / MariaDB | `mysql`, `mysqldump` | MySQL / MariaDB client |
+| Redis | `redis-cli` | Redis client |
+| SQLite | `sqlite3` | Embedded file-based DB |
 
-## Installing additional packages
+### Quick examples
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y <package-name>
+# Postgres query
+PGPASSWORD=secret psql -h db.example.com -U admin -d production \
+    -c "SELECT count(*) FROM users;"
+
+# MySQL one-liner
+mysql -h mysql -u root -psecret mydb -e "SHOW TABLES;"
+
+# Redis
+redis-cli -h redis-server PING
+redis-cli -h redis-server --scan --pattern "user:*" | head -20
+
+# SQLite
+sqlite3 /home/mantis/mydb.sqlite "SELECT * FROM users LIMIT 10;"
 ```
 
-Examples:
+## Python
+
+Python 3.12 with the following preinstalled libraries:
+
+| Package | Description |
+|---|---|
+| ipython | Interactive Python console |
+| numpy, pandas | Arrays, dataframes, CSV |
+| matplotlib, seaborn | Plots and visualization |
+| scipy, sympy | Scientific & symbolic math |
+| scikit-learn | Machine learning |
+| Pillow | Image processing |
+| requests, httpx | HTTP clients |
+| beautifulsoup4, lxml | HTML/XML parsing |
+| pyyaml, openpyxl | YAML / Excel I/O |
+| tabulate, rich, tqdm | Terminal output, progress bars |
+| python-dateutil | Date utilities |
+
+### Run a script
+
 ```bash
-sudo apt-get install -y python3     # Python 3
-sudo apt-get install -y nodejs npm  # Node.js
-sudo apt-get install -y git         # Git
+python3 -c "import numpy as np; print(np.array([1,2,3]).mean())"
+ipython -c "import pandas as pd; print(pd.DataFrame({'a':[1,2]}))"
 ```
 
-## Common tasks
-
-### Download a file from the internet
 ```bash
-curl -L -o file.tar.gz https://example.com/file.tar.gz
-wget https://example.com/file.tar.gz
+cat > /home/mantis/script.py << 'SCRIPT'
+import pandas as pd
+df = pd.read_csv('/home/mantis/data.csv')
+print(df.describe())
+SCRIPT
+python3 /home/mantis/script.py
 ```
 
-### Check host availability
+### Save a plot
+
 ```bash
-ping -c 3 example.com
-curl -I https://example.com
+python3 << 'SCRIPT'
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt, numpy as np
+x = np.linspace(0, 10, 100)
+plt.plot(x, np.sin(x))
+plt.savefig('/home/mantis/plot.png', dpi=150)
+SCRIPT
 ```
 
-### Work with JSON (API responses)
+### Install extra Python packages
+
+The root filesystem is read-only, but `/home/mantis` is writable and
+persistent. Use `pip --user`:
+
 ```bash
-curl -s https://api.example.com/data | jq '.results[]'
+pip install --user openai sqlalchemy fastapi
 ```
 
-### Find files
+`~/.local/bin` is on `$PATH`, so installed CLI entry points work
+immediately.
+
+## Common patterns
+
+### Download and parse JSON
+
 ```bash
-find / -name "*.log" -mtime -1     # logs from the last day
-find /home -type f -size +10M      # files larger than 10MB
+curl -s https://api.github.com/repos/python/cpython | \
+    jq '{stars: .stargazers_count, forks: .forks_count}'
+```
+
+### Save a Postgres query as JSON
+
+```bash
+PGPASSWORD=secret psql -h db -U admin -d prod -t -A \
+    -c "SELECT json_agg(t) FROM (SELECT * FROM orders LIMIT 5) t;" | jq .
+```
+
+### Pipe Python into shell
+
+```bash
+python3 -c "
+import httpx, json
+data = httpx.get('https://api.example.com/users').json()
+for u in data[:5]: print(u['id'], u['name'])
+" | column -t
 ```
 
 ## Limitations
 
-- This is a lightweight container; heavy packages (compilers, GUI) are better placed on specialized sandboxes.
-- Data is not persistent — everything is reset when the container restarts.
-- For browser work use the `browser` sandbox, for media the `ffmpeg` sandbox, for Python data analysis the `python` sandbox.
+- No GPU — CPU only. Account for runtime on heavy ML tasks.
+- The root filesystem is read-only; only `/home/mantis` survives restarts.
+  `/tmp`, `/run` and `/var/log` are tmpfs and reset on every boot.
+- For browser automation use the `browser` sandbox, for media the `ffmpeg`
+  sandbox, for pentest tooling the `netsec` sandbox.
+- To send a result to the user, use `ssh_download` + `artifact_send_to_chat`.

@@ -11,21 +11,53 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"mantis/apps/runtime/keys"
+	"mantis/apps/runtime/spec"
 	"mantis/core/auth"
 	"mantis/core/protocols"
 	"mantis/core/types"
 )
 
-const registeredConnectionPrefix = "sb-"
+const (
+	registeredConnectionPrefix = "sb-"
+	pubkeyEnvVar               = "MANTIS_SSH_PUBLIC_KEY"
+)
+
+func sandboxSSHConfigBytes(name, ip, privateKey string) ([]byte, error) {
+	host := "mantis-sb-" + name
+	if ip != "" {
+		host = ip
+	}
+	return json.Marshal(map[string]any{
+		"host":       host,
+		"port":       22,
+		"username":   "mantis",
+		"privateKey": privateKey,
+	})
+}
 
 type Endpoints struct {
 	rt              protocols.Runtime
 	connectionStore protocols.Store[string, types.Connection]
+	keyIssuer       *keys.Issuer
+	specBuilder     *spec.Builder
 	token           string
 }
 
-func NewEndpoints(rt protocols.Runtime, connectionStore protocols.Store[string, types.Connection], token string) *Endpoints {
-	return &Endpoints{rt: rt, connectionStore: connectionStore, token: token}
+func NewEndpoints(
+	rt protocols.Runtime,
+	connectionStore protocols.Store[string, types.Connection],
+	keyIssuer *keys.Issuer,
+	specBuilder *spec.Builder,
+	token string,
+) *Endpoints {
+	return &Endpoints{
+		rt:              rt,
+		connectionStore: connectionStore,
+		keyIssuer:       keyIssuer,
+		specBuilder:     specBuilder,
+		token:           token,
+	}
 }
 
 func (e *Endpoints) Mount(r chi.Router) {
@@ -104,13 +136,19 @@ func (e *Endpoints) createSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := e.upsertSandboxConnection(r.Context(), input)
+	key, err := e.keyIssuer.Ensure(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	e.provisionSandboxStream(w, r, conn, input.Dockerfile)
+	conn, err := e.upsertSandboxConnection(r.Context(), input, key)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	e.provisionSandboxStream(w, r, conn, input.Dockerfile, key)
 }
 
 func (e *Endpoints) rebuildSandbox(w http.ResponseWriter, r *http.Request) {
@@ -120,17 +158,39 @@ func (e *Endpoints) rebuildSandbox(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	e.provisionSandboxStream(w, r, *conn, conn.Dockerfile)
+	key, err := e.keyIssuer.Ensure(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	e.provisionSandboxStream(w, r, *conn, conn.Dockerfile, key)
 }
 
 func (e *Endpoints) startSandbox(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	if _, err := e.rt.Run(r.Context(), types.RuntimeRunSpec{Name: name}); err != nil {
+	conn, err := e.findSandboxConnection(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	key, err := e.keyIssuer.Ensure(r.Context())
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	container, err := e.rt.Inspect(r.Context(), name)
+	runSpec := e.specBuilder.Build(
+		r.Context(),
+		name,
+		*conn,
+		map[string]string{pubkeyEnvVar: key.PublicKey},
+		nil,
+	)
+	container, err := e.rt.Run(r.Context(), runSpec)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := e.syncConnectionHost(r.Context(), *conn, name, container.IP, key.PrivateKey); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -159,7 +219,7 @@ func (e *Endpoints) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (e *Endpoints) provisionSandboxStream(w http.ResponseWriter, r *http.Request, conn types.Connection, dockerfile string) {
+func (e *Endpoints) provisionSandboxStream(w http.ResponseWriter, r *http.Request, conn types.Connection, dockerfile string, key types.SandboxKey) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -196,14 +256,38 @@ func (e *Endpoints) provisionSandboxStream(w http.ResponseWriter, r *http.Reques
 	stream.Close()
 
 	writeLine(fmt.Sprintf("[2/3] starting container %s\n", sandboxName))
-	container, err := e.rt.Run(r.Context(), types.RuntimeRunSpec{Name: sandboxName})
+	runSpec := e.specBuilder.Build(
+		r.Context(),
+		sandboxName,
+		conn,
+		map[string]string{pubkeyEnvVar: key.PublicKey},
+		nil,
+	)
+	container, err := e.rt.Run(r.Context(), runSpec)
 	if err != nil {
 		writeLine(fmt.Sprintf("error: start failed: %s\n", err.Error()))
 		return
 	}
 
+	if err := e.syncConnectionHost(r.Context(), conn, sandboxName, container.IP, key.PrivateKey); err != nil {
+		writeLine(fmt.Sprintf("warning: failed to refresh connection host: %s\n", err.Error()))
+	}
+
 	writeLine(fmt.Sprintf("[3/3] container %s is %s at %s\n", sandboxName, container.Status, container.Host))
 	writeLine(fmt.Sprintf("READY %s\n", conn.Name))
+}
+
+func (e *Endpoints) syncConnectionHost(ctx context.Context, conn types.Connection, sandboxName, ip, privateKey string) error {
+	cfg, err := sandboxSSHConfigBytes(sandboxName, ip, privateKey)
+	if err != nil {
+		return err
+	}
+	if string(conn.Config) == string(cfg) {
+		return nil
+	}
+	conn.Config = cfg
+	_, err = e.connectionStore.Update(ctx, []types.Connection{conn})
+	return err
 }
 
 func imageNameFromConn(conn types.Connection) string {
@@ -223,7 +307,7 @@ func validateSandboxName(name string) error {
 	return nil
 }
 
-func (e *Endpoints) upsertSandboxConnection(ctx context.Context, input SandboxInput) (types.Connection, error) {
+func (e *Endpoints) upsertSandboxConnection(ctx context.Context, input SandboxInput, key types.SandboxKey) (types.Connection, error) {
 	connName := input.ConnectionName
 	if connName == "" {
 		connName = registeredConnectionPrefix + input.Name
@@ -234,12 +318,7 @@ func (e *Endpoints) upsertSandboxConnection(ctx context.Context, input SandboxIn
 		profileIDs = []string{}
 	}
 
-	config, err := json.Marshal(map[string]any{
-		"host":     "mantis-sb-" + input.Name,
-		"port":     22,
-		"username": "mantis",
-		"password": "mantis",
-	})
+	config, err := sandboxSSHConfigBytes(input.Name, "", key.PrivateKey)
 	if err != nil {
 		return types.Connection{}, err
 	}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ScrollText, Terminal, ChevronRight, ChevronDown, Clock, CheckCircle2, Loader2, Filter, Trash2 } from 'lucide-react'
+import { ScrollText, Terminal, ChevronRight, ChevronDown, Clock, CheckCircle2, Loader2, Filter, Trash2 } from '@/lib/icons'
 import { api } from '../api'
 import { EntryLine, PromptBanner } from '../components/LogEntries'
 import type { SessionLog, Connection } from '../types'

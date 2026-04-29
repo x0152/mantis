@@ -26,6 +26,8 @@ import (
 	"mantis/apps/metadata"
 	plansapp "mantis/apps/plans"
 	runtimeapp "mantis/apps/runtime"
+	runtimekeys "mantis/apps/runtime/keys"
+	runtimespec "mantis/apps/runtime/spec"
 	"mantis/apps/telegram"
 	"mantis/core/agents"
 	"mantis/core/auth"
@@ -228,13 +230,28 @@ func main() {
 	logsApp.Register(api)
 
 	if mode := env("RUNTIME_MODE", ""); mode == "docker" {
-		rt := dockerruntime.New(env("DOCKER_SOCKET", ""), env("RUNTIME_NETWORK", ""))
-		runtimeApp := runtimeapp.NewApp(rt, connectionStore, env("RUNTIME_API_TOKEN", ""))
+		caps, privileged := parseSandboxCaps(env("RUNTIME_SANDBOX_CAPS", "NET_RAW,NET_ADMIN"))
+		rt := dockerruntime.New(dockerruntime.Options{
+			SocketPath:  env("DOCKER_SOCKET", ""),
+			Network:     env("RUNTIME_NETWORK", ""),
+			DefaultCaps: caps,
+			Privileged:  privileged,
+		})
+		sandboxKeyStore := store.NewPostgres[string, types.SandboxKey, models.SandboxKeyRow](
+			db,
+			func(k types.SandboxKey) string { return k.ID },
+			mappers.SandboxKeyToRow,
+			mappers.SandboxKeyFromRow,
+		)
+		keyIssuer := runtimekeys.NewIssuer(sandboxKeyStore)
+		specBuilder := runtimespec.NewBuilder(guardProfileStore, rt.Network())
+
+		runtimeApp := runtimeapp.NewApp(rt, connectionStore, keyIssuer, specBuilder, env("RUNTIME_API_TOKEN", ""))
 		runtimeApp.Mount(r)
 		mantisAgent.SetRuntime(rt)
 		log.Printf("runtime: docker adapter ready (network=%s)", rt.Network())
 
-		bootstrapper := runtimeapp.NewBootstrapper(rt, connectionStore)
+		bootstrapper := runtimeapp.NewBootstrapper(rt, connectionStore, keyIssuer, specBuilder)
 		go func() {
 			if err := bootstrapper.Run(context.Background()); err != nil {
 				log.Printf("runtime bootstrap: %v", err)
@@ -306,6 +323,25 @@ func envInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// parseSandboxCaps interprets RUNTIME_SANDBOX_CAPS. The special token "ALL"
+// (case-insensitive, alone or anywhere in the list) flips the runtime into
+// fully privileged mode. Otherwise the value is a comma-separated list of
+// capabilities applied to every sandbox on top of per-template additions.
+func parseSandboxCaps(raw string) ([]string, bool) {
+	caps := make([]string, 0, 4)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.EqualFold(part, "ALL") {
+			return nil, true
+		}
+		caps = append(caps, part)
+	}
+	return caps, false
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {

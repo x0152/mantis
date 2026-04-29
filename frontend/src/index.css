@@ -3,6 +3,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
   --color-border: oklch(0.9 0.006 286);
   --color-input: oklch(0.9 0.006 286);
   --color-ring: oklch(0.488 0.118 181);
@@ -27,7 +30,7 @@
   --color-sidebar-accent: oklch(0.92 0.006 286);
   --color-sidebar-accent-foreground: oklch(0.2 0.006 286);
   --color-sidebar-border: oklch(0.9 0.006 286);
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 }
 
 :root {
@@ -49,58 +52,101 @@
   scrollbar-color: #27272a transparent;
 }
 
+html {
+  font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-background);
   color: var(--color-foreground);
+  font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv01';
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
+code, kbd, pre, samp, .font-mono {
+  font-family: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-feature-settings: 'ss02', 'ss03';
 }
 
 @layer components {
   .markdown :not(pre) > code {
-    @apply text-[0.85em] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded px-1 py-0.5;
+    @apply text-[0.85em] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-sm px-1 py-0.5;
   }
 
   .markdown pre code {
     font-size: 12px;
   }
+
+  .kicker {
+    @apply font-mono text-[10.5px] lowercase tracking-tight text-zinc-500 dark:text-zinc-500 flex items-center gap-1.5;
+  }
+
+  .kicker .kicker-num {
+    @apply tabular-nums text-zinc-400 dark:text-zinc-600;
+  }
+
+  .kicker .kicker-sep {
+    @apply text-zinc-400 dark:text-zinc-700;
+  }
+
+  .nav-row {
+    @apply relative w-full flex items-center gap-2.5 pl-3.5 pr-3 py-1.5 text-[13px] min-w-0
+           border-l border-transparent
+           text-zinc-600 dark:text-zinc-400
+           hover:text-zinc-900 dark:hover:text-zinc-100
+           transition-colors;
+  }
+
+  .nav-row[data-active="true"] {
+    @apply border-l-teal-500 text-zinc-900 dark:text-zinc-50 font-medium;
+  }
+
+  .nav-row::before {
+    content: "";
+    @apply absolute left-0 top-1/2 -translate-y-1/2 h-0 w-px bg-teal-500/40 transition-all duration-150;
+  }
+  .nav-row[data-active="true"]::before {
+    @apply h-4;
+  }
+
+  .stamp {
+    @apply inline-flex items-center font-mono text-[10px] uppercase tracking-[0.08em]
+           px-1.5 py-0.5 rounded-[3px]
+           border border-zinc-300/70 dark:border-zinc-700/70
+           text-zinc-600 dark:text-zinc-400;
+  }
 }
 
-@keyframes shimmer-sweep {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1); }
 }
 
-.shimmer-text {
-  background-image: linear-gradient(
-    90deg,
-    rgba(113, 113, 122, 0.45) 0%,
-    rgba(113, 113, 122, 0.45) 35%,
-    rgba(13, 148, 136, 1) 50%,
-    rgba(113, 113, 122, 0.45) 65%,
-    rgba(113, 113, 122, 0.45) 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer-sweep 2.2s linear infinite;
+.pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse-dot 1.1s ease-in-out infinite;
 }
 
-.dark .shimmer-text {
-  background-image: linear-gradient(
-    90deg,
-    rgba(161, 161, 170, 0.4) 0%,
-    rgba(161, 161, 170, 0.4) 35%,
-    rgba(45, 212, 191, 1) 50%,
-    rgba(161, 161, 170, 0.4) 65%,
-    rgba(161, 161, 170, 0.4) 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+@keyframes icon-blink {
+  0%, 100% { opacity: 1;    }
+  50%      { opacity: 0.4;  }
 }
+
+.icon-status         { color: rgb(161 161 170); }
+.dark .icon-status   { color: rgb(113 113 122); }
+.icon-status.tone-ok    { color: rgb(20 184 166); }
+.icon-status.tone-warn  { color: rgb(245 158 11); animation: icon-blink 0.9s ease-in-out infinite; }
+.icon-status.tone-err   { color: rgb(244 63 94);  animation: icon-blink 1.1s ease-in-out infinite; }
+.icon-status.tone-idle  { color: rgb(161 161 170); }
+.dark .icon-status.tone-idle { color: rgb(113 113 122); }
 
 @keyframes caret-blink {
   0%, 45% { opacity: 1; }
@@ -110,8 +156,8 @@ body {
 
 .typing-caret {
   display: inline-block;
-  width: 2px;
-  height: 1em;
+  width: 6px;
+  height: 0.95em;
   margin-left: 2px;
   background: currentColor;
   vertical-align: text-bottom;
@@ -138,20 +184,57 @@ body {
   animation: step-in 220ms ease-out both;
 }
 
+@keyframes mantis-aura-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+@keyframes mantis-head-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.018); }
+}
+
 @keyframes mantis-blink {
-  0%, 94%, 100% { transform: scaleY(1); }
-  96%, 98%      { transform: scaleY(0.05); }
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.06); }
 }
 
-@keyframes mantis-node {
-  0%, 65%, 100% { transform: scale(1); opacity: 0.85; }
-  30%           { transform: scale(1.55); opacity: 1; }
+@keyframes mantis-pupil-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.85; }
+  50%      { transform: scale(1.2);  opacity: 1; }
 }
 
-@keyframes mantis-ring {
-  0%   { r: 6; opacity: 0.7; }
-  80%  { opacity: 0.15; }
-  100% { r: 22; opacity: 0; }
+@keyframes mantis-tip-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.55; }
+  50%      { transform: scale(1.55); opacity: 1; }
+}
+
+@keyframes mantis-claw-pulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.6; }
+  50%      { transform: scale(1.4);  opacity: 1; }
+}
+
+@keyframes mantis-scan {
+  0%   { transform: translateY(16px); opacity: 0; }
+  15%  { opacity: 0.95; }
+  85%  { opacity: 0.95; }
+  100% { transform: translateY(34px); opacity: 0; }
+}
+
+.mantis-logo {
+  overflow: visible;
+}
+
+.mantis-logo .mantis-aura {
+  transform-origin: 32px 32px;
+  transform-box: view-box;
+  animation: mantis-aura-breathe 4.5s ease-in-out infinite;
+}
+
+.mantis-logo .mantis-head-group {
+  transform-origin: 32px 27px;
+  transform-box: view-box;
+  animation: mantis-head-breath 4.5s ease-in-out infinite;
 }
 
 .mantis-logo .mantis-eye {
@@ -163,39 +246,80 @@ body {
   animation-delay: 0.05s;
 }
 
-.mantis-logo .mantis-node {
+.mantis-logo .mantis-pupil {
   transform-box: fill-box;
   transform-origin: center;
-  animation: mantis-node 3.2s ease-in-out infinite;
-  animation-play-state: paused;
+  animation: mantis-pupil-pulse 2.6s ease-in-out infinite;
+}
+.mantis-logo .mantis-pupil.pupil-right {
+  animation-delay: 0.18s;
 }
 
-.mantis-logo .mantis-ring {
+.mantis-logo .mantis-tip {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mantis-tip-pulse 2.4s ease-in-out infinite;
+}
+.mantis-logo .mantis-tip.tip-r {
+  animation-delay: 1.2s;
+}
+
+.mantis-logo .mantis-claw {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0.65;
+  animation: mantis-claw-pulse 2.8s ease-in-out infinite;
+  animation-play-state: paused;
+}
+.mantis-logo .mantis-claw.claw-r {
+  animation-delay: 0.4s;
+}
+
+.mantis-logo .mantis-scan {
   opacity: 0;
 }
 
-.mantis-logo[data-state="typing"] .mantis-node {
-  animation-play-state: running;
+.mantis-logo[data-state="thinking"] .mantis-scan {
+  animation: mantis-scan 1.6s ease-in-out infinite;
 }
-.mantis-logo[data-state="typing"] .mantis-node.n3 { animation-delay: 1.0s; }
-.mantis-logo[data-state="typing"] .mantis-node.n4 { animation-delay: 1.5s; }
-.mantis-logo[data-state="typing"] .mantis-node.n5 { animation-delay: 2.0s; }
+.mantis-logo[data-state="thinking"] .mantis-pupil {
+  animation-duration: 1.6s;
+}
 
-.mantis-logo[data-state="working"] .mantis-ring {
-  animation: mantis-ring 1.6s ease-out infinite;
+.mantis-logo[data-state="typing"] .mantis-tip,
+.mantis-logo[data-state="typing"] .mantis-pupil {
+  animation-duration: 0.95s;
 }
-.mantis-logo[data-state="working"] .mantis-node {
+.mantis-logo[data-state="typing"] .mantis-claw {
   animation-play-state: running;
+  animation-duration: 1s;
 }
-.mantis-logo[data-state="working"] .mantis-node.n3 { animation-delay: 0.4s;  animation-duration: 1.6s; }
-.mantis-logo[data-state="working"] .mantis-node.n4 { animation-delay: 0.6s;  animation-duration: 1.6s; }
-.mantis-logo[data-state="working"] .mantis-node.n5 { animation-delay: 0.8s;  animation-duration: 1.6s; }
+
+.mantis-logo[data-state="working"] .mantis-aura {
+  animation-duration: 1.4s;
+}
+.mantis-logo[data-state="working"] .mantis-tip,
+.mantis-logo[data-state="working"] .mantis-pupil {
+  animation-duration: 1s;
+}
+.mantis-logo[data-state="working"] .mantis-claw {
+  animation-play-state: running;
+  animation-duration: 1.1s;
+}
+.mantis-logo[data-state="working"] .mantis-scan {
+  animation: mantis-scan 1.2s ease-in-out infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
+  .mantis-logo .mantis-aura,
+  .mantis-logo .mantis-head-group,
   .mantis-logo .mantis-eye,
-  .mantis-logo .mantis-node,
-  .mantis-logo .mantis-ring {
+  .mantis-logo .mantis-pupil,
+  .mantis-logo .mantis-tip,
+  .mantis-logo .mantis-claw,
+  .mantis-logo .mantis-scan,
+  .pulse-dot,
+  .pulse-text::after {
     animation: none;
   }
 }
-

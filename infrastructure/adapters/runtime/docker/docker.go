@@ -26,24 +26,64 @@ const (
 	labelName           = "mantis.sandbox.name"
 	defaultNetwork      = "mantis-sandbox-net"
 	apiVersion          = "v1.43"
+
+	defaultMemoryBytes = int64(512 * 1024 * 1024)
+	defaultNanoCPUs    = int64(1_000_000_000)
+	defaultPidsLimit   = int64(256)
 )
 
-type Runtime struct {
-	socketPath string
-	network    string
-	client     *http.Client
+// infrastructureCaps are the capabilities the sandbox init script + sshd
+// require to function. They are always granted (unless the runtime is in
+// privileged mode, which implies all caps anyway), regardless of what the
+// user configures through RUNTIME_SANDBOX_CAPS or per-template CapAdd.
+//
+//   - CHOWN, DAC_OVERRIDE, FOWNER     — init creates /home/mantis/.ssh
+//     inside a volume owned by the mantis user.
+//   - SETUID, SETGID                  — sshd drops privileges to the user.
+//   - SYS_CHROOT                      — sshd privilege-separation sandbox.
+//   - KILL                            — sshd manages child processes.
+//   - AUDIT_WRITE                     — sshd writes login audit records.
+//   - NET_BIND_SERVICE                — sshd binds port 22.
+var infrastructureCaps = []string{
+	"CHOWN", "DAC_OVERRIDE", "FOWNER",
+	"SETUID", "SETGID",
+	"SYS_CHROOT", "KILL",
+	"AUDIT_WRITE", "NET_BIND_SERVICE",
 }
 
-func New(socketPath, network string) *Runtime {
+type Options struct {
+	SocketPath string
+	Network    string
+	// DefaultCaps is added to every sandbox on top of per-template CapAdd.
+	// Capability names accept either "NET_ADMIN" or "CAP_NET_ADMIN" form.
+	DefaultCaps []string
+	// Privileged grants every capability and disables seccomp/AppArmor —
+	// equivalent to `docker run --privileged`. Implies all caps.
+	Privileged bool
+}
+
+type Runtime struct {
+	socketPath  string
+	network     string
+	defaultCaps []string
+	privileged  bool
+	client      *http.Client
+}
+
+func New(opts Options) *Runtime {
+	socketPath := opts.SocketPath
 	if socketPath == "" {
 		socketPath = "/var/run/docker.sock"
 	}
+	network := opts.Network
 	if network == "" {
 		network = defaultNetwork
 	}
 	return &Runtime{
-		socketPath: socketPath,
-		network:    network,
+		socketPath:  socketPath,
+		network:     network,
+		defaultCaps: normalizeCaps(opts.DefaultCaps),
+		privileged:  opts.Privileged,
 		client: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -53,6 +93,38 @@ func New(socketPath, network string) *Runtime {
 			},
 		},
 	}
+}
+
+// normalizeCaps strips the optional CAP_ prefix and uppercases entries so the
+// caller can mix "net_admin", "NET_ADMIN" and "CAP_NET_ADMIN" freely.
+func normalizeCaps(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, c := range in {
+		c = strings.TrimSpace(strings.ToUpper(c))
+		if c == "" {
+			continue
+		}
+		c = strings.TrimPrefix(c, "CAP_")
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+		out = append(out, c)
+	}
+	return out
+}
+
+func mergeCaps(lists ...[]string) []string {
+	total := 0
+	for _, l := range lists {
+		total += len(l)
+	}
+	merged := make([]string, 0, total)
+	for _, l := range lists {
+		merged = append(merged, l...)
+	}
+	return normalizeCaps(merged)
 }
 
 func (r *Runtime) Network() string { return r.network }
@@ -80,6 +152,8 @@ func (r *Runtime) do(req *http.Request) (*http.Response, error) {
 
 func containerName(name string) string { return containerNamePrefix + name }
 func imageTag(name string) string      { return imageTagPrefix + name + ":latest" }
+func sandboxNetwork(name string) string { return containerNamePrefix + name + "-net" }
+func homeVolume(name string) string     { return containerNamePrefix + name + "-home" }
 
 func (r *Runtime) Build(ctx context.Context, name string, dockerfile []byte) (io.ReadCloser, error) {
 	if len(dockerfile) == 0 {
@@ -132,6 +206,10 @@ func newBuildStream(src io.ReadCloser) *buildStream {
 	return &buildStream{src: src, dec: json.NewDecoder(src)}
 }
 
+// Read drains the Docker build progress stream. Build failures arrive as
+// {"error": "..."} JSON frames; we surface them as a Go error so callers that
+// io.Copy the stream into a buffer don't silently treat a failed build as
+// success.
 func (s *buildStream) Read(p []byte) (int, error) {
 	for s.pending.Len() == 0 && !s.done {
 		var msg struct {
@@ -150,10 +228,16 @@ func (s *buildStream) Read(p []byte) (int, error) {
 			break
 		}
 		switch {
-		case msg.Stream != "":
-			s.pending.WriteString(msg.Stream)
 		case msg.Error != "":
 			s.pending.WriteString("error: " + msg.Error + "\n")
+			s.done = true
+			detail := msg.Error
+			if msg.ErrorDetail.Message != "" {
+				detail = msg.ErrorDetail.Message
+			}
+			s.err = fmt.Errorf("build failed: %s", strings.TrimSpace(detail))
+		case msg.Stream != "":
+			s.pending.WriteString(msg.Stream)
 		case msg.Status != "":
 			s.pending.WriteString(msg.Status + "\n")
 		}
@@ -179,8 +263,9 @@ func (r *Runtime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.Run
 	}
 	network := spec.Network
 	if network == "" {
-		network = r.network
+		network = sandboxNetwork(spec.Name)
 	}
+	volume := homeVolume(spec.Name)
 
 	labels := map[string]string{labelMarker: "1", labelName: spec.Name}
 	for k, v := range spec.Labels {
@@ -191,6 +276,37 @@ func (r *Runtime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.Run
 		env = append(env, k+"="+v)
 	}
 
+	hostConfig := map[string]any{
+		"NetworkMode":    network,
+		"RestartPolicy":  map[string]any{"Name": "unless-stopped"},
+		"ReadonlyRootfs": true,
+		"CapDrop":        []string{"ALL"},
+		"SecurityOpt":    []string{"no-new-privileges"},
+		"Memory":         defaultMemoryBytes,
+		"MemorySwap":     defaultMemoryBytes,
+		"NanoCpus":       defaultNanoCPUs,
+		"PidsLimit":      defaultPidsLimit,
+		"Sysctls": map[string]string{
+			"net.ipv4.ping_group_range": "0 2147483647",
+		},
+		"Tmpfs": map[string]string{
+			"/tmp":     "rw,size=256m,nosuid,nodev",
+			"/run":     "rw,size=64m,nosuid,nodev",
+			"/var/log": "rw,size=64m,nosuid,nodev",
+			"/var/tmp": "rw,size=64m,nosuid,nodev",
+		},
+		"Mounts": []map[string]any{
+			{"Type": "volume", "Source": volume, "Target": "/home/mantis"},
+		},
+	}
+	if r.privileged {
+		hostConfig["Privileged"] = true
+		delete(hostConfig, "CapDrop")
+		delete(hostConfig, "SecurityOpt")
+	} else {
+		hostConfig["CapAdd"] = mergeCaps(infrastructureCaps, r.defaultCaps, spec.CapAdd)
+	}
+
 	body := map[string]any{
 		"Image":        image,
 		"Labels":       labels,
@@ -199,10 +315,7 @@ func (r *Runtime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.Run
 		"AttachStdout": false,
 		"AttachStderr": false,
 		"Tty":          false,
-		"HostConfig": map[string]any{
-			"NetworkMode":   network,
-			"RestartPolicy": map[string]any{"Name": "unless-stopped"},
-		},
+		"HostConfig":   hostConfig,
 	}
 	if len(spec.Cmd) > 0 {
 		body["Cmd"] = spec.Cmd
@@ -214,7 +327,10 @@ func (r *Runtime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.Run
 	}
 
 	_ = r.removeIfExists(ctx, spec.Name)
-	if err := r.ensureNetwork(ctx, network); err != nil {
+	if err := r.ensureNetwork(ctx, network, spec.Internal); err != nil {
+		return types.RuntimeContainer{}, err
+	}
+	if err := r.ensureVolume(ctx, volume, spec.Name); err != nil {
 		return types.RuntimeContainer{}, err
 	}
 
@@ -247,7 +363,6 @@ func (r *Runtime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.Run
 func (r *Runtime) removeIfExists(ctx context.Context, name string) error {
 	q := url.Values{}
 	q.Set("force", "1")
-	q.Set("v", "1")
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.url("/containers/"+containerName(name), q), nil)
 	if err != nil {
 		return err
@@ -260,7 +375,7 @@ func (r *Runtime) removeIfExists(ctx context.Context, name string) error {
 	return nil
 }
 
-func (r *Runtime) ensureNetwork(ctx context.Context, name string) error {
+func (r *Runtime) ensureNetwork(ctx context.Context, name string, internal bool) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.url("/networks/"+name, nil), nil)
 	if err != nil {
 		return err
@@ -273,7 +388,12 @@ func (r *Runtime) ensureNetwork(ctx context.Context, name string) error {
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
-	body, _ := json.Marshal(map[string]any{"Name": name, "Driver": "bridge"})
+	body, _ := json.Marshal(map[string]any{
+		"Name":     name,
+		"Driver":   "bridge",
+		"Internal": internal,
+		"Labels":   map[string]string{labelMarker: "1"},
+	})
 	createReq, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url("/networks/create", nil), bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -285,6 +405,53 @@ func (r *Runtime) ensureNetwork(ctx context.Context, name string) error {
 	}
 	createResp.Body.Close()
 	return nil
+}
+
+func (r *Runtime) ensureVolume(ctx context.Context, name, sandbox string) error {
+	body, _ := json.Marshal(map[string]any{
+		"Name": name,
+		"Labels": map[string]string{
+			labelMarker: "1",
+			labelName:   sandbox,
+		},
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url("/volumes/create", nil), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := r.do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+func (r *Runtime) removeVolume(ctx context.Context, name string) {
+	q := url.Values{}
+	q.Set("force", "1")
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.url("/volumes/"+name, q), nil)
+	if err != nil {
+		return
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+}
+
+func (r *Runtime) removeNetwork(ctx context.Context, name string) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, r.url("/networks/"+name, nil), nil)
+	if err != nil {
+		return
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 func (r *Runtime) Stop(ctx context.Context, name string) error {
@@ -301,7 +468,32 @@ func (r *Runtime) Stop(ctx context.Context, name string) error {
 }
 
 func (r *Runtime) Remove(ctx context.Context, name string) error {
-	return r.removeIfExists(ctx, name)
+	if err := r.removeIfExists(ctx, name); err != nil {
+		return err
+	}
+	r.removeVolume(ctx, homeVolume(name))
+	r.removeNetwork(ctx, sandboxNetwork(name))
+	return nil
+}
+
+type networkEndpoint struct {
+	IPAddress string `json:"IPAddress"`
+}
+
+// pickIP returns the container IP on the preferred network, falling back to
+// any non-empty address. We need this when callers (e.g. Mantis app running
+// in a Kubernetes pod next to a DinD sidecar) cannot rely on Docker's
+// embedded DNS to resolve container names.
+func pickIP(networks map[string]networkEndpoint, preferred string) string {
+	if n, ok := networks[preferred]; ok && n.IPAddress != "" {
+		return n.IPAddress
+	}
+	for _, n := range networks {
+		if n.IPAddress != "" {
+			return n.IPAddress
+		}
+	}
+	return ""
 }
 
 func (r *Runtime) List(ctx context.Context) ([]types.RuntimeContainer, error) {
@@ -319,15 +511,13 @@ func (r *Runtime) List(ctx context.Context) ([]types.RuntimeContainer, error) {
 	defer resp.Body.Close()
 
 	var raw []struct {
-		Names   []string          `json:"Names"`
-		Image   string            `json:"Image"`
-		State   string            `json:"State"`
-		Labels  map[string]string `json:"Labels"`
-		Created int64             `json:"Created"`
+		Names           []string          `json:"Names"`
+		Image           string            `json:"Image"`
+		State           string            `json:"State"`
+		Labels          map[string]string `json:"Labels"`
+		Created         int64             `json:"Created"`
 		NetworkSettings struct {
-			Networks map[string]struct {
-				IPAddress string `json:"IPAddress"`
-			} `json:"Networks"`
+			Networks map[string]networkEndpoint `json:"Networks"`
 		} `json:"NetworkSettings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
@@ -340,6 +530,7 @@ func (r *Runtime) List(ctx context.Context) ([]types.RuntimeContainer, error) {
 			Image:     c.Image,
 			Status:    c.State,
 			Host:      containerName(c.Labels[labelName]),
+			IP:        pickIP(c.NetworkSettings.Networks, r.network),
 			Labels:    c.Labels,
 			CreatedAt: time.Unix(c.Created, 0),
 		})
@@ -366,7 +557,10 @@ func (r *Runtime) Inspect(ctx context.Context, name string) (types.RuntimeContai
 		State struct {
 			Status string `json:"Status"`
 		} `json:"State"`
-		Created string `json:"Created"`
+		Created         string `json:"Created"`
+		NetworkSettings struct {
+			Networks map[string]networkEndpoint `json:"Networks"`
+		} `json:"NetworkSettings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return types.RuntimeContainer{}, err
@@ -377,6 +571,7 @@ func (r *Runtime) Inspect(ctx context.Context, name string) (types.RuntimeContai
 		Image:     raw.Config.Image,
 		Status:    raw.State.Status,
 		Host:      containerName(raw.Config.Labels[labelName]),
+		IP:        pickIP(raw.NetworkSettings.Networks, r.network),
 		Labels:    raw.Config.Labels,
 		CreatedAt: created,
 	}, nil

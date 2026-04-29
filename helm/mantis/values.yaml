@@ -107,9 +107,43 @@ secrets:
 # ===========================================
 # Runtime — the app provisions sandbox containers itself by writing
 # Dockerfiles into the connections table on startup. For that to work
-# the app pod needs Docker access on its node (hostPath mount on a
-# DinD/containerd-hosted cluster, or equivalent). This chart does NOT
-# ship per-sandbox Deployments anymore.
+# the app needs access to a Docker daemon. The chart supports two modes:
+#
+#   mode: dind          (default) ship a privileged Docker-in-Docker sidecar
+#                       inside the same pod as the app, share the docker
+#                       socket via an emptyDir, and keep image layers on
+#                       a PVC so they survive restarts. Works on any
+#                       Kubernetes cluster that allows privileged pods.
+#
+#   mode: hostSocket    mount the host's /var/run/docker.sock via hostPath.
+#                       Only works when the cluster nodes run Docker (e.g.
+#                       single-node k3s on Docker, kind, dev VMs).
+#
+# The Mantis app speaks Docker API over the Unix socket regardless of mode.
+# Sandbox containers live inside the chosen daemon and Mantis dials them
+# by container IP (returned by the runtime), so no extra DNS plumbing is
+# required.
 # ===========================================
 runtime:
+  mode: dind
   dockerSocket: /var/run/docker.sock
+  network: mantis-sandbox-net
+  # Capabilities granted to every sandbox container on top of per-template
+  # additions. Comma-separated CAP_* names; the literal "ALL" enables fully
+  # privileged mode (--privileged). Default covers ping/traceroute/nmap.
+  sandboxCaps: "NET_RAW,NET_ADMIN"
+  dind:
+    image: docker:24-dind
+    # Image layer cache. Persisting it makes sandbox rebuilds fast and
+    # keeps state across pod restarts.
+    storage:
+      enabled: true
+      size: 30Gi
+      storageClassName: ""
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 200m
+      limits:
+        memory: 4Gi
+        cpu: 2000m

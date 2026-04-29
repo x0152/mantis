@@ -1,4 +1,5 @@
 {{- if .Values.app.enabled }}
+{{- $mode := .Values.runtime.mode | default "dind" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,10 +11,14 @@ metadata:
 spec:
   replicas: {{ .Values.app.replicaCount }}
   strategy:
+    {{- if eq $mode "dind" }}
+    type: Recreate
+    {{- else }}
     type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 0
       maxSurge: 1
+    {{- end }}
   selector:
     matchLabels:
       app: mantis-app
@@ -23,10 +28,33 @@ spec:
         app: mantis-app
     spec:
       {{- include "mantis.imagePullSecrets" . | nindent 6 }}
+      {{- if eq $mode "dind" }}
+      # The DinD daemon writes /var/run/docker.sock as root. Run the app as
+      # root too so it can read the socket. We could narrow this down with a
+      # shared GID, but only the dind sidecar shares the volume so the
+      # blast radius is the same.
+      securityContext:
+        runAsUser: 0
+      {{- end }}
       containers:
         - name: app
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          {{- if eq $mode "dind" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "waiting for docker socket at {{ .Values.runtime.dockerSocket }}..."
+              for i in $(seq 1 120); do
+                if [ -S "{{ .Values.runtime.dockerSocket }}" ]; then
+                  echo "docker socket is up"
+                  exec /usr/local/bin/mantis
+                fi
+                sleep 1
+              done
+              echo "docker socket did not appear in time" >&2
+              exit 1
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.app.port }}
@@ -51,6 +79,10 @@ spec:
               value: docker
             - name: DOCKER_SOCKET
               value: {{ .Values.runtime.dockerSocket | quote }}
+            - name: RUNTIME_NETWORK
+              value: {{ .Values.runtime.network | default "mantis-sandbox-net" | quote }}
+            - name: RUNTIME_SANDBOX_CAPS
+              value: {{ .Values.runtime.sandboxCaps | default "NET_RAW,NET_ADMIN" | quote }}
             {{- range $k, $v := .Values.app.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
@@ -59,15 +91,58 @@ spec:
             - name: attachments
               mountPath: /data/attachments
             - name: docker-socket
+              {{- if eq $mode "dind" }}
+              mountPath: /var/run
+              {{- else }}
               mountPath: {{ .Values.runtime.dockerSocket }}
+              {{- end }}
           resources:
             {{- toYaml .Values.app.resources | nindent 12 }}
+        {{- if eq $mode "dind" }}
+        - name: dind
+          image: {{ .Values.runtime.dind.image | quote }}
+          securityContext:
+            privileged: true
+          env:
+            # Disable TLS — the daemon is reachable only inside the pod via
+            # the shared Unix socket, never over the network.
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          args:
+            - --host=unix:///var/run/docker.sock
+            - --storage-driver=overlay2
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run
+            - name: dind-storage
+              mountPath: /var/lib/docker
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "test -S /var/run/docker.sock && docker info >/dev/null 2>&1"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.runtime.dind.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: attachments
           persistentVolumeClaim:
             claimName: mantis-attachments
+        {{- if eq $mode "dind" }}
+        - name: docker-socket
+          emptyDir: {}
+        - name: dind-storage
+          {{- if .Values.runtime.dind.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: mantis-dind-storage
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- else }}
         - name: docker-socket
           hostPath:
             path: {{ .Values.runtime.dockerSocket }}
             type: Socket
+        {{- end }}
 {{- end }}

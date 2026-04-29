@@ -4,10 +4,11 @@ Host for working with media files. FFmpeg, MediaInfo, ImageMagick — video/audi
 
 ## System info
 
-- OS: Ubuntu 24.04 (Noble)
-- User: `mantis`
-- Home directory: `/home/mantis`
+- OS: Alpine Linux 3.20
+- User: `mantis` (no sudo, unprivileged)
+- Home directory: `/home/mantis` (persistent across restarts)
 - Shell: `/bin/bash`
+- SSH: port 22, user `mantis`, key-only authentication
 
 ## Preinstalled software
 
@@ -222,6 +223,7 @@ file downloaded_file
 ## Limitations
 
 - No GPU — CPU-only encoding. H.264/H.265 uses `libx264`/`libx265`.
-- Data is not persistent — files are deleted when the container restarts.
+- The root filesystem is read-only; only `/home/mantis` survives restarts.
+  `/tmp`, `/run` and `/var/log` are tmpfs and reset on every boot.
 - For very large files, mind the container's disk space and memory limits.
 - To review results, download the file to the local machine or send it to another host.

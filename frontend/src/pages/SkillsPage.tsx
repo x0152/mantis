@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Pencil, Trash2, Wrench } from 'lucide-react'
+import { Plus, Pencil, Trash2, Wrench } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { Connection, Skill } from '../types'

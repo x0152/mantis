@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, GitBranch, Square, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Send, GitBranch, Square, Paperclip, X, FileText, Image as ImageIcon } from '@/lib/icons'
 import { api } from '../api'
 import { navigate } from '../router'
 import { MessageBubble, StepPanel } from '../components/ChatMessages'
 import { ContextMeter } from '../components/ContextMeter'
+import { ResourcesPanel } from '../components/ResourcesPanel'
 import { useLogoState } from '../components/LogoState'
 import type { ChatMessage, ContextStatus, Step } from '../types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 const PAGE_SIZE = 10
 const ACTIVE_POLL = 400
@@ -44,11 +45,22 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prependingRef = useRef(false)
   const userScrolledUp = useRef(false)
 
   const hasPending = messages.some(m => m.status === 'pending')
+  const activeSteps = useMemo<Step[]>(() => {
+    const out: Step[] = []
+    for (const m of messages) {
+      if (!m.steps) continue
+      for (const s of m.steps) {
+        if (s.status === 'running') out.push(s)
+      }
+    }
+    return out
+  }, [messages])
   const { setState: setLogoState } = useLogoState()
 
   useEffect(() => {
@@ -70,6 +82,14 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
   useEffect(() => {
     return () => setLogoState('idle')
   }, [setLogoState])
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const max = 220
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`
+  }, [input])
 
   const lastAssistantId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -384,7 +404,7 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
             {attachError && (
               <div className="text-xs text-rose-500 dark:text-rose-400">{attachError}</div>
             )}
-            <div className="flex gap-2 items-start">
+            <div className="flex gap-2 items-end">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -404,12 +424,19 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
               >
                 <Paperclip size={16} />
               </Button>
-              <Input
+              <Textarea
+                ref={textareaRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-                placeholder="Type a message..."
-                className="flex-1 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault()
+                    send()
+                  }
+                }}
+                placeholder="Type a message... (shift+enter for newline)"
+                rows={1}
+                className="flex-1 min-h-[34px] max-h-[220px] py-1.5 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 leading-relaxed overflow-y-auto"
                 disabled={sending || hasPending}
               />
               {hasPending ? (
@@ -435,6 +462,7 @@ export default function ChatPage({ sessionId, onFirstMessage }: Props) {
 
       </div>
       {activeStep && <StepPanel step={activeStep} onClose={() => setActiveStep(null)} />}
+      {!isPlanSession && <ResourcesPanel activeSteps={activeSteps} />}
     </div>
   )
 }

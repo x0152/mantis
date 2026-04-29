@@ -1,5 +1,5 @@
 import { Handle, Position, MarkerType, type NodeProps, type Node, type Edge } from '@xyflow/react'
-import { Zap, GitFork } from 'lucide-react'
+import { Zap, GitFork } from '@/lib/icons'
 import type { PlanNode, PlanEdge, PlanStepStatus } from '../../types'
 
 const statusBorder: Record<PlanStepStatus, string> = {

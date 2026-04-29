@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, Layers, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square, RotateCcw, Copy, Check } from 'lucide-react'
+import { Terminal, Calculator, Download, Mic, Eye, Wrench, Wand2, Play, GitBranch, Bell, Layers, X, CheckCircle2, AlertCircle, Loader2, ScrollText, Maximize2, Square, RotateCcw, Copy, Check } from '@/lib/icons'
 import { Markdown } from './Markdown'
+import { MantisLogo } from './MantisLogo'
 import { EntryLine, PromptBanner } from './LogEntries'
 import { api } from '../api'
 import { navigate } from '../router'
@@ -734,12 +735,20 @@ function formatBytes(bytes: number): string {
 }
 
 export function PendingIndicator({ mode = 'thinking' }: { mode?: 'thinking' | 'typing' }) {
-  const label = mode === 'typing' ? 'Typing' : 'Thinking'
   return (
-    <div className="flex items-center gap-1 py-1">
-      <span className="text-[13px] font-medium shimmer-text">{label}</span>
-      {mode === 'typing' && (
-        <span className="typing-caret text-zinc-500 dark:text-zinc-400" aria-hidden />
+    <div className="flex items-center gap-2 py-1 font-mono text-[12px] lowercase tracking-tight text-zinc-500 dark:text-zinc-400">
+      <MantisLogo
+        size={16}
+        state={mode}
+        className="shrink-0 text-teal-500 dark:text-teal-400"
+      />
+      {mode === 'typing' ? (
+        <>
+          <span>typing</span>
+          <span className="typing-caret text-teal-500" aria-hidden />
+        </>
+      ) : (
+        <span>thinking</span>
       )}
     </div>
   )

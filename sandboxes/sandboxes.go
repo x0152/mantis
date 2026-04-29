@@ -2,5 +2,5 @@ package sandboxes
 
 import "embed"
 
-//go:embed base browser db ffmpeg netsec python runtimectl
+//go:embed base browser ffmpeg netsec runtimectl
 var FS embed.FS

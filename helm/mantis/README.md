@@ -18,12 +18,18 @@ Sandboxes are **not** Helm-managed workloads. The `app` pod ships an embedded
 set of built-in Dockerfiles (`base`, `python`, `browser`, `ffmpeg`, `db`,
 `netsec`, `runtimectl`) and seeds them into the `connections` table on
 startup. It then builds and runs each sandbox container itself through the
-Docker socket.
+Docker API.
 
-This means the `app` pod needs access to a working Docker daemon on its node
-(hostPath mount of `/var/run/docker.sock`, or an in-cluster DinD/containerd
-equivalent). In pure-Kubernetes clusters without Docker access, run Mantis on
-a dedicated node that exposes the socket.
+The chart provides two ways to expose a Docker daemon to the app:
+
+| `runtime.mode` | What it does | When to use |
+|---|---|---|
+| `dind` (default) | Adds a privileged `docker:24-dind` sidecar to the app pod and shares its Unix socket via an `emptyDir`. Image layers are kept on a PVC (`mantis-dind-storage`) so rebuilds stay fast across restarts. | Any Kubernetes cluster that allows privileged pods. Self-contained, no node prerequisites. |
+| `hostSocket` | Mounts the host's `/var/run/docker.sock` via `hostPath`. | Single-node setups whose nodes already run Docker (k3s on Docker, kind, dev VMs). |
+
+Mantis dials sandboxes by IP — the docker adapter reports container IPs from
+the runtime and the app overwrites the `host` field of each connection
+after starting the container. There is no DNS plumbing to maintain.
 
 The list and state of running sandboxes is visible in the **Runtimes** page
 inside the app, and can be inspected or managed via the
@@ -33,11 +39,14 @@ inside the app, and can be inspected or managed via the
 
 - Kubernetes 1.24+
 - An ingress controller (NGINX by default)
-- A default `StorageClass` (or set `postgres.storageClassName` / `app.attachments.storageClassName`)
+- A default `StorageClass` (or set `postgres.storageClassName` /
+  `app.attachments.storageClassName` / `runtime.dind.storage.storageClassName`)
 - Built and pushed images:
   - `mantis:<tag>` — from `./Dockerfile.prod`
   - `mantis-frontend:<tag>` — from `./frontend/Dockerfile.prod`
-- Docker socket reachable from the `app` pod
+- For `runtime.mode=dind`: the cluster must allow privileged pods (managed
+  offerings like GKE Autopilot do not). Use `runtime.mode=hostSocket` on
+  Docker-hosted single-node clusters instead.
 
 ## Quick start
 

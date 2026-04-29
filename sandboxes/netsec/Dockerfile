@@ -18,6 +18,7 @@ RUN apt-get update && \
         nikto \
         dirb gobuster ffuf whatweb wfuzz \
         dnsrecon \
+        bsdmainutils \
         git unzip \
     && rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/sshd && \

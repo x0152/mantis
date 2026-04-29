@@ -3,8 +3,8 @@ import {
   Plus, Pencil, Trash2, Link2, Box, ChevronDown, ChevronRight, Copy,
   Layers, Route as RouteIcon, MessageSquare, FileText, Eye, RotateCcw,
   Wallet, Infinity as InfinityIcon,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+} from '@/lib/icons'
+import type { LucideIcon } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { LlmConnection, Model, Preset, ProviderModel, InferenceLimit } from '../types'

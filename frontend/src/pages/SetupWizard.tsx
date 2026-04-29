@@ -369,17 +369,17 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <MantisLogo size={48} className="text-teal-500 dark:text-teal-400" />
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <MantisLogo size={40} className="text-teal-500 dark:text-teal-400" />
           <div className="leading-tight">
-            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">Mantis</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Connect your LLM provider to get started</p>
+            <h1 className="font-mono text-[20px] font-medium lowercase tracking-tight text-zinc-900 dark:text-zinc-50">mantis</h1>
+            <p className="font-mono text-[11px] lowercase tracking-tight text-zinc-500 mt-0.5">connect an llm provider to begin</p>
           </div>
         </div>
 
-        <Card className="space-y-6 bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800/80 p-6">
+        <Card className="space-y-6 bg-white dark:bg-zinc-900/60 p-6">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">LLM Connection</h2>
+            <div className="kicker mb-3"><span className="kicker-num">01</span><span className="kicker-sep">/</span><span>llm connection</span></div>
             <div className="space-y-3">
               <FormField label="Provider">
                 <select
@@ -461,8 +461,8 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">Telegram <span className="text-zinc-500 dark:text-zinc-600 font-normal">(optional)</span></h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-600 mb-3">Connect a Telegram bot to chat from your phone</p>
+            <div className="kicker mb-1"><span className="kicker-num">02</span><span className="kicker-sep">/</span><span>telegram</span><span className="kicker-sep">·</span><span>optional</span></div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mb-3">Connect a Telegram bot to chat from your phone</p>
             <div className="space-y-3">
               <FormField label="Bot token">
                 <Input value={tgToken} onChange={e => setTgToken(e.target.value)} placeholder="123456:ABC-DEF..." />
@@ -474,14 +474,14 @@ export default function SetupWizard({ onDone }: { onDone: () => void }) {
             </div>
           </div>
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="font-mono text-[11px] lowercase text-rose-500">err: {error}</p>}
 
           <Button
             onClick={submit}
             disabled={loading}
-            className="w-full py-2.5 bg-teal-500 hover:bg-teal-400 text-zinc-950 font-semibold text-sm"
+            className="w-full h-9"
           >
-            {loading ? 'Setting up...' : 'Complete Setup'}
+            {loading ? 'setting up...' : 'complete setup'}
           </Button>
         </Card>
       </div>

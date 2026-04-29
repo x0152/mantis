@@ -1,0 +1,18 @@
+{{- if and .Values.app.enabled (eq (.Values.runtime.mode | default "dind") "dind") .Values.runtime.dind.storage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mantis-dind-storage
+  namespace: {{ include "mantis.namespace" . }}
+  labels:
+    {{- include "mantis.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.runtime.dind.storage.size }}
+  {{- if .Values.runtime.dind.storage.storageClassName }}
+  storageClassName: {{ .Values.runtime.dind.storage.storageClassName | quote }}
+  {{- end }}
+{{- end }}

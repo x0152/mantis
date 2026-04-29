@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Play, Clock, CheckCircle2, XCircle, Loader2, PauseCircle, Circle, SkipForward, ChevronDown, ChevronRight, Ban } from 'lucide-react'
+import { Play, Clock, CheckCircle2, XCircle, Loader2, PauseCircle, Circle, SkipForward, ChevronDown, ChevronRight, Ban } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../../api'
 import type { PlanNode, PlanRun, PlanRunStatus, PlanStepRun, PlanStepStatus, ChatMessage, Step } from '../../types'

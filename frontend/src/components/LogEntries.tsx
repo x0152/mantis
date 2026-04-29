@@ -1,4 +1,4 @@
-import { Sparkles, MessageSquareText } from 'lucide-react'
+import { Sparkles, MessageSquareText } from '@/lib/icons'
 import { Markdown } from './Markdown'
 import type { LogEntry } from '../types'
 

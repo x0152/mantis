@@ -13,7 +13,7 @@ import {
   type Edge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowLeft, Pencil, Zap, GitFork, Trash2, Save } from 'lucide-react'
+import { ArrowLeft, Pencil, Zap, GitFork, Trash2, Save } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../../api'
 import type { Plan, PlanGraph, PlanStepRun, PlanStepStatus } from '../../types'

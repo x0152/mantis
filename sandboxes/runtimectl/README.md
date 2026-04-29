@@ -41,17 +41,16 @@ mantisctl sandbox rm <name>                             # stop + remove + unregi
 2. **Check existing sandboxes**: `mantisctl sandbox ls`. If a sandbox with the
    requested name already exists and is `running`, reply with
    `READY sb-<name>` immediately without rebuilding.
-3. **Write a Dockerfile** at `/tmp/<name>.Dockerfile`. It MUST follow this
-   template so the container is reachable over SSH:
+3. **Write a Dockerfile** at `/tmp/<name>.Dockerfile`. Keep it minimal — the
+   runtime hardens the image (sshd init, host keys, key-only auth) and the
+   container engine (read-only rootfs, dropped capabilities, resource limits)
+   automatically. Just declare the workload:
 
    ```
    FROM alpine:3.20
    RUN apk add --no-cache openssh-server bash <extra-packages> \
-    && ssh-keygen -A \
-    && adduser -D -s /bin/bash mantis \
-    && echo "mantis:mantis" | chpasswd
+    && adduser -D -s /bin/bash mantis
    EXPOSE 22
-   CMD ["/usr/sbin/sshd","-D","-e"]
    ```
 
    Replace `<extra-packages>` with whatever the request needs. Typical Alpine
@@ -80,14 +79,15 @@ If anything fails and cannot be recovered, reply `FAILED <reason>` instead.
 
 - All sandboxes are Alpine-based unless the request explicitly demands
   Debian/Ubuntu. Alpine is faster to build.
-- Every sandbox MUST expose sshd on port 22 with user `mantis` / password
-  `mantis`. Do not change that. `ssh-keygen -A` is mandatory.
+- Every sandbox MUST expose sshd on port 22 with user `mantis`. The runtime
+  injects key-based auth and host keys automatically — never set passwords or
+  call `ssh-keygen` yourself.
 - Container networking, DNS and labels are handled by Mantis — you do not set
   ports, volumes or networks.
 - Default to `--profile unrestricted` for the dynamic sandboxes you create —
   the user needs their new toolchain to actually run inside. Only switch to
-  a narrower profile (`base`, `python`, `media`, `netsec`, `database`) if
-  the user explicitly asks you to lock the sandbox down.
+  a narrower profile (`base`, `media`, `netsec`) if the user explicitly asks
+  you to lock the sandbox down.
 - Never `mantisctl sandbox rm` sandboxes you did not create in this task.
 
 ## Quick reference: common package lists

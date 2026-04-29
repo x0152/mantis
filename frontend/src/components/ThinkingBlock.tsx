@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Brain, ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@/lib/icons'
+import { MantisLogo } from './MantisLogo'
 
 export function ThinkingBlock({ content, streaming }: { content: string; streaming: boolean }) {
   const [open, setOpen] = useState(false)
@@ -8,24 +9,27 @@ export function ThinkingBlock({ content, streaming }: { content: string; streami
 
   return (
     <div
-      className={`not-prose my-2 last:mb-0 rounded-lg border border-teal-500/20 bg-teal-500/5 overflow-hidden ${
+      className={`not-prose my-2 last:mb-0 rounded-[5px] border border-teal-500/20 bg-teal-500/[0.04] overflow-hidden ${
         open ? 'w-full' : 'w-fit max-w-full'
       }`}
     >
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-2.5 py-1 text-left text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-1 text-left font-mono text-[11px] lowercase tracking-tight text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
       >
-        <Brain size={11} className="shrink-0" />
-        <span className={streaming ? 'shimmer-text' : ''}>
-          {streaming ? 'Thinking' : 'Thoughts'}
-        </span>
-        <span className="text-[10px] font-mono tabular-nums text-teal-700/60 dark:text-teal-300/60">
+        <MantisLogo
+          size={12}
+          state={streaming ? 'thinking' : 'idle'}
+          className="shrink-0"
+        />
+        <span>{streaming ? 'thinking' : 'thoughts'}</span>
+        <span className="text-[10px] tabular-nums text-teal-700/60 dark:text-teal-300/60">
           {chars}
         </span>
         <ChevronRight
           size={11}
+          strokeWidth={1.6}
           className={`ml-1 shrink-0 text-teal-700/60 dark:text-teal-300/60 transition-transform ${open ? 'rotate-90' : ''}`}
         />
       </button>

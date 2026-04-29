@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Radio } from 'lucide-react'
+import { Plus, Pencil, Trash2, Radio } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { Channel, Preset } from '../types'

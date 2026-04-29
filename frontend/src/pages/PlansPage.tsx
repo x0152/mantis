@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, GitBranch, Pencil, Trash2, Play, Pause } from 'lucide-react'
+import { Plus, GitBranch, Pencil, Trash2, Play, Pause } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { Plan } from '../types'

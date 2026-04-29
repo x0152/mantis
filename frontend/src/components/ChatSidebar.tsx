@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, MessageSquare, GitBranch, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { Plus, MessageSquare, GitBranch, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Loader2 } from '@/lib/icons'
 import { api } from '../api'
 import { navigate } from '../router'
 import type { ChatSession } from '../types'
-import { Button } from '@/components/ui/button'
 import { ConfirmDelete } from '@/components/ConfirmDelete'
 
 interface Props {
@@ -95,19 +94,21 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
 
   function renderSession(session: ChatSession, isPlan = false) {
     const Icon = isPlan ? GitBranch : MessageSquare
+    const active = activeSessionId === session.id
     return (
       <div
         key={session.id}
         onClick={() => { if (editingId !== session.id) onSelect(session) }}
-        className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] min-w-0 ${
-          activeSessionId === session.id
-            ? 'bg-teal-500/10 text-teal-400'
-            : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
+        data-active={active}
+        className={`group relative flex items-center gap-2 pl-3.5 pr-2 py-1.5 cursor-pointer text-[13px] min-w-0 border-l ${
+          active
+            ? 'border-l-teal-500 text-zinc-900 dark:text-zinc-50'
+            : 'border-l-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
         }`}
       >
         {session.active
-          ? <Loader2 size={14} className="shrink-0 text-teal-500 animate-spin" />
-          : <Icon size={14} className={`shrink-0 ${isPlan ? 'text-amber-500/70' : ''}`} strokeWidth={1.8} />
+          ? <Loader2 size={12} className="shrink-0 text-teal-500 animate-spin" />
+          : <Icon size={12} className={`shrink-0 opacity-80 ${isPlan ? 'text-amber-500/70' : ''}`} strokeWidth={1.5} />
         }
 
         {editingId === session.id ? (
@@ -128,13 +129,13 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
         ) : (
           <>
             <div className="flex-1 min-w-0">
-              <div className="truncate font-medium">{displayTitle(session)}</div>
+              <div className={`truncate ${active ? 'font-medium' : ''}`}>{displayTitle(session)}</div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-600">{formatDate(session.createdAt)}</span>
+                <span className="font-mono text-[10px] tabular-nums text-zinc-400 dark:text-zinc-600">{formatDate(session.createdAt).toLowerCase()}</span>
                 {isPlan && planIdFromSession(session) && (
                   <button
                     onClick={e => { e.stopPropagation(); navigate({ page: 'plans', planId: planIdFromSession(session)! }) }}
-                    className="text-[10px] text-amber-500/70 hover:text-amber-400 hover:underline"
+                    className="font-mono text-[10px] text-amber-500/70 hover:text-amber-400 hover:underline"
                   >
                     plan
                   </button>
@@ -165,38 +166,38 @@ export default function ChatSidebar({ activeSessionId, onSelect, onNew, refreshK
 
   return (
     <div className="flex flex-col h-full">
-      <Button
-        variant="secondary"
-        size="sm"
+      <button
         onClick={onNew}
-        className="mx-2 mt-2 mb-1"
+        className="mx-2 mt-1 mb-1.5 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[5px] border border-dashed border-zinc-300 dark:border-zinc-700 text-[11.5px] font-mono lowercase text-zinc-500 dark:text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500/60 transition-colors"
       >
-        <Plus size={14} />
-        New Chat
-      </Button>
+        <Plus size={12} strokeWidth={1.6} />
+        new chat
+      </button>
 
-      <div className="flex-1 overflow-auto px-2 py-1">
-        <div className="space-y-0.5">
+      <div className="flex-1 overflow-auto py-0.5">
+        <div>
           {regularSessions.map(s => renderSession(s))}
         </div>
 
         {regularSessions.length === 0 && planSessions.length === 0 && (
-          <div className="text-center text-zinc-600 text-xs py-6">
-            No chats yet
+          <div className="text-center font-mono lowercase text-zinc-500 dark:text-zinc-600 text-[11px] py-6">
+            — no chats yet —
           </div>
         )}
 
         {planSessions.length > 0 && (
-          <div className="mt-3">
+          <div className="mt-2">
             <button
               onClick={() => setPlanCollapsed(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 w-full text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-400 transition-colors"
+              className="kicker px-3.5 pt-2 pb-1 w-full text-left hover:text-zinc-700 dark:hover:text-zinc-400 transition-colors"
             >
-              {planCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-              Plans ({planSessions.length})
+              {planCollapsed ? <ChevronRight size={9} /> : <ChevronDown size={9} />}
+              <span className="kicker-num">{String(planSessions.length).padStart(2, '0')}</span>
+              <span className="kicker-sep">/</span>
+              <span>plans</span>
             </button>
             {!planCollapsed && (
-              <div className="space-y-0.5">
+              <div>
                 {planSessions.map(s => renderSession(s, true))}
               </div>
             )}

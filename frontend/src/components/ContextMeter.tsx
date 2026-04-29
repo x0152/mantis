@@ -1,4 +1,4 @@
-import { Gauge, Layers } from 'lucide-react'
+import { Gauge, Layers } from '@/lib/icons'
 import type { ChatMessage } from '../types'
 
 const DEFAULT_THRESHOLD = 100_000

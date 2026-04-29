@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Container, Play, Square, RotateCw, Trash2 } from 'lucide-react'
+import { Container, Play, Square, RotateCw, Trash2 } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../api'
 import type { SandboxStatus } from '../types'
