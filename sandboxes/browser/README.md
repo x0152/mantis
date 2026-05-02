@@ -64,6 +64,31 @@ Jina Reader renders JavaScript, so it works with SPA sites (React, Vue, etc.).
 - `jina-read` — quickly read text from a page, grab an article or documentation.
 - Playwright — complex automation: filling forms, clicking, navigation, screenshots, request interception.
 
+## Execution rules
+
+Use these rules to avoid unnecessary failures and retries:
+
+1. **Default to text tools first**
+   - For extraction tasks ("get title/url", "read article", "summarize page"), use `jina-read` or `curl` + parser.
+   - Do **not** start with Playwright unless the task needs interaction or visual rendering.
+
+2. **Use Playwright only when required**
+   - Required cases: login flows, clicking, submitting forms, waiting for post-click state, screenshots, JS-only content that text tools cannot read.
+
+3. **Prefer script files over long one-liners**
+   - If the command is longer than a few lines, write it to `/home/mantis/<name>.js` and run `node /home/mantis/<name>.js`.
+   - This avoids shell escaping issues and makes debugging easier.
+
+4. **Never put `$$eval` inside double-quoted shell strings**
+   - In `node -e "..."`, shell expands `$$` to PID and breaks Playwright code.
+   - Either:
+     - use a script file (`cat << 'SCRIPT' ...`), or
+     - wrap with single quotes and avoid shell interpolation.
+
+5. **Avoid runtime installs unless explicitly requested**
+   - Core dependencies and Playwright browser binaries are preinstalled in this image.
+   - Do not run `npm install` / `npx playwright install` unless the user asked for extra packages.
+
 ## OCR — text recognition in images
 
 If `OCR_API_URL` is set, you can recognize text in an image via curl:
@@ -160,6 +185,8 @@ const { chromium } = require('playwright');
 ```
 
 ## Playwright: working with pages (Node.js scripts)
+
+`playwright` and Chromium are preinstalled and available without extra setup.
 
 ### Extract text from a page
 ```bash
@@ -274,6 +301,34 @@ node /home/mantis/scrape.js https://example.com
 ```bash
 npm install -g cheerio    # HTML parser
 npm install -g puppeteer  # alternative to Playwright
+```
+
+In most cases, this step is unnecessary because `playwright` and `cheerio` are already installed in the image.
+
+## Troubleshooting
+
+### `Cannot find module 'playwright'`
+
+`NODE_PATH` is preconfigured in this sandbox. If you still see this error, run:
+
+```bash
+node -e "console.log(require.resolve('playwright'))"
+```
+
+If resolution fails, the image is likely outdated and should be rebuilt.
+
+### `Executable doesn't exist ... chromium ...`
+
+Chromium is preinstalled in `/ms-playwright`. If this appears, verify env:
+
+```bash
+echo "$PLAYWRIGHT_BROWSERS_PATH"
+```
+
+If empty, set it for the current shell:
+
+```bash
+export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ```
 
 ## Limitations

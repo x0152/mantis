@@ -9,10 +9,12 @@ import (
 
 type Runtime interface {
 	Build(ctx context.Context, name string, dockerfile []byte) (io.ReadCloser, error)
+	BuildWithLabels(ctx context.Context, name string, dockerfile []byte, labels map[string]string) (io.ReadCloser, error)
 	Run(ctx context.Context, spec types.RuntimeRunSpec) (types.RuntimeContainer, error)
 	Stop(ctx context.Context, name string) error
 	Remove(ctx context.Context, name string) error
 	List(ctx context.Context) ([]types.RuntimeContainer, error)
 	Inspect(ctx context.Context, name string) (types.RuntimeContainer, error)
+	ImageLabels(ctx context.Context, name string) (map[string]string, error)
 	Logs(ctx context.Context, name string, tail int, follow bool) (io.ReadCloser, error)
 }

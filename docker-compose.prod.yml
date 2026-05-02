@@ -24,6 +24,18 @@ services:
       postgres:
         condition: service_healthy
 
+  sandbox-prebuild:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: "no"
+    entrypoint: ["/usr/local/bin/sandbox-prebuild"]
+    environment:
+      DOCKER_SOCKET: /var/run/docker.sock
+      RUNTIME_NETWORK: "${RUNTIME_NETWORK:-mantis-sandbox-net}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   app:
     build:
       context: .
@@ -59,6 +71,8 @@ services:
       - sandbox
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      sandbox-prebuild:
         condition: service_completed_successfully
 
   frontend:

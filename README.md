@@ -75,14 +75,96 @@ Multi-agent system where an LLM orchestrates a pool of isolated agents, each run
 | Guard Profiles | Security profiles with capability and command whitelists |
 | Logs | Session logs with tool call details |
 
-## Quick start
+## Quick Start
+
+### Option A: Local Docker Compose (fastest)
+
+First start does not require a separate `docker build` step.
+`docker compose up --build` builds everything automatically — the app, the
+frontend, **and all sandbox images** (base, browser, ffmpeg, netsec,
+runtimectl). The dedicated `sandbox-prebuild` service runs once before the
+backend starts so that by the time the UI is reachable every sandbox is
+ready and tools work immediately. Subsequent boots are fast: the hash on
+each image is checked first and the build is skipped if nothing changed.
 
 ```bash
-cp .env.example .env   # fill in AUTH_TOKEN and VITE_LLM_*
-./dev.sh
+cp .env.example .env
+# edit .env and set at least: AUTH_TOKEN, VITE_LLM_BASE_URL, VITE_LLM_API_KEY, VITE_LLM_MODEL
+docker compose up --build -d
 ```
 
-Open http://localhost:27173, sign in with your `AUTH_TOKEN`. Done.
+The very first run downloads/builds five sandbox images and may take a few
+minutes — watch the progress with:
+
+```bash
+docker compose logs -f sandbox-prebuild
+```
+
+When you see `sandbox-prebuild: all 5 sandbox images ready` the backend
+will start. Then open http://localhost:27173 and sign in with `AUTH_TOKEN`.
+
+Useful commands:
+
+```bash
+docker compose logs -f app
+docker compose down
+```
+
+### Option B: Kubernetes (Helm)
+
+#### 1) Build and push images
+
+```bash
+export TAG=$(git rev-parse --short HEAD)
+export REGISTRY=ghcr.io/<your-org>
+
+docker build -f Dockerfile.prod -t ${REGISTRY}/mantis:${TAG} .
+docker build -f frontend/Dockerfile.prod -t ${REGISTRY}/mantis-frontend:${TAG} frontend
+
+docker push ${REGISTRY}/mantis:${TAG}
+docker push ${REGISTRY}/mantis-frontend:${TAG}
+```
+
+#### 2) Deploy with Helm
+
+```bash
+helm upgrade --install mantis ./helm/mantis \
+  --namespace mantis --create-namespace \
+  --set app.image.repository=${REGISTRY}/mantis \
+  --set app.image.tag=${TAG} \
+  --set frontend.image.repository=${REGISTRY}/mantis-frontend \
+  --set frontend.image.tag=${TAG} \
+  --set secrets.authToken='change-me-to-a-long-random-string' \
+  --set ingress.enabled=false
+```
+
+#### 3) Access without Ingress (recommended for first run)
+
+```bash
+kubectl -n mantis port-forward svc/frontend 27173:80
+```
+
+Then open http://localhost:27173.
+
+#### 4) Access with Ingress (optional)
+
+If your cluster has an ingress controller:
+
+```bash
+helm upgrade --install mantis ./helm/mantis \
+  --namespace mantis --create-namespace \
+  --set app.image.repository=${REGISTRY}/mantis \
+  --set app.image.tag=${TAG} \
+  --set frontend.image.repository=${REGISTRY}/mantis-frontend \
+  --set frontend.image.tag=${TAG} \
+  --set secrets.authToken='change-me-to-a-long-random-string' \
+  --set ingress.enabled=true \
+  --set ingress.host=mantis.local
+```
+
+Point `mantis.local` to your ingress controller address (for local clusters this is often `127.0.0.1`) and open `http://mantis.local`.
+
+For production TLS, cert-manager, external secrets, and runtime mode details, see [`helm/mantis/README.md`](helm/mantis/README.md).
 
 ## Required env
 
@@ -121,33 +203,13 @@ Values accept any Go duration (`30s`, `5m`, `1h`). On startup the app logs the a
 
 Hot reload everywhere — `air` for Go, Vite HMR for the frontend. Frontend on `:27173`, backend on `:27480`, Postgres on `:5432`.
 
-## Prod
+## Prod (single host)
 
 ```bash
 ./prod.sh
 ```
 
 Multi-stage builds, frontend served by nginx, single port `:${MANTIS_PORT:-8080}` exposed, `restart: unless-stopped`.
-
-## Kubernetes
-
-Build and push images once, then:
-
-```bash
-helm install mantis ./helm/mantis -n mantis --create-namespace \
-  --set ingress.host=mantis.example.com \
-  --set app.image.repository=<registry>/mantis       --set app.image.tag=$TAG \
-  --set frontend.image.repository=<registry>/mantis-frontend --set frontend.image.tag=$TAG
-```
-
-Upgrades:
-
-```bash
-helm upgrade mantis ./helm/mantis -n mantis --reuse-values \
-  --set app.image.tag=$NEW --set frontend.image.tag=$NEW
-```
-
-Chart deploys backend, frontend, Postgres, 6 sandboxes, ingress (`/api` → backend, `/` → frontend), and a `goose` migration job. Build commands and tuning knobs in [`helm/mantis/README.md`](helm/mantis/README.md).
 
 ## ASR, OCR & TTS (optional)
 

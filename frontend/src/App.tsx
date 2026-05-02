@@ -94,13 +94,18 @@ export default function App() {
 
   useEffect(() => {
     if (needsSetup === false && !activeSessionId) {
-      api.chat.getSession().then(s => {
-        setActiveSessionId(s.id)
-        setSidebarRefreshKey(k => k + 1)
-        if (route.page === 'chat') navigate({ page: 'chat', sessionId: s.id })
-      }).catch(() => {})
+      api.chat
+        .listSessions({ limit: 100, offset: 0 })
+        .then(async list => {
+          const regular = list.filter(s => s.source !== 'plan')
+          const session = regular.length > 0 ? regular[0] : await api.chat.createSession()
+          setActiveSessionId(session.id)
+          setSidebarRefreshKey(k => k + 1)
+          if (route.page === 'chat') navigate({ page: 'chat', sessionId: session.id })
+        })
+        .catch(() => {})
     }
-  }, [needsSetup])
+  }, [needsSetup, activeSessionId, route.page])
 
   const handleSelectSession = useCallback((session: ChatSession) => {
     setActiveSessionId(session.id)

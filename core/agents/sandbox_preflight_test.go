@@ -18,6 +18,9 @@ type fakeRuntime struct {
 func (f *fakeRuntime) Build(ctx context.Context, name string, dockerfile []byte) (io.ReadCloser, error) {
 	return nil, errors.New("not implemented")
 }
+func (f *fakeRuntime) BuildWithLabels(ctx context.Context, name string, dockerfile []byte, labels map[string]string) (io.ReadCloser, error) {
+	return nil, errors.New("not implemented")
+}
 func (f *fakeRuntime) Run(ctx context.Context, spec types.RuntimeRunSpec) (types.RuntimeContainer, error) {
 	return types.RuntimeContainer{}, errors.New("not implemented")
 }
@@ -31,6 +34,9 @@ func (f *fakeRuntime) Inspect(ctx context.Context, name string) (types.RuntimeCo
 		return types.RuntimeContainer{}, f.err
 	}
 	return types.RuntimeContainer{Name: name, Status: f.status}, nil
+}
+func (f *fakeRuntime) ImageLabels(ctx context.Context, name string) (map[string]string, error) {
+	return nil, nil
 }
 func (f *fakeRuntime) Logs(ctx context.Context, name string, tail int, follow bool) (io.ReadCloser, error) {
 	return nil, errors.New("not implemented")

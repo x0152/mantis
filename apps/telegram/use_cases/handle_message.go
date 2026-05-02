@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	chatusecases "mantis/apps/chat/use_cases"
@@ -15,6 +16,8 @@ import (
 	adapter "mantis/infrastructure/adapters/channel"
 	"mantis/shared"
 )
+
+var telegramLinkCodeRe = regexp.MustCompile(`^\d{6}$`)
 
 type MessageInput struct {
 	ChannelID string
@@ -92,6 +95,9 @@ func (uc *HandleMessage) Execute(ctx context.Context, in MessageInput) (adapter.
 			return uc.handleVoiceCommand(ctx, in)
 		}
 	}
+	if isTelegramLinkCode(in.Text) && len(in.Incoming) == 0 {
+		return adapter.Reply{}, nil
+	}
 
 	sessionID, err := uc.sessionUC.Execute(ctx, SessionModeGetOrCreate)
 	if err != nil {
@@ -135,6 +141,10 @@ func (uc *HandleMessage) Execute(ctx context.Context, in MessageInput) (adapter.
 
 	sender.StreamFrom(ctx, uc.buffer, out.AssistantMessage.ID, done)
 	return adapter.Reply{}, nil
+}
+
+func isTelegramLinkCode(text string) bool {
+	return telegramLinkCodeRe.MatchString(strings.TrimSpace(text))
 }
 
 func (uc *HandleMessage) createSender(ctx context.Context, channelID, chatID string) (*adapter.TelegramResponseTo, error) {

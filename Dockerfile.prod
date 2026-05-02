@@ -5,7 +5,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /mantis ./cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /mantis ./cmd \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /sandbox-prebuild ./cmd/sandbox-prebuild
 
 FROM alpine:3.21 AS inferenced
 ARG INFERENCED_VERSION=v0.2.11
@@ -22,6 +23,7 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata libc6-compat \
  && adduser -D -u 1000 mantis
 COPY --from=builder /mantis /usr/local/bin/mantis
+COPY --from=builder /sandbox-prebuild /usr/local/bin/sandbox-prebuild
 COPY --from=builder /go/bin/goose /usr/local/bin/goose
 COPY --from=inferenced /usr/local/bin/inferenced /usr/local/bin/inferenced
 COPY migrations /migrations

@@ -154,7 +154,7 @@ func (b *Bootstrapper) ensureSandbox(ctx context.Context, conn types.Connection,
 	}
 
 	log.Printf("runtime bootstrap: building %s", sandboxName)
-	stream, err := b.rt.Build(ctx, sandboxName, []byte(conn.Dockerfile))
+	stream, err := b.rt.BuildWithLabels(ctx, sandboxName, []byte(conn.Dockerfile), map[string]string{dockerfileHashLabel: wantHash})
 	if err != nil {
 		return fmt.Errorf("build: %w", err)
 	}

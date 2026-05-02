@@ -156,6 +156,14 @@ func sandboxNetwork(name string) string { return containerNamePrefix + name + "-
 func homeVolume(name string) string     { return containerNamePrefix + name + "-home" }
 
 func (r *Runtime) Build(ctx context.Context, name string, dockerfile []byte) (io.ReadCloser, error) {
+	return r.BuildWithLabels(ctx, name, dockerfile, nil)
+}
+
+// BuildWithLabels behaves like Build but stamps additional labels onto the
+// resulting image. Useful for callers (sandbox-prebuild, bootstrap) that need
+// to attach a dockerfile-content hash so subsequent runs can detect drift
+// without re-building.
+func (r *Runtime) BuildWithLabels(ctx context.Context, name string, dockerfile []byte, extraLabels map[string]string) (io.ReadCloser, error) {
 	if len(dockerfile) == 0 {
 		return nil, errors.New("empty Dockerfile")
 	}
@@ -176,11 +184,23 @@ func (r *Runtime) Build(ctx context.Context, name string, dockerfile []byte) (io
 		return nil, err
 	}
 
+	labels := map[string]string{
+		labelMarker: "1",
+		labelName:   name,
+	}
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
+	labelsJSON, err := json.Marshal(labels)
+	if err != nil {
+		return nil, err
+	}
+
 	q := url.Values{}
 	q.Set("t", imageTag(name))
 	q.Set("dockerfile", "Dockerfile")
 	q.Set("rm", "1")
-	q.Set("labels", fmt.Sprintf(`{%q:"1",%q:%q}`, labelMarker, labelName, name))
+	q.Set("labels", string(labelsJSON))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url("/build", q), &buf)
 	if err != nil {
@@ -536,6 +556,41 @@ func (r *Runtime) List(ctx context.Context) ([]types.RuntimeContainer, error) {
 		})
 	}
 	return out, nil
+}
+
+// ImageLabels returns the labels attached to the sandbox image for the given
+// name. Returns (nil, nil) when the image does not exist locally — the caller
+// can treat that as "needs build". Any other error (network, malformed JSON)
+// is surfaced as-is.
+func (r *Runtime) ImageLabels(ctx context.Context, name string) (map[string]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.url("/images/"+imageTag(name)+"/json", nil), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("docker api %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var raw struct {
+		Config struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"Config"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+	if raw.Config.Labels == nil {
+		return map[string]string{}, nil
+	}
+	return raw.Config.Labels, nil
 }
 
 func (r *Runtime) Inspect(ctx context.Context, name string) (types.RuntimeContainer, error) {
