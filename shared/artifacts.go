@@ -19,11 +19,11 @@ import (
 
 const (
 	// DefaultMaxArtifactBytes is the per-file limit for temporary artifacts.
-	DefaultMaxArtifactBytes = 10 * 1024 * 1024
+	DefaultMaxArtifactBytes = 10 * 1024 * 1024 * 1024
 
 	// DefaultMaxTotalArtifactBytes is a soft cap for all artifacts in one session.
 	// Keeps memory usage bounded even if the model accumulates multiple files.
-	DefaultMaxTotalArtifactBytes = 50 * 1024 * 1024
+	DefaultMaxTotalArtifactBytes = 10 * 1024 * 1024 * 1024
 
 	// DefaultArtifactTTL controls how long artifacts are kept in memory.
 	// Artifacts are never persisted; they expire automatically.
@@ -86,7 +86,7 @@ func (s *ArtifactStore) Put(name string, data []byte, mime string) (ArtifactMeta
 		name = "artifact"
 	}
 	if int64(len(data)) > s.MaxFileBytes {
-		return ArtifactMeta{}, fmt.Errorf("artifact %q too large: %d bytes (max %d)", name, len(data), s.MaxFileBytes)
+		return ArtifactMeta{}, fmt.Errorf("artifact %q is too large (%d bytes). Max file size is 10 GB", name, len(data))
 	}
 
 	sum := sha256.Sum256(data)
@@ -115,7 +115,7 @@ func (s *ArtifactStore) Put(name string, data []byte, mime string) (ArtifactMeta
 	s.pruneExpiredLocked(now)
 
 	if s.MaxTotalBytes > 0 && s.totalBytes+meta.SizeBytes > s.MaxTotalBytes {
-		return ArtifactMeta{}, fmt.Errorf("artifact store total size exceeded: %d + %d > %d", s.totalBytes, meta.SizeBytes, s.MaxTotalBytes)
+		return ArtifactMeta{}, fmt.Errorf("session artifact storage limit reached (%d + %d bytes). Max total is 10 GB", s.totalBytes, meta.SizeBytes)
 	}
 
 	s.items[meta.ID] = meta

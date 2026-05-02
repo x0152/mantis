@@ -1,15 +1,17 @@
 {{- if .Values.app.enabled }}
 {{- $mode := .Values.runtime.mode | default "dind" -}}
+{{- $fullName := include "mantis.fullname" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mantis-app
-  namespace: {{ include "mantis.namespace" . }}
+  name: {{ $fullName }}-app
   labels:
-    app: mantis-app
     {{- include "mantis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
 spec:
+  {{- if not .Values.app.autoscaling.enabled }}
   replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
   strategy:
     {{- if eq $mode "dind" }}
     type: Recreate
@@ -21,21 +23,61 @@ spec:
     {{- end }}
   selector:
     matchLabels:
-      app: mantis-app
+      {{- include "mantis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
   template:
     metadata:
       labels:
-        app: mantis-app
+        {{- include "mantis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
     spec:
       {{- include "mantis.imagePullSecrets" . | nindent 6 }}
       {{- if eq $mode "dind" }}
-      # The DinD daemon writes /var/run/docker.sock as root. Run the app as
-      # root too so it can read the socket. We could narrow this down with a
-      # shared GID, but only the dind sidecar shares the volume so the
-      # blast radius is the same.
+      # dind socket is owned by root; app must read it.
       securityContext:
         runAsUser: 0
       {{- end }}
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image | quote }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+              export PGPASSWORD="$POSTGRES_PASSWORD"
+              until [ "$(psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT to_regclass('public.goose_db_version') IS NOT NULL" 2>/dev/null)" = "t" ]; do
+                echo "waiting for migrations..."
+                sleep 3
+              done
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mantis.configName" . }}
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mantis.configName" . }}
+                  key: POSTGRES_PORT
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_DB
       containers:
         - name: app
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
@@ -44,10 +86,8 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "waiting for docker socket at {{ .Values.runtime.dockerSocket }}..."
               for i in $(seq 1 120); do
                 if [ -S "{{ .Values.runtime.dockerSocket }}" ]; then
-                  echo "docker socket is up"
                   exec /usr/local/bin/mantis
                 fi
                 sleep 1
@@ -59,22 +99,22 @@ spec:
             - name: http
               containerPort: {{ .Values.app.port }}
               protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           env:
-            - name: PORT
-              value: {{ .Values.app.port | quote }}
-            - name: ATTACHMENT_DIR
-              value: /data/attachments
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-user }
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-password }
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-db }
-            - name: DATABASE_URL
-              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)?sslmode=disable"
+            {{- include "mantis.commonEnv" . | nindent 12 }}
             - name: RUNTIME_MODE
               value: docker
             - name: DOCKER_SOCKET
@@ -83,9 +123,12 @@ spec:
               value: {{ .Values.runtime.network | default "mantis-sandbox-net" | quote }}
             - name: RUNTIME_SANDBOX_CAPS
               value: {{ .Values.runtime.sandboxCaps | default "NET_RAW,NET_ADMIN" | quote }}
-            {{- range $k, $v := .Values.app.env }}
-            - name: {{ $k }}
-              value: {{ $v | quote }}
+            {{- with .Values.runtime.apiToken }}
+            - name: RUNTIME_API_TOKEN
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.app.extraEnv }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: attachments
@@ -104,8 +147,6 @@ spec:
           securityContext:
             privileged: true
           env:
-            # Disable TLS — the daemon is reachable only inside the pod via
-            # the shared Unix socket, never over the network.
             - name: DOCKER_TLS_CERTDIR
               value: ""
           args:
@@ -128,14 +169,14 @@ spec:
       volumes:
         - name: attachments
           persistentVolumeClaim:
-            claimName: mantis-attachments
+            claimName: {{ $fullName }}-attachments
         {{- if eq $mode "dind" }}
         - name: docker-socket
           emptyDir: {}
         - name: dind-storage
           {{- if .Values.runtime.dind.storage.enabled }}
           persistentVolumeClaim:
-            claimName: mantis-dind-storage
+            claimName: {{ $fullName }}-dind-storage
           {{- else }}
           emptyDir: {}
           {{- end }}

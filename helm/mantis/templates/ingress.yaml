@@ -1,18 +1,23 @@
 {{- if .Values.ingress.enabled }}
+{{- $fullName := include "mantis.fullname" . -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mantis
-  namespace: {{ include "mantis.namespace" . }}
+  name: {{ $fullName }}
   labels:
     {{- include "mantis.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- if or .Values.ingress.annotations .Values.ingress.certManagerIssuer }}
   annotations:
+    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.ingress.certManagerIssuer }}
+    cert-manager.io/cluster-issuer: {{ . | quote }}
+    {{- end }}
   {{- end }}
 spec:
-  {{- if .Values.ingress.ingressClassName }}
-  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . | quote }}
   {{- end }}
   {{- with .Values.ingress.tls }}
   tls:
@@ -29,6 +34,7 @@ spec:
                 name: app
                 port:
                   number: {{ .Values.app.port }}
+          {{- if .Values.frontend.enabled }}
           - path: /
             pathType: Prefix
             backend:
@@ -36,4 +42,5 @@ spec:
                 name: frontend
                 port:
                   number: {{ .Values.frontend.port }}
+          {{- end }}
 {{- end }}

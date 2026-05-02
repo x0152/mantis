@@ -1,0 +1,24 @@
+
+Mantis {{ .Chart.AppVersion }} → release "{{ .Release.Name }}" / namespace "{{ .Release.Namespace }}"
+
+Components:
+  app          : enabled = {{ .Values.app.enabled }} ({{ .Values.app.replicaCount }} replicas, port {{ .Values.app.port }})
+  frontend     : enabled = {{ .Values.frontend.enabled }} ({{ .Values.frontend.replicaCount }} replicas, port {{ .Values.frontend.port }})
+  postgres     : enabled = {{ .Values.postgres.enabled }}
+  migration    : enabled = {{ .Values.migration.enabled }}
+  runtime mode : {{ .Values.runtime.mode | default "dind" }}
+  ingress      : enabled = {{ .Values.ingress.enabled }}{{ if .Values.ingress.enabled }}, host = {{ .Values.ingress.host }}{{ end }}
+
+{{- if .Values.ingress.enabled }}
+
+Endpoints:
+  https://{{ .Values.ingress.host }}/        → frontend
+  https://{{ .Values.ingress.host }}/api     → app
+{{- else }}
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/app {{ .Values.app.port }}:{{ .Values.app.port }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/frontend 8081:{{ .Values.frontend.port }}
+{{- end }}
+
+  kubectl -n {{ .Release.Namespace }} get pods,svc,ingress,pvc
+  kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/instance={{ .Release.Name }} --tail=200

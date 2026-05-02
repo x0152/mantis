@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -142,10 +143,44 @@ func (w *Workflow) Execute(ctx context.Context, in Input) (Output, error) {
 	content := in.Content
 	if len(uploaded) > 0 {
 		var sb strings.Builder
-		sb.WriteString(content)
-		sb.WriteString("\n\nAttached files:")
-		for _, m := range uploaded {
-			sb.WriteString(fmt.Sprintf("\n- %s (artifact_id=%s, format=%s, %d bytes)", m.Name, m.ID, m.Format, m.SizeBytes))
+		sb.WriteString(strings.TrimRight(content, "\n"))
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		ttl := artifacts.TTL
+		for i, m := range uploaded {
+			if i > 0 {
+				sb.WriteString("\n")
+			}
+			mime := m.MIME
+			if mime == "" {
+				mime = m.Format
+			}
+			created := m.CreatedAt.UTC().Format(time.RFC3339)
+			expires := ""
+			if ttl > 0 {
+				expires = m.CreatedAt.Add(ttl).UTC().Format(time.RFC3339)
+			}
+			if expires != "" {
+				sb.WriteString(fmt.Sprintf(
+					`<attachment id="%s" name="%s" mime="%s" size="%d" created="%s" expires="%s" />`,
+					html.EscapeString(m.ID),
+					html.EscapeString(m.Name),
+					html.EscapeString(mime),
+					m.SizeBytes,
+					created,
+					expires,
+				))
+			} else {
+				sb.WriteString(fmt.Sprintf(
+					`<attachment id="%s" name="%s" mime="%s" size="%d" created="%s" />`,
+					html.EscapeString(m.ID),
+					html.EscapeString(m.Name),
+					html.EscapeString(mime),
+					m.SizeBytes,
+					created,
+				))
+			}
 		}
 		content = sb.String()
 	}

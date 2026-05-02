@@ -323,3 +323,139 @@ code, kbd, pre, samp, .font-mono {
     animation: none;
   }
 }
+
+@keyframes brain-halo-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+@keyframes brain-fissure-pulse {
+  0%, 100% { opacity: 0.22; }
+  50%      { opacity: 0.45; }
+}
+
+@keyframes brain-node-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.18); }
+}
+
+.brain-logo {
+  overflow: visible;
+}
+
+.brain-logo .brain-halo {
+  transform-origin: 32px 32px;
+  transform-box: view-box;
+  animation: brain-halo-breathe 3.6s ease-in-out infinite;
+}
+
+.brain-logo .brain-fissure {
+  animation: brain-fissure-pulse 3.2s ease-in-out infinite;
+}
+
+.brain-logo .brain-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: brain-node-pulse 2.6s ease-in-out infinite;
+}
+
+.brain-logo .brain-node-n1 { animation-delay: 0s;    }
+.brain-logo .brain-node-n2 { animation-delay: 0.35s; }
+.brain-logo .brain-node-n3 { animation-delay: 0.7s;  }
+.brain-logo .brain-node-n4 { animation-delay: 1.05s; }
+.brain-logo .brain-node-n5 { animation-delay: 0.5s;  }
+.brain-logo .brain-node-n6 { animation-delay: 0.85s; }
+.brain-logo .brain-node-n7 { animation-delay: 1.4s;  }
+
+.brain-logo:not(.brain-active) .brain-halo,
+.brain-logo:not(.brain-active) .brain-fissure,
+.brain-logo:not(.brain-active) .brain-node {
+  animation: none;
+}
+.brain-logo:not(.brain-active) .brain-halo {
+  opacity: 0.6;
+}
+.brain-logo:not(.brain-active) .brain-node {
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brain-logo .brain-halo,
+  .brain-logo .brain-fissure,
+  .brain-logo .brain-node,
+  .brain-logo .brain-pulse {
+    animation: none;
+  }
+  .brain-logo .brain-pulse {
+    display: none;
+  }
+}
+
+@keyframes typing-halo-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.94); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+@keyframes typing-caret-blink {
+  0%, 50%    { opacity: 1;    }
+  51%, 100%  { opacity: 0.25; }
+}
+
+.typing-logo {
+  overflow: visible;
+}
+
+.typing-logo .typing-halo {
+  transform-origin: 32px 32px;
+  transform-box: view-box;
+  animation: typing-halo-breathe 3.2s ease-in-out infinite;
+}
+
+.typing-logo .typing-glyph {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0.5;
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+  will-change: opacity, transform;
+}
+
+.typing-logo .typing-glyph.is-locked {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.typing-logo .typing-caret-bar {
+  animation: typing-caret-blink 1s steps(1, end) infinite;
+}
+
+.typing-logo:not(.typing-active) .typing-halo,
+.typing-logo:not(.typing-active) .typing-caret-bar {
+  animation: none;
+}
+.typing-logo:not(.typing-active) .typing-halo {
+  opacity: 0.55;
+}
+.typing-logo:not(.typing-active) .typing-glyph {
+  opacity: 0.4;
+  transform: scale(1);
+}
+.typing-logo:not(.typing-active) .typing-caret-bar {
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-logo .typing-halo,
+  .typing-logo .typing-glyph,
+  .typing-logo .typing-caret-bar {
+    animation: none;
+    transition: none;
+  }
+  .typing-logo .typing-glyph {
+    opacity: 0.7;
+  }
+  .typing-logo .typing-caret-bar {
+    opacity: 1;
+  }
+}

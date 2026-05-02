@@ -468,10 +468,42 @@ func (a *MantisAgent) checkSandboxRunning(ctx context.Context, conn types.Connec
 
 // --- Notification tools ---
 
+const telegramNotConfiguredHint = "Telegram is not connected. Run the setup wizard or set TG_BOT_TOKEN and TG_USER_IDS in the environment to enable Telegram delivery."
+
+func resolveTelegramRecipient(ctx context.Context, store protocols.Store[string, types.Channel]) (token string, chatID int64, err error) {
+	if store == nil {
+		return "", 0, errors.New(telegramNotConfiguredHint)
+	}
+	channels, listErr := store.List(ctx, types.ListQuery{})
+	if listErr != nil {
+		return "", 0, fmt.Errorf("failed to load channels: %w", listErr)
+	}
+	for _, ch := range channels {
+		if ch.Type != "telegram" || strings.TrimSpace(ch.Token) == "" {
+			continue
+		}
+		if token == "" {
+			token = strings.TrimSpace(ch.Token)
+		}
+		if len(ch.AllowedUserIDs) > 0 {
+			chatID = ch.AllowedUserIDs[0]
+			token = strings.TrimSpace(ch.Token)
+			break
+		}
+	}
+	if token == "" {
+		return "", 0, errors.New(telegramNotConfiguredHint)
+	}
+	if chatID == 0 {
+		return "", 0, errors.New("Telegram is connected but no recipient is configured. Add an allowed user ID in the channel settings or set TG_USER_IDS in the environment.")
+	}
+	return token, chatID, nil
+}
+
 func (a *MantisAgent) sendNotificationTool() types.Tool {
 	return types.Tool{
 		Name:        "send_notification",
-		Description: "Send a notification message to the user via Telegram. Use for alerts, reports, or delivering important information.",
+		Description: "Send a notification message to the user via Telegram. Use for alerts, reports, or delivering important information. If Telegram is not connected, the tool returns a clear hint and the caller should fall back to the active reply channel.",
 		Icon:        "bell",
 		Label: func(args string) string {
 			var input struct {
@@ -495,9 +527,6 @@ func (a *MantisAgent) sendNotificationTool() types.Tool {
 			"required": []string{"text"},
 		},
 		Execute: func(ctx context.Context, args string) (string, error) {
-			if a.channelStore == nil {
-				return "", fmt.Errorf("channels are not configured")
-			}
 			var input struct {
 				Text string `json:"text"`
 			}
@@ -509,33 +538,10 @@ func (a *MantisAgent) sendNotificationTool() types.Tool {
 				return "", fmt.Errorf("text is required")
 			}
 
-			channels, err := a.channelStore.List(ctx, types.ListQuery{})
+			token, chatID, err := resolveTelegramRecipient(ctx, a.channelStore)
 			if err != nil {
-				return "", fmt.Errorf("failed to load channels: %w", err)
+				return "", err
 			}
-
-			var token string
-			var chatID int64
-			for _, ch := range channels {
-				if ch.Type != "telegram" || strings.TrimSpace(ch.Token) == "" {
-					continue
-				}
-				if token == "" {
-					token = strings.TrimSpace(ch.Token)
-				}
-				if len(ch.AllowedUserIDs) > 0 {
-					chatID = ch.AllowedUserIDs[0]
-					token = strings.TrimSpace(ch.Token)
-					break
-				}
-			}
-			if token == "" {
-				return "", fmt.Errorf("no telegram channel configured")
-			}
-			if chatID == 0 {
-				return "", fmt.Errorf("no telegram recipient found (set allowedUserIds in telegram channel)")
-			}
-
 			if err := sendTelegramMessage(token, chatID, text); err != nil {
 				return "", err
 			}
@@ -1368,30 +1374,9 @@ func (a *MantisAgent) buildSendFileTelegramTool(artifacts *shared.ArtifactStore,
 				fileName = art.Name
 			}
 
-			channels, err := a.channelStore.List(ctx, types.ListQuery{})
+			token, chatID, err := resolveTelegramRecipient(ctx, a.channelStore)
 			if err != nil {
-				return "", fmt.Errorf("failed to load channels: %w", err)
-			}
-			var token string
-			var chatID int64
-			for _, ch := range channels {
-				if ch.Type != "telegram" || strings.TrimSpace(ch.Token) == "" {
-					continue
-				}
-				if token == "" {
-					token = strings.TrimSpace(ch.Token)
-				}
-				if len(ch.AllowedUserIDs) > 0 {
-					chatID = ch.AllowedUserIDs[0]
-					token = strings.TrimSpace(ch.Token)
-					break
-				}
-			}
-			if token == "" {
-				return "", fmt.Errorf("no telegram channel configured")
-			}
-			if chatID == 0 {
-				return "", fmt.Errorf("no telegram recipient found")
+				return "", err
 			}
 
 			if err := sendTelegramDocument(ctx, token, chatID, fileName, art.Bytes, input.Caption); err != nil {

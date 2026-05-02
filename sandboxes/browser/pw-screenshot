@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 const { execSync } = require('child_process');
 process.env.NODE_PATH = execSync('npm root -g', { encoding: 'utf8' }).trim();
+// SSH sessions do not always inherit container ENV, so force the shared Playwright cache path.
+process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '/ms-playwright';
 require('module')._initPaths();
 
 const { chromium } = require('playwright');

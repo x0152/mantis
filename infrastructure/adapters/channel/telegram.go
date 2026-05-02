@@ -375,14 +375,14 @@ func (t *Telegram) handle(ctx context.Context, msg *tgMessage) {
 		}
 	}
 
-	const maxBytes = 10 * 1024 * 1024
+	const maxBytes = 10 * 1024 * 1024 * 1024
 	var incoming []FileAttachment
 	appendFile := func(fileID string, fileSize int64, name, mime string) error {
 		if fileID == "" {
 			return nil
 		}
 		if fileSize > 0 && fileSize > maxBytes {
-			return fmt.Errorf("file too large (%d bytes, max %d)", fileSize, maxBytes)
+			return fmt.Errorf("file is too large (%d bytes). Max size is 10 GB", fileSize)
 		}
 		filePath, err := t.getFilePath(ctx, fileID)
 		if err != nil {

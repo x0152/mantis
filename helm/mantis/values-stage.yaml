@@ -1,0 +1,10 @@
+ingress:
+  host: stage.mantis.example.com
+  certManagerIssuer: ""
+
+config:
+  postgres:
+    sslmode: "disable"
+
+postgres:
+  enabled: true

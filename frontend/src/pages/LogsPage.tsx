@@ -159,7 +159,7 @@ export default function LogsPage() {
           const rest = prev.filter(x => !seen.has(x.id))
           return [...l, ...rest]
         })
-      } catch { /* noop */ }
+      } catch {}
     }, 5000)
     return () => clearInterval(interval)
   }, [selectedConn])

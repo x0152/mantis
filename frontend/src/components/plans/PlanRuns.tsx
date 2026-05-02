@@ -87,9 +87,7 @@ export default function PlanRuns({ planId, planNodes, planParameters, onActiveSt
         const expanded = data.find(r => r.id === expandedId)
         if (expanded) onActiveSteps(expanded.steps)
       }
-    } catch {
-      // backend may not have the migration yet
-    } finally {
+    } catch {} finally {
       setLoading(false)
     }
   }, [planId, expandedId, onActiveSteps])
@@ -107,9 +105,7 @@ export default function PlanRuns({ planId, planNodes, planParameters, onActiveSt
     try {
       const msgs = await api.chat.listMessages({ sessionId: `plan:${planId}:${runId}` })
       setRunMessages(prev => ({ ...prev, [runId]: msgs }))
-    } catch {
-      // no messages yet
-    }
+    } catch {}
   }, [planId])
 
   const toggle = (run: PlanRun) => {

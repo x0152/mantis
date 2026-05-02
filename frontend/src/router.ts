@@ -2,12 +2,11 @@ export type Route =
   | { page: 'chat'; sessionId?: string }
   | { page: 'plans'; planId?: string }
   | { page: 'channels' }
-  | { page: 'connections' }
+  | { page: 'hosts' }
   | { page: 'skills' }
   | { page: 'logs' }
   | { page: 'llm' }
   | { page: 'guard-profiles' }
-  | { page: 'runtimes' }
 
 export type PageId = Route['page']
 
@@ -17,12 +16,13 @@ const patterns: [RegExp, (m: RegExpMatchArray) => Route][] = [
   [/^\/plans\/(.+)$/, m => ({ page: 'plans', planId: m[1] })],
   [/^\/plans\/?$/, () => ({ page: 'plans' })],
   [/^\/channels\/?$/, () => ({ page: 'channels' })],
-  [/^\/connections\/?$/, () => ({ page: 'connections' })],
+  [/^\/hosts\/?$/, () => ({ page: 'hosts' })],
+  [/^\/connections\/?$/, () => ({ page: 'hosts' })],
+  [/^\/runtimes\/?$/, () => ({ page: 'hosts' })],
   [/^\/skills\/?$/, () => ({ page: 'skills' })],
   [/^\/logs\/?$/, () => ({ page: 'logs' })],
   [/^\/llm\/?$/, () => ({ page: 'llm' })],
   [/^\/guard-profiles\/?$/, () => ({ page: 'guard-profiles' })],
-  [/^\/runtimes\/?$/, () => ({ page: 'runtimes' })],
 ]
 
 export function parseRoute(path = window.location.pathname): Route {

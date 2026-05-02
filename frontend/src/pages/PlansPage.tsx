@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/EmptyState'
 import { ConfirmDelete } from '@/components/ConfirmDelete'
+import { navigate } from '../router'
 
 const emptyPlan: Plan = {
   id: '',
@@ -41,17 +42,10 @@ export default function PlansPage({ deepPlanId }: { deepPlanId?: string }) {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    if (!deepPlanId) return
+    if (!deepPlanId || loading) return
     const found = plans.find(p => p.id === deepPlanId)
-    if (found) {
-      setActivePlan(found)
-    } else if (!loading) {
-      load().then(list => {
-        const p = list.find((x: Plan) => x.id === deepPlanId)
-        if (p) setActivePlan(p)
-      })
-    }
-  }, [deepPlanId])
+    if (found) setActivePlan(found)
+  }, [deepPlanId, loading, plans])
 
   const toggleEnabled = async (plan: Plan, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -86,7 +80,11 @@ export default function PlansPage({ deepPlanId }: { deepPlanId?: string }) {
     return (
       <PlanEditor
         plan={activePlan}
-        onBack={() => { setActivePlan(null); load() }}
+        onBack={() => {
+          setActivePlan(null)
+          if (deepPlanId) navigate({ page: 'plans' })
+          load()
+        }}
         onSaved={load}
       />
     )

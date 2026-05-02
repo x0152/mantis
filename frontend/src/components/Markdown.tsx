@@ -2,6 +2,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import { ThinkingBlock } from './ThinkingBlock'
+import {
+  AttachmentBadgeRow,
+  hasAttachmentTags,
+  parseAttachmentBlocks,
+} from './AttachmentTag'
 
 type Segment =
   | { type: 'text'; content: string }
@@ -31,7 +36,13 @@ function splitThinking(input: string): Segment[] {
   return segments
 }
 
-export function Markdown({ content }: { content: string }) {
+export function Markdown({
+  content,
+  sessionId,
+}: {
+  content: string
+  sessionId?: string
+}) {
   if (!content) return null
 
   const segments = splitThinking(content)
@@ -43,9 +54,36 @@ export function Markdown({ content }: { content: string }) {
           return <ThinkingBlock key={i} content={seg.content} streaming={seg.streaming} />
         }
         if (!seg.content) return null
-        return <MarkdownSegment key={i} content={seg.content} />
+        return <MarkdownTextSegment key={i} content={seg.content} sessionId={sessionId} />
       })}
     </div>
+  )
+}
+
+function MarkdownTextSegment({
+  content,
+  sessionId,
+}: {
+  content: string
+  sessionId?: string
+}) {
+  if (!sessionId || !hasAttachmentTags(content)) {
+    return <MarkdownSegment content={content} />
+  }
+  const blocks = parseAttachmentBlocks(content)
+  return (
+    <>
+      {blocks.map((block, i) => {
+        if (block.type === 'text') {
+          return <MarkdownSegment key={i} content={block.text} />
+        }
+        return (
+          <div key={i} className="my-1.5">
+            <AttachmentBadgeRow items={block.items} sessionId={sessionId} variant="message" />
+          </div>
+        )
+      })}
+    </>
   )
 }
 

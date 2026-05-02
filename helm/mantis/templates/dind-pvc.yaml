@@ -2,17 +2,17 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mantis-dind-storage
-  namespace: {{ include "mantis.namespace" . }}
+  name: {{ include "mantis.fullname" . }}-dind-storage
   labels:
     {{- include "mantis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: {{ .Values.runtime.dind.storage.size }}
-  {{- if .Values.runtime.dind.storage.storageClassName }}
-  storageClassName: {{ .Values.runtime.dind.storage.storageClassName | quote }}
+  {{- with .Values.runtime.dind.storage.storageClassName }}
+  storageClassName: {{ . | quote }}
   {{- end }}
 {{- end }}

@@ -1,0 +1,30 @@
+{{- $pgHost := .Values.config.postgres.host -}}
+{{- if and (not $pgHost) .Values.postgres.enabled -}}
+  {{- $pgHost = "postgres" -}}
+{{- end -}}
+{{- $pgPort := .Values.config.postgres.port -}}
+{{- if not $pgPort -}}
+  {{- $pgPort = .Values.postgres.port | toString -}}
+{{- end -}}
+{{- if not .Values.global.configName }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mantis.configName" . }}
+  labels:
+    {{- include "mantis.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.app.port | quote }}
+  ATTACHMENT_DIR: {{ .Values.config.app.attachmentDir | quote }}
+  POSTGRES_HOST: {{ $pgHost | quote }}
+  POSTGRES_PORT: {{ $pgPort | quote }}
+  POSTGRES_SSLMODE: {{ .Values.config.postgres.sslmode | quote }}
+  AUTH_USER_NAME: {{ .Values.config.auth.userName | quote }}
+  AUTH_RATE_LIMIT_MAX: {{ .Values.config.auth.rateLimitMax | quote }}
+  AUTH_RATE_LIMIT_WINDOW: {{ .Values.config.auth.rateLimitWindow | quote }}
+  ASR_API_URL: {{ .Values.config.asr.apiUrl | quote }}
+  OCR_API_URL: {{ .Values.config.ocr.apiUrl | quote }}
+  TTS_API_URL: {{ .Values.config.tts.apiUrl | quote }}
+  GONKA_DEFAULT_NODE_URL: {{ .Values.config.gonka.defaultNodeUrl | quote }}
+  GONKA_NODE_URL: {{ .Values.config.gonka.nodeUrl | quote }}
+{{- end }}

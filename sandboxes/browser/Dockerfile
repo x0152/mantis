@@ -3,6 +3,7 @@ FROM mcr.microsoft.com/playwright:v1.50.0-noble
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN npm install -g playwright@1.50.0 && \
+    npx playwright install chromium && \
     apt-get update && \
     apt-get install -y openssh-server jq && \
     rm -rf /var/lib/apt/lists/* && \

@@ -1,26 +1,34 @@
 global:
-  namespace: mantis
+  nameOverride: ""
+  fullnameOverride: ""
+  timezone: "UTC"
+  secretName: ""
+  configName: ""
   imagePullSecrets: []
 
-# ===========================================
-# Ingress — routes /api to app, everything else to frontend
-# ===========================================
-ingress:
-  enabled: true
-  host: mantis.example.com
-  ingressClassName: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-  tls: []
-  # - secretName: mantis-tls
-  #   hosts:
-  #     - mantis.example.com
+config:
+  app:
+    port: "8080"
+    attachmentDir: "/data/attachments"
+  postgres:
+    # empty + postgres.enabled=true → falls back to in-cluster postgres Service
+    host: ""
+    port: ""
+    sslmode: "disable"
+  auth:
+    userName: "admin"
+    rateLimitMax: "5"
+    rateLimitWindow: "15m"
+  asr:
+    apiUrl: ""
+  ocr:
+    apiUrl: ""
+  tts:
+    apiUrl: ""
+  gonka:
+    defaultNodeUrl: "http://node1.gonka.ai:8000"
+    nodeUrl: ""
 
-# ===========================================
-# Backend (Go)
-# ===========================================
 app:
   enabled: true
   replicaCount: 1
@@ -29,14 +37,7 @@ app:
     repository: mantis
     tag: latest
     pullPolicy: IfNotPresent
-  env:
-    AUTH_TOKEN: ""
-    AUTH_USER_NAME: "admin"
-    AUTH_RATE_LIMIT_MAX: "5"
-    AUTH_RATE_LIMIT_WINDOW: "15m"
-    ASR_API_URL: ""
-    OCR_API_URL: ""
-    TTS_API_URL: ""
+  extraEnv: []
   resources:
     requests:
       memory: 256Mi
@@ -53,9 +54,6 @@ app:
     storage: 20Gi
     storageClassName: ""
 
-# ===========================================
-# Frontend (nginx + built SPA)
-# ===========================================
 frontend:
   enabled: true
   replicaCount: 1
@@ -72,9 +70,6 @@ frontend:
       memory: 256Mi
       cpu: 200m
 
-# ===========================================
-# PostgreSQL (simple single-node deployment)
-# ===========================================
 postgres:
   enabled: true
   image: postgres:17-alpine
@@ -89,53 +84,45 @@ postgres:
       memory: 1Gi
       cpu: 1000m
 
-# ===========================================
-# DB migration job (goose)
-# ===========================================
 migration:
   enabled: true
+  backoffLimit: 3
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
 
-# ===========================================
-# Secrets (base64 in template, plain text here)
-# ===========================================
+ingress:
+  enabled: true
+  host: mantis.example.com
+  ingressClassName: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10g"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  certManagerIssuer: ""
+  tls: []
+
 secrets:
   postgres:
     user: postgres
     password: postgres
     db: mantis
+  authToken: ""
+  gonkaPrivateKey: ""
 
-# ===========================================
-# Runtime — the app provisions sandbox containers itself by writing
-# Dockerfiles into the connections table on startup. For that to work
-# the app needs access to a Docker daemon. The chart supports two modes:
-#
-#   mode: dind          (default) ship a privileged Docker-in-Docker sidecar
-#                       inside the same pod as the app, share the docker
-#                       socket via an emptyDir, and keep image layers on
-#                       a PVC so they survive restarts. Works on any
-#                       Kubernetes cluster that allows privileged pods.
-#
-#   mode: hostSocket    mount the host's /var/run/docker.sock via hostPath.
-#                       Only works when the cluster nodes run Docker (e.g.
-#                       single-node k3s on Docker, kind, dev VMs).
-#
-# The Mantis app speaks Docker API over the Unix socket regardless of mode.
-# Sandbox containers live inside the chosen daemon and Mantis dials them
-# by container IP (returned by the runtime), so no extra DNS plumbing is
-# required.
-# ===========================================
+# dind requires privileged pods; switch to hostSocket on k3s/kind/dev VMs.
 runtime:
   mode: dind
   dockerSocket: /var/run/docker.sock
   network: mantis-sandbox-net
-  # Capabilities granted to every sandbox container on top of per-template
-  # additions. Comma-separated CAP_* names; the literal "ALL" enables fully
-  # privileged mode (--privileged). Default covers ping/traceroute/nmap.
   sandboxCaps: "NET_RAW,NET_ADMIN"
+  apiToken: ""
   dind:
     image: docker:24-dind
-    # Image layer cache. Persisting it makes sandbox rebuilds fast and
-    # keeps state across pod restarts.
     storage:
       enabled: true
       size: 30Gi

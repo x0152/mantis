@@ -72,7 +72,7 @@ func TestGonkaGetInferenceLimit_ServerError(t *testing.T) {
 
 	g := NewGonka()
 	_, err := g.GetInferenceLimit(context.Background(), server.URL, gonkaTestPrivateKey)
-	if err == nil || !strings.Contains(err.Error(), "gonka balance API error 500") {
-		t.Fatalf("expected balance API error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "gonka chain API error 500") {
+		t.Fatalf("expected chain API error, got %v", err)
 	}
 }

@@ -4,24 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math/big"
-	"net/http"
+	"net/url"
 	"sort"
 	"strings"
-	"time"
 
 	gonkaopenai "github.com/gonka-ai/gonka-openai/go"
 	"github.com/openai/openai-go"
 
 	"mantis/core/protocols"
 	"mantis/core/types"
+	"mantis/infrastructure/gonkachain"
 	"mantis/shared"
-)
-
-const (
-	gonkaDenom    = "ngonka"
-	gonkaDecimals = 9
 )
 
 type Gonka struct {
@@ -56,9 +49,9 @@ func (g *Gonka) ListModels(ctx context.Context, baseURL, apiKey string) ([]types
 }
 
 func (g *Gonka) GetInferenceLimit(ctx context.Context, baseURL, apiKey string) (types.InferenceLimit, error) {
-	sourceURL := strings.TrimSpace(baseURL)
-	if sourceURL == "" {
-		return types.InferenceLimit{}, fmt.Errorf("gonka source URL is required")
+	sourceURL, err := normalizeGonkaSourceURL(baseURL)
+	if err != nil {
+		return types.InferenceLimit{}, err
 	}
 	privateKey := strings.TrimSpace(apiKey)
 	if privateKey == "" {
@@ -70,15 +63,15 @@ func (g *Gonka) GetInferenceLimit(ctx context.Context, baseURL, apiKey string) (
 		return types.InferenceLimit{}, fmt.Errorf("derive Gonka address: %w", err)
 	}
 
-	amount, err := queryGonkaBalance(ctx, sourceURL, address, gonkaDenom)
+	amount, err := gonkachain.QueryBalance(ctx, sourceURL, address)
 	if err != nil {
 		return types.InferenceLimit{}, err
 	}
 
-	gnk := tokenFloat(amount, gonkaDecimals)
+	gnk := gonkachain.TokenFloat(amount)
 	return types.InferenceLimit{
 		Type:  "balance",
-		Label: fmt.Sprintf("Balance: %s GNK", formatBalanceFloat(gnk)),
+		Label: fmt.Sprintf("Balance: %s GNK", gonkachain.FormatBalance(gnk)),
 	}, nil
 }
 
@@ -185,9 +178,27 @@ func (g *Gonka) ChatStream(ctx context.Context, _ string, baseURL, apiKey string
 }
 
 func (g *Gonka) newClient(baseURL, apiKey string) (*gonkaopenai.GonkaOpenAI, error) {
-	sourceURL := strings.TrimSpace(baseURL)
-	if sourceURL == "" {
-		return nil, fmt.Errorf("gonka source URL is required")
+	sourceURL, err := normalizeGonkaSourceURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	endpoints, err := gonkaopenai.GetParticipantsWithProof(context.Background(), sourceURL, "current")
+	if err != nil {
+		return nil, fmt.Errorf("resolve gonka endpoints: %w", err)
+	}
+	if allowed, allowedErr := gonkaopenai.FetchAllowedTransferAddresses(context.Background(), sourceURL); allowedErr == nil && len(allowed) > 0 {
+		filtered := make([]gonkaopenai.Endpoint, 0, len(endpoints))
+		for _, ep := range endpoints {
+			if allowed[ep.Address] {
+				filtered = append(filtered, ep)
+			}
+		}
+		if len(filtered) > 0 {
+			endpoints = filtered
+		}
+	}
+	if len(endpoints) == 0 {
+		return nil, fmt.Errorf("no gonka endpoints resolved from %q", sourceURL)
 	}
 	privateKey := strings.TrimSpace(apiKey)
 	if privateKey == "" {
@@ -196,8 +207,25 @@ func (g *Gonka) newClient(baseURL, apiKey string) (*gonkaopenai.GonkaOpenAI, err
 
 	return gonkaopenai.NewGonkaOpenAI(gonkaopenai.Options{
 		GonkaPrivateKey: privateKey,
-		SourceUrl:       sourceURL,
+		// Passing explicit endpoints bypasses flaky SDK-side filtering by chain params.
+		Endpoints: endpoints,
 	})
+}
+
+func normalizeGonkaSourceURL(raw string) (string, error) {
+	sourceURL := strings.TrimSpace(raw)
+	if sourceURL == "" {
+		return "", fmt.Errorf("gonka source URL is required")
+	}
+	// Allow "host:port" input from UI by auto-prefixing scheme.
+	if !strings.Contains(sourceURL, "://") {
+		sourceURL = "http://" + sourceURL
+	}
+	u, err := url.Parse(sourceURL)
+	if err != nil || strings.TrimSpace(u.Scheme) == "" || strings.TrimSpace(u.Host) == "" {
+		return "", fmt.Errorf("invalid gonka source URL %q", strings.TrimSpace(raw))
+	}
+	return strings.TrimRight(sourceURL, "/"), nil
 }
 
 func buildGonkaMessages(messages []protocols.LLMMessage) []openai.ChatCompletionMessageParamUnion {
@@ -272,77 +300,6 @@ func buildGonkaTools(tools []types.Tool) []openai.ChatCompletionToolParam {
 		out = append(out, openai.ChatCompletionToolParam{Function: fn})
 	}
 	return out
-}
-
-func queryGonkaBalance(ctx context.Context, sourceURL, address, denom string) (*big.Int, error) {
-	base := strings.TrimSuffix(strings.TrimRight(sourceURL, "/"), "/v1")
-	url := base + "/chain-api/cosmos/bank/v1beta1/balances/" + address
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("query gonka balance: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("gonka balance API error %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var payload struct {
-		Balances []struct {
-			Denom  string `json:"denom"`
-			Amount string `json:"amount"`
-		} `json:"balances"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("decode gonka balances: %w", err)
-	}
-
-	for _, b := range payload.Balances {
-		if b.Denom != denom {
-			continue
-		}
-		v, ok := new(big.Int).SetString(b.Amount, 10)
-		if !ok {
-			return nil, fmt.Errorf("invalid gonka balance amount: %q", b.Amount)
-		}
-		return v, nil
-	}
-
-	return big.NewInt(0), nil
-}
-
-func tokenFloat(amount *big.Int, decimals int) float64 {
-	if amount == nil {
-		return 0
-	}
-	denom := new(big.Float).SetFloat64(1)
-	for i := 0; i < decimals; i++ {
-		denom.Mul(denom, big.NewFloat(10))
-	}
-	f, _ := new(big.Float).Quo(new(big.Float).SetInt(amount), denom).Float64()
-	return f
-}
-
-func formatBalanceFloat(v float64) string {
-	switch {
-	case v >= 1000:
-		return fmt.Sprintf("%.0f", v)
-	case v >= 1:
-		return fmt.Sprintf("%.2f", v)
-	case v > 0:
-		return fmt.Sprintf("%.4f", v)
-	default:
-		return "0"
-	}
 }
 
 func gonkaReasoningContent(chunk openai.ChatCompletionChunk) string {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronRight } from '@/lib/icons'
-import { MantisLogo } from './MantisLogo'
+import { BrainThinking } from './BrainThinking'
 
 export function ThinkingBlock({ content, streaming }: { content: string; streaming: boolean }) {
   const [open, setOpen] = useState(false)
@@ -18,9 +18,9 @@ export function ThinkingBlock({ content, streaming }: { content: string; streami
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 px-2.5 py-1 text-left font-mono text-[11px] lowercase tracking-tight text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-colors"
       >
-        <MantisLogo
-          size={12}
-          state={streaming ? 'thinking' : 'idle'}
+        <BrainThinking
+          size={20}
+          active={streaming}
           className="shrink-0"
         />
         <span>{streaming ? 'thinking' : 'thoughts'}</span>

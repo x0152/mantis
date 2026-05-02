@@ -1,16 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plug, ScrollText, Sparkles, Radio, ShieldAlert, Wrench, GitBranch, LogOut, Container } from '@/lib/icons'
+import { ScrollText, Sparkles, ShieldAlert, Wrench, GitBranch, LogOut, Container } from '@/lib/icons'
 import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 import LlmPage from './pages/LlmPage'
-import ConnectionsPage from './pages/ConnectionsPage'
+import HostsPage from './pages/HostsPage'
 import ChannelsPage from './pages/ChannelsPage'
 import ChatPage from './pages/ChatPage'
 import LogsPage from './pages/LogsPage'
 import GuardProfilesPage from './pages/GuardProfilesPage'
 import SkillsPage from './pages/SkillsPage'
 import PlansPage from './pages/PlansPage'
-import RuntimesPage from './pages/RuntimesPage'
 import SetupWizard from './pages/SetupWizard'
 import LoginPage from './pages/LoginPage'
 import ChatSidebar from './components/ChatSidebar'
@@ -36,10 +35,8 @@ const nav: NavSection[] = [
     title: 'Configuration',
     items: [
       { id: 'llm', label: 'AI Engine', icon: Sparkles },
-      { id: 'connections', label: 'Servers', icon: Plug },
-      { id: 'runtimes', label: 'Runtimes', icon: Container },
+      { id: 'hosts', label: 'Hosts', icon: Container },
       { id: 'skills', label: 'Skills', icon: Wrench },
-      { id: 'channels', label: 'Channels', icon: Radio },
     ],
   },
   {
@@ -99,6 +96,7 @@ export default function App() {
     if (needsSetup === false && !activeSessionId) {
       api.chat.getSession().then(s => {
         setActiveSessionId(s.id)
+        setSidebarRefreshKey(k => k + 1)
         if (route.page === 'chat') navigate({ page: 'chat', sessionId: s.id })
       }).catch(() => {})
     }
@@ -216,8 +214,7 @@ export default function App() {
         {route.page === 'chat' && <ChatPage sessionId={activeSessionId ?? ''} onFirstMessage={handleFirstMessage} />}
         {route.page === 'channels' && <ChannelsPage />}
         {route.page === 'llm' && <LlmPage />}
-        {route.page === 'connections' && <ConnectionsPage />}
-        {route.page === 'runtimes' && <RuntimesPage />}
+        {route.page === 'hosts' && <HostsPage />}
         {route.page === 'skills' && <SkillsPage />}
         {route.page === 'plans' && <PlansPage deepPlanId={planId} key={planId ?? '_'} />}
         {route.page === 'logs' && <LogsPage />}

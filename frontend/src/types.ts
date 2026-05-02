@@ -21,6 +21,51 @@ export interface InferenceLimit {
   label: string
 }
 
+export interface GonkaConfig {
+  defaultNodeUrl: string
+  inferencedAvailable: boolean
+  hasPresetPrivateKey: boolean
+  hasPresetNodeUrl: boolean
+  minBalanceGnk: string
+}
+
+export interface GonkaWallet {
+  address: string
+  privateKeyHex: string
+  mnemonic: string
+  words: string[]
+}
+
+export interface GonkaBalance {
+  address: string
+  nodeUrl: string
+  amount: string
+  gnk: number
+  label: string
+}
+
+export interface GonkaAccountStatus {
+  address: string
+  exists: boolean
+  pubKeyPublished: boolean
+  accountNumber?: number
+}
+
+export interface TelegramWizardBot {
+  id: number
+  username: string
+  name: string
+  link: string
+  code: string
+  deepLink: string
+}
+
+export interface TelegramWizardUser {
+  id: number
+  username?: string
+  name: string
+}
+
 export interface Settings {
   id: string
   chatPresetId: string

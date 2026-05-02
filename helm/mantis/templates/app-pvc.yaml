@@ -2,17 +2,17 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mantis-attachments
-  namespace: {{ include "mantis.namespace" . }}
+  name: {{ include "mantis.fullname" . }}-attachments
   labels:
     {{- include "mantis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: {{ .Values.app.attachments.storage }}
-  {{- if .Values.app.attachments.storageClassName }}
-  storageClassName: {{ .Values.app.attachments.storageClassName | quote }}
+  {{- with .Values.app.attachments.storageClassName }}
+  storageClassName: {{ . | quote }}
   {{- end }}
 {{- end }}

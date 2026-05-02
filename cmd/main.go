@@ -22,6 +22,7 @@ import (
 
 	authapp "mantis/apps/auth"
 	"mantis/apps/chat"
+	gonkaapp "mantis/apps/gonka"
 	"mantis/apps/logs"
 	"mantis/apps/metadata"
 	plansapp "mantis/apps/plans"
@@ -48,6 +49,7 @@ import (
 	"mantis/infrastructure/mappers"
 	"mantis/infrastructure/models"
 	"mantis/shared"
+	"mantis/shared/httplog"
 )
 
 func main() {
@@ -219,6 +221,7 @@ func main() {
 		envInt("AUTH_RATE_LIMIT_MAX", 5),
 		envDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
 	)
+	r.Use(httplog.Middleware)
 	r.Use(loginLimiter.Middleware("/api/auth/login"))
 	r.Use(auth.Middleware(userStore, isPublicPathFactory(env("RUNTIME_API_TOKEN", ""))))
 
@@ -228,6 +231,15 @@ func main() {
 	metadataApp.Register(api)
 	chatApp.Register(api)
 	logsApp.Register(api)
+	telegramApp.Register(api)
+
+	gonkaApp := gonkaapp.NewApp(gonkaapp.Options{
+		BinaryPath:       env("GONKA_INFERENCED_BIN", ""),
+		DefaultNodeURL:   env("GONKA_DEFAULT_NODE_URL", "http://node1.gonka.ai:8000"),
+		HasPresetPK:      os.Getenv("GONKA_PRIVATE_KEY") != "",
+		HasPresetNodeURL: os.Getenv("GONKA_NODE_URL") != "",
+	})
+	gonkaApp.Register(api)
 
 	if mode := env("RUNTIME_MODE", ""); mode == "docker" {
 		caps, privileged := parseSandboxCaps(env("RUNTIME_SANDBOX_CAPS", "NET_RAW,NET_ADMIN"))

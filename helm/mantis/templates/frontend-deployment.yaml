@@ -1,12 +1,12 @@
 {{- if .Values.frontend.enabled }}
+{{- $fullName := include "mantis.fullname" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mantis-frontend
-  namespace: {{ include "mantis.namespace" . }}
+  name: {{ $fullName }}-frontend
   labels:
-    app: mantis-frontend
     {{- include "mantis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   strategy:
@@ -16,11 +16,13 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: mantis-frontend
+      {{- include "mantis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
   template:
     metadata:
       labels:
-        app: mantis-frontend
+        {{- include "mantis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
     spec:
       {{- include "mantis.imagePullSecrets" . | nindent 6 }}
       containers:
@@ -31,6 +33,9 @@ spec:
             - name: http
               containerPort: {{ .Values.frontend.port }}
               protocol: TCP
+          env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "UTC" | quote }}
           readinessProbe:
             httpGet:
               path: /

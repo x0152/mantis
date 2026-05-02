@@ -43,7 +43,7 @@ func (e *Endpoints) Register(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "update-chat-session", Method: http.MethodPut, Path: "/api/chat/sessions/{id}"}, e.updateSession)
 	huma.Register(api, huma.Operation{OperationID: "delete-chat-session", Method: http.MethodDelete, Path: "/api/chat/sessions/{id}", DefaultStatus: 204}, e.deleteSession)
 	huma.Register(api, huma.Operation{OperationID: "list-chat-messages", Method: http.MethodGet, Path: "/api/chat/messages"}, e.listMessages)
-	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201, MaxBodyBytes: 64 * 1024 * 1024}, e.sendMessage)
+	huma.Register(api, huma.Operation{OperationID: "send-chat-message", Method: http.MethodPost, Path: "/api/chat/messages", DefaultStatus: 201, MaxBodyBytes: 10 * 1024 * 1024 * 1024}, e.sendMessage)
 	huma.Register(api, huma.Operation{OperationID: "regenerate-chat-last", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/regenerate", DefaultStatus: 201}, e.regenerate)
 	huma.Register(api, huma.Operation{OperationID: "stop-chat-session", Method: http.MethodPost, Path: "/api/chat/sessions/{id}/stop"}, e.stopSession)
 	huma.Register(api, huma.Operation{OperationID: "get-chat-context-status", Method: http.MethodGet, Path: "/api/chat/sessions/{id}/context"}, e.getContextStatus)
@@ -122,6 +122,8 @@ func (e *Endpoints) sendMessage(ctx context.Context, input *SendMessageInput) (*
 		return nil, huma.NewError(http.StatusBadRequest, "content or files are required")
 	}
 
+	const maxFileBytes = 10 * 1024 * 1024 * 1024
+
 	files := make([]protocols.FileAttachment, 0, len(input.Body.Files))
 	for _, f := range input.Body.Files {
 		data, err := base64.StdEncoding.DecodeString(f.DataBase64)
@@ -130,6 +132,9 @@ func (e *Endpoints) sendMessage(ctx context.Context, input *SendMessageInput) (*
 		}
 		if len(data) == 0 {
 			continue
+		}
+		if len(data) > maxFileBytes {
+			return nil, huma.NewError(http.StatusBadRequest, "file "+f.FileName+" is too large. Max file size is 10 GB")
 		}
 		files = append(files, protocols.FileAttachment{
 			FileName: f.FileName,

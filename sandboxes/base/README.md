@@ -160,4 +160,4 @@ for u in data[:5]: print(u['id'], u['name'])
   `/tmp`, `/run` and `/var/log` are tmpfs and reset on every boot.
 - For browser automation use the `browser` sandbox, for media the `ffmpeg`
   sandbox, for pentest tooling the `netsec` sandbox.
-- To send a result to the user, use `ssh_download` + `artifact_send_to_chat`.
+- To send a result to the user, use `ssh_download` + `send_file`.

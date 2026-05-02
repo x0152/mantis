@@ -14,7 +14,7 @@ func downloadSSHFile(cfg SSHConfig, remotePath string, maxBytes int64) ([]byte, 
 		return nil, fmt.Errorf("remote_path is required")
 	}
 	if maxBytes <= 0 {
-		maxBytes = 10 * 1024 * 1024
+		maxBytes = 10 * 1024 * 1024 * 1024
 	}
 
 	client, err := dialSSH(cfg, 15*time.Second)
@@ -37,7 +37,7 @@ func downloadSSHFile(cfg SSHConfig, remotePath string, maxBytes int64) ([]byte, 
 
 	if st, err := f.Stat(); err == nil {
 		if st.Size() > maxBytes {
-			return nil, fmt.Errorf("remote file too large: %d bytes (max %d)", st.Size(), maxBytes)
+			return nil, fmt.Errorf("remote file is too large (%d bytes). Max size is 10 GB", st.Size())
 		}
 	}
 
@@ -47,7 +47,7 @@ func downloadSSHFile(cfg SSHConfig, remotePath string, maxBytes int64) ([]byte, 
 		return nil, fmt.Errorf("read remote file: %w", err)
 	}
 	if int64(len(data)) > maxBytes {
-		return nil, fmt.Errorf("remote file too large: %d bytes (max %d)", len(data), maxBytes)
+		return nil, fmt.Errorf("remote file is too large (%d bytes). Max size is 10 GB", len(data))
 	}
 	return data, nil
 }

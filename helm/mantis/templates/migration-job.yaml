@@ -2,63 +2,62 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: mantis-migrate-{{ .Values.app.image.tag | replace "." "-" | replace "_" "-" | trunc 40 }}
-  namespace: {{ include "mantis.namespace" . }}
+  # tag in name keeps Jobs unique across upgrades (Jobs are immutable)
+  name: {{ include "mantis.fullname" . }}-migrate-{{ .Values.app.image.tag | replace "." "-" | replace "+" "-" | replace "_" "-" | trunc 40 }}
   labels:
-    app: mantis-migrate
     {{- include "mantis.labels" . | nindent 4 }}
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "-5"
-    helm.sh/hook-delete-policy: before-hook-creation
+    app.kubernetes.io/component: migrate
 spec:
-  backoffLimit: 3
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  ttlSecondsAfterFinished: 86400
   template:
     metadata:
       labels:
-        app: mantis-migrate
+        {{- include "mantis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
     spec:
-      restartPolicy: Never
+      restartPolicy: OnFailure
       {{- include "mantis.imagePullSecrets" . | nindent 6 }}
       initContainers:
         - name: wait-for-postgres
-          image: {{ .Values.postgres.image }}
+          image: {{ .Values.postgres.image | quote }}
           command: ["sh", "-c"]
           args:
             - |
-              until pg_isready -h postgres -p {{ .Values.postgres.port }}; do
-                echo "Waiting for PostgreSQL..."
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
+                echo "waiting for postgres..."
                 sleep 2
               done
-              echo "PostgreSQL is ready."
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mantis.configName" . }}
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "mantis.configName" . }}
+                  key: POSTGRES_PORT
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_USER
       containers:
         - name: migrate
           image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          # migrations are baked at /migrations in Dockerfile.prod
           command: ["goose"]
           args:
             - "-dir"
-            - "/app/migrations"
+            - "/migrations"
             - "postgres"
             - "$(DATABASE_URL)"
             - "up"
           env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-user }
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-password }
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef: { name: mantis-secrets, key: postgres-db }
-            - name: DATABASE_URL
-              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:{{ .Values.postgres.port }}/$(POSTGRES_DB)?sslmode=disable"
+            {{- include "mantis.commonEnv" . | nindent 12 }}
           resources:
-            requests:
-              memory: 128Mi
-              cpu: 100m
-            limits:
-              memory: 256Mi
-              cpu: 200m
+            {{- toYaml .Values.migration.resources | nindent 12 }}
 {{- end }}

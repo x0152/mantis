@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	chatusecases "mantis/apps/chat/use_cases"
+	"mantis/apps/telegram/api"
 	usecases "mantis/apps/telegram/use_cases"
 	"mantis/core/agents"
 	artifactplugin "mantis/core/plugins/artifact"
@@ -23,6 +26,7 @@ type App struct {
 	ucModelCommand  *usecases.HandleModelCommand
 	ucHandleMessage *usecases.HandleMessage
 	ucSyncBots      *usecases.SyncBots
+	endpoints       *api.Endpoints
 	syncFreq        time.Duration
 }
 
@@ -58,10 +62,15 @@ func NewApp(
 		ucSession:       sessionUC,
 		ucModelCommand:  modelCommandUC,
 		ucHandleMessage: handleMessageUC,
+		endpoints:       api.NewEndpoints(api.UseCases{Wizard: usecases.NewWizard()}),
 		syncFreq:        30 * time.Second,
 	}
 	app.ucSyncBots = usecases.NewSyncBots(channelStore, app.makeHandler)
 	return app
+}
+
+func (a *App) Register(humaAPI huma.API) {
+	a.endpoints.Register(humaAPI)
 }
 
 func (a *App) Start(ctx context.Context) {

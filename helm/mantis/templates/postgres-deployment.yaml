@@ -3,44 +3,51 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: {{ include "mantis.namespace" . }}
   labels:
-    app: postgres
     {{- include "mantis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: postgres
+      {{- include "mantis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
   template:
     metadata:
       labels:
-        app: postgres
+        {{- include "mantis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
     spec:
+      {{- include "mantis.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: postgres
-          image: {{ .Values.postgres.image }}
+          image: {{ .Values.postgres.image | quote }}
           ports:
             - containerPort: {{ .Values.postgres.port }}
               name: postgres
           env:
+            - name: TZ
+              value: {{ .Values.global.timezone | default "UTC" | quote }}
+            - name: PGTZ
+              value: {{ .Values.global.timezone | default "UTC" | quote }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: mantis-secrets
-                  key: postgres-user
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: mantis-secrets
-                  key: postgres-password
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: mantis-secrets
-                  key: postgres-db
+                  name: {{ include "mantis.secretName" . }}
+                  key: POSTGRES_DB
+            # subdir avoids PV-mount clash with init scripts
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
@@ -51,11 +58,13 @@ spec:
               command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             {{- toYaml .Values.postgres.resources | nindent 12 }}
       volumes:

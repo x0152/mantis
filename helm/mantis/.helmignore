@@ -1,8 +1,13 @@
 .DS_Store
 .git/
 .gitignore
-.bak
+*.bak
 *.tmproj
 *.tgz
 .idea/
 .vscode/
+ci/
+test/
+tests/
+secrets-stage.yaml
+secrets-prod.yaml

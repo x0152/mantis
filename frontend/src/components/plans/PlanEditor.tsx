@@ -13,10 +13,11 @@ import {
   type Edge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowLeft, Pencil, Zap, GitFork, Trash2, Save } from '@/lib/icons'
+import { ArrowLeft, Pencil, Zap, GitFork, Trash2, Save, Pause, Play } from '@/lib/icons'
 import { toast } from 'sonner'
 import { api } from '../../api'
 import type { Plan, PlanGraph, PlanStepRun, PlanStepStatus } from '../../types'
+import { describeCron } from '../../lib/cron'
 import { planNodeTypes, toFlowNodes, toFlowEdges, fromFlowNodes, fromFlowEdges } from './PlanFlowNodes'
 import PlanRuns from './PlanRuns'
 import { Button } from '@/components/ui/button'
@@ -205,35 +206,113 @@ export default function PlanEditor({ plan: initialPlan, onBack, onSaved }: Props
     fromFlowNodes(nodes),
   [nodes])
 
+  const toggleEnabled = async () => {
+    const nextEnabled = !plan.enabled
+    setPlan(prev => ({ ...prev, enabled: nextEnabled }))
+    setMetaForm(prev => ({ ...prev, enabled: nextEnabled }))
+    if (!plan.id) return
+    const graph: PlanGraph = { nodes: fromFlowNodes(nodes), edges: fromFlowEdges(edges) }
+    const payload = {
+      name: plan.name,
+      description: plan.description,
+      schedule: plan.schedule,
+      enabled: nextEnabled,
+      parameters: plan.parameters ?? {},
+      graph,
+    }
+    try {
+      await api.plans.update(plan.id, payload)
+      toast.success(nextEnabled ? 'Plan enabled' : 'Plan disabled')
+      onSaved()
+    } catch (e: unknown) {
+      setPlan(prev => ({ ...prev, enabled: !nextEnabled }))
+      setMetaForm(prev => ({ ...prev, enabled: !nextEnabled }))
+      toast.error(e instanceof Error ? e.message : 'Toggle failed')
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={16} />
-          </Button>
-          <div>
-            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{plan.name || 'New Plan'}</h1>
-            {plan.description && (
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-600">{plan.description}</p>
-            )}
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" onClick={onBack} title="Back to plans" className="mt-0.5">
+              <ArrowLeft size={16} />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                    plan.enabled
+                      ? (plan.schedule ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500')
+                      : 'bg-zinc-400 dark:bg-zinc-600'
+                  }`}
+                  title={plan.enabled ? 'Enabled' : 'Disabled'}
+                />
+                <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                  {plan.name || 'New Plan'}
+                </h1>
+                <span className={`px-1.5 py-0.5 text-[10px] rounded border font-medium uppercase tracking-wide ${
+                  plan.enabled
+                    ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                    : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-500'
+                }`}>
+                  {plan.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                {plan.schedule && (
+                  <span
+                    className="px-1.5 py-0.5 text-[10px] rounded border border-zinc-300 dark:border-zinc-700 font-mono text-zinc-500 dark:text-zinc-500"
+                    title="Cron expression"
+                  >
+                    {plan.schedule}
+                  </span>
+                )}
+              </div>
+              <p className={`text-[12px] mt-1 ${
+                plan.enabled
+                  ? 'text-zinc-700 dark:text-zinc-300'
+                  : 'text-zinc-500 dark:text-zinc-500'
+              }`}>
+                {plan.schedule
+                  ? (plan.enabled
+                    ? describeCron(plan.schedule)
+                    : `Schedule "${describeCron(plan.schedule)}" — currently disabled, will not run`)
+                  : (plan.enabled
+                    ? 'Manual only — runs when you trigger it'
+                    : 'Disabled — runs only when manually triggered')}
+              </p>
+              {plan.description && (
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-0.5 truncate">
+                  {plan.description}
+                </p>
+              )}
+            </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setMetaOpen(true)} className="text-xs">
-            <Pencil size={12} /> Settings
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 mr-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant={plan.enabled ? 'secondary' : 'default'}
+              size="sm"
+              onClick={toggleEnabled}
+              disabled={!plan.name}
+              title={plan.enabled ? 'Disable plan (stop scheduled runs)' : 'Enable plan'}
+            >
+              {plan.enabled ? <Pause size={12} /> : <Play size={12} />}
+              {plan.enabled ? 'Disable' : 'Enable'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setMetaOpen(true)} className="text-xs">
+              <Pencil size={12} /> Settings
+            </Button>
+            <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-1" />
             <Button variant="secondary" size="sm" onClick={() => addNode('action')}>
               <Zap size={12} /> Action
             </Button>
             <Button variant="secondary" size="sm" onClick={() => addNode('decision')}>
               <GitFork size={12} /> Decision
             </Button>
+            <Button size="sm" onClick={savePlan} disabled={!plan.name}>
+              <Save size={14} /> Save
+            </Button>
           </div>
-          <Button size="sm" onClick={savePlan} disabled={!plan.name}>
-            <Save size={14} /> Save
-          </Button>
         </div>
       </div>
 

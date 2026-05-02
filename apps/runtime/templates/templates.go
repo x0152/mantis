@@ -28,7 +28,7 @@ type BuiltinMeta struct {
 var builtinMeta = []BuiltinMeta{
 	{Name: "base", ProfileID: "base", Description: "General-purpose workhorse sandbox — Python 3.12 + scientific stack, DB clients (psql, mysql, redis, sqlite), shell and networking utilities."},
 	{Name: "browser", ProfileID: "browser", Description: "Headless Chromium + Playwright — web navigation, screenshots, PDF, parsing.", CapAdd: []string{"SYS_ADMIN"}},
-	{Name: "ffmpeg", ProfileID: "media", Description: "FFmpeg + MediaInfo + ImageMagick — video, audio, image processing."},
+	{Name: "ffmpeg", ProfileID: "media", Description: "FFmpeg + MediaInfo + ImageMagick — video, audio, image processing. IMPORTANT: ffmpeg/ffprobe/imagemagick cannot read chat artifacts directly — before EVERY invocation you MUST upload the input file into this sandbox via ssh_upload_<sandbox_name>, and re-upload it on every run (do NOT assume a previous upload is still there: tmpfs is wiped on restart and the artifact may have been overwritten or expired)."},
 	{Name: "netsec", ProfileID: "netsec", Description: "Network / pentest toolkit — nmap, dig, nikto, ffuf, hashcat + net-* wrappers with hard timeouts."},
 	{Name: "runtimectl", ProfileID: "runtimectl", Description: "Runtime controller. Ask it in plain language to provision a new sandbox (e.g. \"need rust + cargo + curl\"); it builds, runs and registers the container."},
 }

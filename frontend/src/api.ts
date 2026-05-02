@@ -1,4 +1,4 @@
-import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User, ContextStatus, SandboxStatus } from './types'
+import type { Settings, Model, Preset, Connection, Skill, Plan, PlanRun, GuardProfile, ChatSession, ChatMessage, SessionLog, LlmConnection, ProviderModel, InferenceLimit, Channel, User, ContextStatus, SandboxStatus, GonkaConfig, GonkaWallet, GonkaBalance, GonkaAccountStatus, TelegramWizardBot, TelegramWizardUser } from './types'
 
 export class UnauthorizedError extends Error {
   constructor(message = 'Unauthorized') {
@@ -114,6 +114,35 @@ export const api = {
     trigger: (planId: string, input?: Record<string, unknown>) =>
       request<PlanRun>(`/plans/${planId}/runs`, { method: 'POST', body: JSON.stringify({ input: input ?? {} }) }),
     cancel: (id: string) => request<PlanRun>(`/plan-runs/${id}/cancel`, { method: 'POST' }),
+  },
+  telegram: {
+    verify: (token: string) =>
+      request<TelegramWizardBot>('/telegram/wizard/verify', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      }),
+    status: (token: string) =>
+      request<{ user: TelegramWizardUser | null }>('/telegram/wizard/status', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      }),
+  },
+  gonka: {
+    config: () => request<GonkaConfig>('/gonka/config'),
+    createWallet: () => request<GonkaWallet>('/gonka/wallet', { method: 'POST' }),
+    deriveAddress: (privateKeyHex: string) =>
+      request<{ address: string }>('/gonka/wallet/derive', {
+        method: 'POST',
+        body: JSON.stringify({ privateKeyHex }),
+      }),
+    balance: (address: string, nodeUrl: string) => {
+      const qs = new URLSearchParams({ address, nodeUrl })
+      return request<GonkaBalance>(`/gonka/wallet/balance?${qs.toString()}`)
+    },
+    account: (address: string, nodeUrl: string) => {
+      const qs = new URLSearchParams({ address, nodeUrl })
+      return request<GonkaAccountStatus>(`/gonka/wallet/account?${qs.toString()}`)
+    },
   },
   sandboxes: {
     list: () =>
